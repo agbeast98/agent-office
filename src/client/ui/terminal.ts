@@ -14,6 +14,7 @@ import { DROP_MAX_BYTES, droppedPaths } from '../../shared/drops';
 import { engineLabel, providerUsageNote, providerUsageState, providerWaitingLabel, resolvedProvider } from './provider';
 import { naturalKey } from './termkeys';
 import { termTabs } from './termtabs';
+import { persianReport, reportText } from './persian-report';
 import { dictateField, dictation } from './dictate';
 
 /** A line to scroll to once the terminal has loaded: a search hit (see search.ts). */
@@ -134,7 +135,13 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
   const sayBtn = h('button.btn.primary', { type: 'submit' }, 'Send');
   const sayForm = h('form.term-say', {}, dictateField(say), sayBtn);
   const keypad = opts.keypad ? h('div.term-keypad', {}, keys, sayForm) : null;
-  const tabs = termTabs(workerId, { host, keypad, focusTerm: () => term.focus() });
+  const report = persianReport(() => reportText(term.buffer.active), info.kind !== 'agent' ? undefined : (prompt) => {
+    const worker = store.workers.get(workerId);
+    if (!ready || worker?.kind !== 'agent' || isAsleep(worker.status)) return false;
+    net.send({ t: 'worker.prompt', workerId, prompt });
+    return true;
+  });
+  const tabs = termTabs(workerId, { host, keypad, report, focusTerm: () => term.focus() });
   // What you say is typed in at the terminal's cursor, as a paste, for you to read over and send (see dictate.ts).
   const mic = dictation(
     {
@@ -165,6 +172,7 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.loadAddon(new WebLinksAddon());
+  term.onWriteParsed(report.refresh);
 
   let ready = false;
   let lastSentSize = '';
@@ -174,7 +182,7 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
    * looking doesn't reflow the terminal under whoever is working.
    */
   const sendSize = (typing = false) => {
-    if (!ready) return;
+    if (!ready || host.classList.contains('hidden')) return;
     if (!typing && (store.workers.get(workerId)?.viewers.length ?? 0) > 1) {
       const w = store.workers.get(workerId);
       if (w && (w.cols !== term.cols || w.rows !== term.rows)) term.resize(w.cols, w.rows);

@@ -1,0 +1,6 @@
+.fa-report { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #fcfaf3; color: #1f2630; font: 15px/1.85 Tahoma, sans-serif; }
+.fa-report.hidden { display: none; }
+.fa-output { flex: 1; min-height: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; text-align: start; user-select: text; padding: 12px; border-radius: 8px; background: #fff; }
+.fa-compose { display: grid; gap: 6px; }
+.fa-compose textarea { padding: 8px; font: inherit; resize: vertical; min-height: 42px; max-height: 90px; }
+.fa-compose div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

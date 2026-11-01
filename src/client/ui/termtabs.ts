@@ -24,6 +24,7 @@ export interface TermTabsOptions {
   /** The terminal's own area and keypad, hidden while a web page shows. */
   host: HTMLElement;
   keypad: HTMLElement | null;
+  report: { el: HTMLElement; refresh(): void };
   /** Back on the terminal's tab. */
   focusTerm(): void;
 }
@@ -40,6 +41,7 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
   const openOut = h('a.term-tab-out.hidden', { target: '_blank', rel: 'noopener noreferrer', title: "Open this page in a browser tab of its own (for a site that won't show here)" }, '↗ New tab') as HTMLAnchorElement;
   const bar = h('div.term-tabbar', {}, tabsBar, openOut, addBtn, form);
   const pages = h('div.term-webhost.hidden');
+  pages.append(opts.report.el);
 
   const tabs = tabsByWorker.get(workerId) ?? [];
   tabsByWorker.set(workerId, tabs);
@@ -50,6 +52,9 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
     const mainTab = h('div.term-tab', { class: active === 'main' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'main'), onclick: () => show('main') }, '💻 Terminal'));
     tabsBar.replaceChildren(
       mainTab,
+      h('div.term-tab', { class: active === 'report' ? 'on' : '' }, h('button.term-tab-label', {
+        type: 'button', role: 'tab', lang: 'fa', 'aria-selected': String(active === 'report'), onclick: () => show('report'),
+      }, 'گزارش فارسی')),
       ...tabs.map((t) =>
         h(
           'div.term-tab',
@@ -80,6 +85,8 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
     opts.host.classList.toggle('hidden', !onMain);
     pages.classList.toggle('hidden', onMain);
     opts.keypad?.classList.toggle('hidden', !onMain);
+    opts.report.el.classList.toggle('hidden', id !== 'report');
+    if (id === 'report') opts.report.refresh();
     for (const [tid, frame] of frames) frame.classList.toggle('hidden', tid !== id);
     render();
     if (onMain) opts.focusTerm();
