@@ -1,5 +1,6 @@
 import './ui.css';
 import { h, openModal, toast } from '../../ui/dom';
+import { openTeamMeeting } from './meeting';
 
 // The manager's computer: the team's tasks in columns (to do, doing, review, blocked, done), the people
 // and what they're up to, a box to tell them things, and on the right whatever task you open: its notes,
@@ -22,7 +23,7 @@ interface Task {
   updatedAt: number;
   notes: Note[];
 }
-interface Team { manager?: { id: string; name: string }; people: Person[]; tasks: Task[] }
+interface Team { manager?: { id: string; name: string }; hiringLocked?: boolean; people: Person[]; tasks: Task[] }
 
 const COLUMNS: { status: string; title: string }[] = [
   { status: 'todo', title: '📥 انجام‌نشده' },
@@ -53,8 +54,10 @@ export function openManager(floor: string) {
   const msg = h('div.mg-msg', { role: 'status' });
   const title = h('h2', {}, '👑 کامپیوتر مدیر');
   const newBtn = h('button.btn', { type: 'button' }, '＋ کار تازه');
+  const meetBtn = h('button.btn', { type: 'button', title: 'جلسه‌ با همین افراد، بدون استخدام' }, '🤝 جلسه‌ی تیمی');
+  const lockBtn = h('button.btn', { type: 'button', title: 'وقتی قفل است هیچ ایجنتی استخدام نمی‌شود' }, '🔒 استخدام');
   const el = h('div.modal.manager-window', { role: 'dialog', 'aria-label': 'کامپیوتر مدیر', lang: 'fa', dir: 'rtl' },
-    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn),
+    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, lockBtn),
     h('div.mg-body', {}, h('div.mg-main', {}, people, board, msg), side));
   const modal = openModal(el, { doing: 'در کامپیوتر مدیر', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
@@ -95,6 +98,8 @@ export function openManager(floor: string) {
     const keep = mgr.value;
     mgr.replaceChildren(...team.people.map((p) => h('option', { value: p.id }, p.name)));
     mgr.value = team.manager?.id ?? keep;
+    lockBtn.textContent = team.hiringLocked ? '🔒 استخدام قفل است' : '🔓 استخدام باز است';
+    lockBtn.classList.toggle('primary', !!team.hiringLocked);
   };
 
   const field = <T extends HTMLElement>(node: T) => node;
@@ -179,6 +184,8 @@ export function openManager(floor: string) {
 
   mgr.addEventListener('change', () => void call('manager', { worker: mgr.value }));
   newBtn.addEventListener('click', () => { drafting = true; render(); });
+  meetBtn.addEventListener('click', () => openTeamMeeting(floor, team.people.map((p) => ({ id: p.id, name: p.name }))));
+  lockBtn.addEventListener('click', () => void call('lock', { on: !team.hiringLocked }));
   void load().then(() => render());
   timer = setInterval(() => void load(), POLL_MS);
   return modal;

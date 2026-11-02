@@ -37,6 +37,8 @@ export const routes: readonly Route[] = [
   workerChatRoutes.transcript,
   teamRoutes.team,
   teamRoutes.action,
+  teamRoutes.meeting,
+  teamRoutes.meetingAction,
   fileRoutes.image,
   fileRoutes.whiteboardFile,
   fileRoutes.termDrop,

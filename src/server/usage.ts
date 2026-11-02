@@ -280,6 +280,9 @@ export class Ledger {
   private saveTimer: NodeJS.Timeout | null = null;
   private emitTimer: NodeJS.Timeout | null = null;
   private tick: NodeJS.Timeout;
+  /** Whether nobody new is hired at all, set from the manager's computer and kept across restarts. */
+  private lockFile: string;
+  private locked = false;
 
   constructor(
     dataDir: string,
@@ -288,6 +291,12 @@ export class Ledger {
     private toast: (text: string, level: 'info' | 'warn') => void,
   ) {
     this.file = path.join(dataDir, 'usage.json');
+    this.lockFile = path.join(dataDir, 'hiring-lock.json');
+    try {
+      this.locked = JSON.parse(readFileSync(this.lockFile, 'utf8')).locked === true;
+    } catch {
+      // Never locked: hiring is as open as the budget says.
+    }
     this.load();
     this.shownDay = localDay();
     // Midnight: "today" starts over and a paused office hires again.
@@ -306,8 +315,22 @@ export class Ledger {
     return this.opts.budget !== undefined && (this.days[localDay()]?.cost ?? 0) >= this.opts.budget;
   }
 
+  get hiringLocked(): boolean {
+    return this.locked;
+  }
+
+  setHiringLocked(on: boolean) {
+    this.locked = on;
+    try {
+      writeFileSync(this.lockFile, JSON.stringify({ locked: on }), { mode: 0o600 });
+    } catch {
+      // Held until the office restarts.
+    }
+  }
+
   /** Why a new agent can't be hired right now, when it can't. */
   get hiringPaused(): string | undefined {
+    if (this.locked) return 'استخدام قفل است: تیم همین افراد است. از کامپیوتر مدیر باز کنید.';
     if (!this.opts.pauseHiring || !this.overBudget) return undefined;
     return `Today's ${fmtUsd(this.opts.budget!)} budget is spent — no new hires until tomorrow`;
   }

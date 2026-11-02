@@ -400,6 +400,9 @@ const TASK_TOOLS = [
   { name: 'create_task', title: 'Hand out a task (manager)', description: 'The manager creates a task and gives it to a worker (assignee): they are told at once. Anyone else calling this makes a request to the manager, as ask_manager does.', props: { title: { type: 'string', description: 'What to do, in a line.' }, detail: { type: 'string', description: 'What it needs: where, how to check it, what to hand back.' }, assignee: { type: 'string', description: 'The worker, by name or id (manager only).' }, priority: { type: 'string', enum: ['low', 'normal', 'high'] }, due: { type: 'string', description: 'A day, YYYY-MM-DD.' } }, required: ['title'] },
   { name: 'ask_manager', title: 'Ask the manager', description: 'Asks the manager for work, a decision or help, or reports a problem. It becomes a task the manager sees, and they are told. Everything between workers goes through the manager: use this rather than asking another worker directly.', props: { title: { type: 'string', description: 'The request, in a line.' }, detail: { type: 'string', description: 'What you need and why.' } }, required: ['title'], action: 'request' },
   { name: 'update_task', title: 'Update a task', description: 'Moves a task along. status: ' + STATUS_NOTE + ' Only the manager changes the title, detail, priority, due day or who it is with (assignee; empty takes it off).', props: { id: { type: 'string', description: 'The task, like T-3.' }, status: { type: 'string', description: STATUS_NOTE }, title: { type: 'string' }, detail: { type: 'string' }, assignee: { type: 'string' }, priority: { type: 'string', enum: ['low', 'normal', 'high'] }, due: { type: 'string' } }, required: ['id'], action: 'update' },
+  { name: 'meeting_read', title: 'Read the team meeting', description: 'Shows the team meeting that is on: its subject, who is in it, the round, and everything said so far. Read it before you speak in a later round.', props: {}, required: [], readOnly: true },
+  { name: 'meeting_say', title: 'Speak in the team meeting', description: 'Says your piece in the team meeting that is on: short and clear, at most 10 lines. Once each round; no work is done in a meeting, only opinions and proposals.', props: { text: { type: 'string', description: 'What you say.' } }, required: ['text'], action: 'meeting_say' },
+  { name: 'meeting_summary', title: 'Write up the team meeting (manager)', description: 'The manager records what came of the meeting: the decisions and the next steps. Make a task (create_task) for each next step.', props: { text: { type: 'string', description: 'The outcome.' } }, required: ['text'], action: 'meeting_summary' },
   { name: 'add_task_note', title: 'Note on a task', description: 'Adds a note to a task: a result, a question, a link. The manager and whoever the task is with are told.', props: { id: { type: 'string', description: 'The task, like T-3.' }, text: { type: 'string', description: 'The note.' } }, required: ['id', 'text'], action: 'note' },
 ];
 for (const t of TASK_TOOLS) {
@@ -413,7 +416,10 @@ async function taskCall(tool, args, io) {
   url.searchParams.set('worker', office.worker);
   const headers = { authorization: `Bearer ${office.token}` };
   let req;
-  if (tool.name === 'list_tasks') {
+  if (tool.name === 'meeting_read') {
+    url.searchParams.set('meeting', '1');
+    req = { method: 'GET', url: url.href, headers, timeout: 15_000 };
+  } else if (tool.name === 'list_tasks') {
     if (args.mine === true) url.searchParams.set('mine', '1');
     if (args.all === true) url.searchParams.set('all', '1');
     if (typeof args.status === 'string') url.searchParams.set('status', args.status);

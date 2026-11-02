@@ -45,6 +45,10 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
   const by = tasks.actorOf(me, workers);
   const boss = tasks.manager(workers);
 
+  if (req.method === 'GET' && url.searchParams.get('meeting') === '1') {
+    const m = floor.teamMeetings.current;
+    return send(res, 200, m ? { id: m.id, topic: m.topic, round: m.round, members: m.members.map((x) => x.name), summary: m.summary, said: m.said.map((s) => ({ round: s.round, by: s.by, text: s.text })) } : { none: true });
+  }
   if (req.method === 'GET') {
     const q = url.searchParams;
     const list = tasks.list({ status: q.get('status') ?? undefined, mine: q.get('mine') === '1' ? me.id : undefined, open: q.get('all') !== '1' });
@@ -74,6 +78,13 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
     case 'note':
       result = tasks.note(by, id, body.text, workers);
       break;
+    case 'meeting_say':
+    case 'meeting_summary': {
+      const meetings = floor.teamMeetings;
+      const m = body.action === 'meeting_say' ? meetings.say({ id: me.id, name: me.name }, body.text) : by.boss ? meetings.setSummary(body.text) : { ok: false as const, error: 'Only the manager writes the summary' };
+      if (!m.ok) return send(res, 400, { error: m.error });
+      return send(res, 200, { ok: true, said: m.meeting.said.length });
+    }
     default:
       return send(res, 400, { error: 'action is create, request, update or note' });
   }

@@ -29,6 +29,7 @@ import type { Capacity } from './machine.js';
 import { officePrompt, type PromptSource } from './prompts.js';
 import { WorkerBrowsers } from './worker-browser.js';
 import { TeamTasks } from './team-tasks.js';
+import { TeamMeetings } from './team-meeting.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -126,6 +127,8 @@ export class Floor {
   readonly jukebox: Jukebox;
   /** The team's tasks, handed out by its manager (see team-tasks.ts). */
   readonly teamTasks: TeamTasks;
+  /** A meeting of the people it already has (see team-meeting.ts). */
+  readonly teamMeetings: TeamMeetings;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
   /** The meeting room, where workers work through a question together (see meetings.ts). */
@@ -317,6 +320,7 @@ export class Floor {
     this.decor = new Decor(dataDir);
     this.jukebox = new Jukebox(dataDir);
     this.teamTasks = new TeamTasks(dataDir);
+    this.teamMeetings = new TeamMeetings(dataDir);
     this.whiteboard = new Whiteboard(dataDir);
     this.ready = this.workers.start();
 

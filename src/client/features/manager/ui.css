@@ -37,3 +37,12 @@
   .mg-cards { max-height: 240px; }
   .mg-side { overflow: visible; }
 }
+
+.mt-window { width: min(760px, 96vw); }
+.mt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.mt-picks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.mt-pick { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.mt-feed { display: flex; flex-direction: column; gap: 6px; }
+.mt-round { font-size: 12px; font-weight: 800; color: var(--muted); padding-top: 4px; }
+.mg-note.you { background: #ffe9a8; }
+.mt-window > .mg-msg { padding: 0 14px 10px; }
