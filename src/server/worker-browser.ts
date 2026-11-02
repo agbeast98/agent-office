@@ -29,6 +29,9 @@ export interface BrowserView {
 
 /** How long an approval (or a refusal) of one action on one page holds. */
 const DECISION_MS = 2 * 60_000;
+/** How often a browser's logins are written down, and how long a login that had no end date is kept. */
+const COOKIE_SAVE_MS = 60_000;
+const SESSION_COOKIE_DAYS = 30;
 /** Buttons and links that send, confirm, pay or delete, in Persian and English. */
 const SENSITIVE = /(ارسال|ثبت|تایید|تأیید|پرداخت|حذف|انتشار|خرید|پیشنهاد|submit|send|publish|confirm|pay|delete|remove|buy|order|apply|post|bid|checkout)/i;
 
@@ -36,6 +39,7 @@ interface Session {
   context: BrowserContext;
   page: Page;
   control: 'agent' | 'person';
+  saver?: ReturnType<typeof setInterval>;
   error?: string;
 }
 
@@ -95,6 +99,29 @@ export class WorkerBrowsers {
     }
   }
 
+  private cookieFile(workerId: string) {
+    return `${this.profile(workerId)}.cookies.json`;
+  }
+
+  /** Writes down this browser's cookies, the ones that would otherwise be lost when Chrome closes included. */
+  private async saveCookies(workerId: string, context: BrowserContext) {
+    try {
+      const cookies = (await context.cookies()).map((c) => (c.expires > 0 ? c : { ...c, expires: Math.floor(Date.now() / 1000) + SESSION_COOKIE_DAYS * 86_400 }));
+      writeFileSync(this.cookieFile(workerId), JSON.stringify(cookies), { mode: 0o600 });
+    } catch {
+      // The browser may be closing: the last save stands.
+    }
+  }
+
+  private async restoreCookies(workerId: string, context: BrowserContext) {
+    try {
+      const cookies = JSON.parse(readFileSync(this.cookieFile(workerId), 'utf8'));
+      if (Array.isArray(cookies) && cookies.length) await context.addCookies(cookies);
+    } catch {
+      // Nothing saved yet, or not readable: the person logs in again.
+    }
+  }
+
   private key(workerId: string, action: string, target: string, url: string) {
     return `${workerId}|${action}|${target}|${url.split('#')[0]}`;
   }
@@ -149,8 +176,13 @@ export class WorkerBrowsers {
         });
         // Functions sent to the page are compiled in the office; a build step that wraps them in a __name helper must not break there.
         await context.addInitScript('window.__name = window.__name || ((f) => f);');
+        await this.restoreCookies(workerId, context);
         const page = context.pages()[0] ?? (await context.newPage());
-        return { context, page, control: 'agent' as const };
+        const session: Session = { context, page, control: 'agent' };
+        // A login that is only a "session" cookie dies with Chrome, so the logins are kept and put back at the next start.
+        session.saver = setInterval(() => void this.saveCookies(workerId, context), COOKIE_SAVE_MS);
+        session.saver.unref();
+        return session;
       })();
       this.sessions.set(workerId, opening);
       opening.catch(() => this.sessions.delete(workerId));
@@ -341,18 +373,32 @@ export class WorkerBrowsers {
   async close(workerId: string, removeProfile = true) {
     const opening = this.sessions.get(workerId);
     this.sessions.delete(workerId);
-    if (opening) await opening.then((s) => s.context.close()).catch(() => {});
-    if (removeProfile) rmSync(this.profile(workerId), { recursive: true, force: true });
+    if (opening) {
+      await opening
+        .then(async (s) => {
+          clearInterval(s.saver);
+          if (!removeProfile) await this.saveCookies(workerId, s.context);
+          await s.context.close();
+        })
+        .catch(() => {});
+    }
+    if (removeProfile) {
+      rmSync(this.profile(workerId), { recursive: true, force: true });
+      rmSync(this.cookieFile(workerId), { force: true });
+    }
   }
 
   /** Close Chrome before the office exits so a restarted office can safely reopen these profiles. */
   async shutdown() {
     this.closing = true;
-    const sessions = [...this.sessions.values()];
+    const sessions = [...this.sessions.entries()];
     this.sessions.clear();
-    await Promise.allSettled(sessions.map(async (opening) => {
+    await Promise.allSettled(sessions.map(async ([workerId, opening]) => {
       const session = await opening.catch(() => undefined);
-      if (session) await session.context.close();
+      if (!session) return;
+      clearInterval(session.saver);
+      await this.saveCookies(workerId, session.context);
+      await session.context.close();
     }));
   }
 }

@@ -96,6 +96,43 @@ test('the worker browser asks before it sends, reads the page, and never types a
   } finally {
     await browsers.shutdown();
     server.close();
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});
+
+test('a login that is only a session cookie survives the browser closing, and goes with the worker', { skip: !chrome() && 'no Chrome here', timeout: 120_000 }, async () => {
+  const seen: (string | undefined)[] = [];
+  const server = createServer((req, res) => {
+    seen.push(req.headers.cookie);
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'set-cookie': 'sid=logged-in; Path=/; HttpOnly' });
+    res.end('<title>ok</title>ok');
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+  const dir = mkdtempSync(path.join(tmpdir(), 'wb-cookie-'));
+  const all: WorkerBrowsers[] = [];
+  const make = () => { const b = new WorkerBrowsers(dir); all.push(b); return b; };
+  try {
+    const first = make();
+    await first.navigate('w2', base);
+    await first.shutdown();
+
+    const second = make();
+    const before = seen.length;
+    await second.navigate('w2', base);
+    // The page's own request, not the favicon Chrome asks for after it.
+    assert.match(seen[before] ?? '', /sid=logged-in/);
+
+    // Sent home with its profile: the next start is logged out again.
+    await second.close('w2');
+    const third = make();
+    const again = seen.length;
+    await third.navigate('w2', base);
+    assert.ok(!(seen[again] ?? '').includes('sid='));
+    await third.shutdown();
+  } finally {
+    server.close();
+    await Promise.allSettled(all.map((b) => b.shutdown()));
+    try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* Chrome may still be letting go of the folder */ }
   }
 });
