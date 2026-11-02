@@ -3,6 +3,7 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { FAILS_TO_DESPAIR, outputFailed, toolAction } from '../../shared/actions.js';
+import { ClaudeChatReader } from '../claude-chat.js';
 import { MCP_READ_ONLY, writeClaudeMcpConfig } from '../office-workers.js';
 import { QUEUE_AGENT_DISALLOWED_TOOLS } from '../stations.js';
 import { answered, notified, wantsPermission } from '../workers/lifecycle.js';
@@ -190,6 +191,8 @@ export function claudeBlocked(text: string, early: boolean): string | undefined 
   return undefined;
 }
 
+const chatReader = new ClaudeChatReader();
+
 export const claude: ProviderAdapter<undefined, ClaudeSetup> = {
   id: 'claude',
   scrubEnv: ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_EXECPATH', 'CLAUDE_PID', 'CLAUDE_EFFORT'],
@@ -224,5 +227,7 @@ export const claude: ProviderAdapter<undefined, ClaudeSetup> = {
   // which fires no Stop hook.
   screen: { progress: true, blocked: claudeBlocked },
   usage: { transcript: true },
+  // The chat tab: its prompts and answers off the session transcript a hook named.
+  conversation: (h, after = 0) => chatReader.read(h.tracker.transcript, h.info.sessionId ?? (h.tracker.transcript ? path.basename(h.tracker.transcript, '.jsonl') : undefined), after),
   namesTasks: true,
 };

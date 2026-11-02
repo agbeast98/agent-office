@@ -135,7 +135,7 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
   const sayBtn = h('button.btn.primary', { type: 'submit' }, 'Send');
   const sayForm = h('form.term-say', {}, dictateField(say), sayBtn);
   const keypad = opts.keypad ? h('div.term-keypad', {}, keys, sayForm) : null;
-  const chat = resolvedProvider(info.provider, store.project) === 'codex' ? termChat(workerId, (prompt) => net.send({ t: 'worker.prompt', workerId, prompt })) : undefined;
+  const chat = ['codex', 'claude'].includes(resolvedProvider(info.provider, store.project)) ? termChat(workerId, (prompt) => net.send({ t: 'worker.prompt', workerId, prompt })) : undefined;
   const tabs = termTabs(workerId, { host, keypad, chat, focusTerm: () => term.focus() });
   // What you say is typed in at the terminal's cursor, as a paste, for you to read over and send (see dictate.ts).
   const mic = dictation(

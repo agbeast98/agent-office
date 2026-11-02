@@ -19,7 +19,7 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
   const send = h('button.btn.primary', { type: 'submit' }, 'ارسال ↵');
   const form = h('form.term-chat-compose', {}, input, send);
   const live = h('span.term-chat-live', {}, '● زنده');
-  const panel = h('section.term-chat', { 'aria-label': 'گفت‌وگوی ایجنت' }, h('header.term-chat-head', {}, h('div', {}, h('strong', {}, 'گفت‌وگوی ایجنت'), h('span', {}, 'پیام‌ها از نشست Codex خوانده می‌شوند')), live), state, list, form);
+  const panel = h('section.term-chat', { 'aria-label': 'گفت‌وگوی ایجنت' }, h('header.term-chat-head', {}, h('div', {}, h('strong', {}, 'گفت‌وگوی ایجنت'), h('span', {}, 'پیام‌ها از نشست خود ایجنت خوانده می‌شوند')), live), state, list, form);
   const nodes = new Map<string, HTMLElement>();
   let visible = false;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -42,8 +42,8 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
     live.textContent = requestError ? '● خطا' : page.status === 'ready' ? '● آماده' : page.status === 'unsupported' ? '● پشتیبانی‌نشده' : '● در انتظار';
     if (requestError) state.textContent = 'گفت‌وگو فعلاً بارگذاری نشد. دوباره تلاش می‌کنم…';
     else if (draftPending) state.textContent = 'اتصال برقرار شد؛ متن شما در کادر مانده و هنوز ارسال نشده. برای ارسال دوباره بزن.';
-    else if (pendingMessages.length) state.textContent = 'پیام به نشست Codex فرستاده شد؛ پاسخ وقتی اتصال گفت‌وگوی Codex برقرار باشد اینجا نمایش داده می‌شود.';
-    else if (page.status === 'waiting') state.textContent = 'اتصال گفت‌وگو با نشست Codex هنوز آماده نیست؛ فعلاً پیام‌ها و پاسخ‌ها ممکن است در ترمینال دیده شوند.';
+    else if (pendingMessages.length) state.textContent = 'پیام به نشست ایجنت فرستاده شد؛ پاسخ وقتی اتصال گفت‌وگوی ایجنت برقرار باشد اینجا نمایش داده می‌شود.';
+    else if (page.status === 'waiting') state.textContent = 'اتصال گفت‌وگو با نشست ایجنت هنوز آماده نیست؛ فعلاً پیام‌ها و پاسخ‌ها ممکن است در ترمینال دیده شوند.';
     else if (page.status === 'unsupported') state.textContent = 'برای این ایجنت گفت‌وگوی جداگانه در دسترس نیست.';
     else if (!page.messages.length && !list.childElementCount) state.textContent = 'هنوز پیامی ثبت نشده. از پایین به ایجنت پیام بده.';
     state.classList.toggle('hidden', page.status === 'ready' && hasMessages && !requestError && !draftPending && !pendingMessages.length);
