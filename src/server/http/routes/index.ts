@@ -9,6 +9,8 @@ import { githubRoutes } from './github.js';
 import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
 import { serviceRoutes } from './services.js';
+import { workerBrowserRoutes } from './worker-browser.js';
+import { workerChatRoutes } from './worker-chat.js';
 
 export const routes: readonly Route[] = [
   // Anyone.
@@ -28,6 +30,10 @@ export const routes: readonly Route[] = [
   // Signed in.
   authRoutes.whoami,
   agentRoutes.models,
+  workerBrowserRoutes.view,
+  workerBrowserRoutes.screenshot,
+  workerBrowserRoutes.action,
+  workerChatRoutes.transcript,
   fileRoutes.image,
   fileRoutes.whiteboardFile,
   fileRoutes.termDrop,

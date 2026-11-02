@@ -8,7 +8,7 @@ import { $, h, STATUS_LABEL, timeAgo } from './dom';
 import { usageLabel, usageTitle } from './usage';
 import { providerLabel, providerUsageState, providerWaitingLabel, resolvedProvider, modelBadge } from './provider';
 
-export function renderWorkers(onOpen: (id: string) => void) {
+export function renderWorkers(onOpen: (id: string) => void, onMeeting: (id: string) => void) {
   const ul = $('workers');
   ul.replaceChildren();
   const workers = needyFirst(store.workers.values());
@@ -20,9 +20,17 @@ export function renderWorkers(onOpen: (id: string) => void) {
     const waiting = usageState === 'waiting' ? providerWaitingLabel(providerKind, store.project) : '';
     const usageNote = usageState === 'untracked' ? ' · usage untracked' : waiting ? ` · ${waiting}` : '';
     const badge = w.kind === 'agent' ? modelBadge(w.provider, w.model, w.effort, w.usage?.model) : undefined;
-    const sub = [provider && `⚙️ ${provider}${badge ? ` · ${badge}` : ''}${usageNote}`, w.worktree && `🌿 ${w.worktree.branch}`, w.repos?.length && `🗂️ ${w.repos.length + 1} repos`, w.pr && `🔀 PR #${w.pr.number}`, w.activity || w.title || w.prompt].filter(Boolean).join(' · ');
+    const sub = [w.role, w.meetingOriginDesk && '🎙️ مهمان اتاق جلسه', provider && `⚙️ ${provider}${badge ? ` · ${badge}` : ''}${usageNote}`, w.worktree && `🌿 ${w.worktree.branch}`, w.repos?.length && `🗂️ ${w.repos.length + 1} repos`, w.pr && `🔀 PR #${w.pr.number}`, w.activity || w.title || w.prompt].filter(Boolean).join(' · ');
     // What it's stopped on, and since when, on a line of its own under its name.
     const ask = asking ? h('span.ask', {}, `🙋 ${w.activity ?? 'Waiting on an answer'}${w.waitingSince ? ` · ${timeAgo(w.waitingSince)}` : ''}`) : null;
+    const canVisit = w.kind === 'agent' && !w.meeting && (!!w.meetingOriginDesk || !DESK_BY_ID.get(w.deskId)?.station);
+    const meetingButton = canVisit ? h('button.worker-meeting', {
+      type: 'button',
+      title: w.meetingOriginDesk ? 'بازگرداندن به میز اصلی' : 'دعوت همین ایجنت به اتاق جلسه',
+      'aria-label': w.meetingOriginDesk ? `بازگرداندن ${w.name} به میز اصلی` : `دعوت ${w.name} به اتاق جلسه`,
+      disabled: !w.meetingOriginDesk && !!store.meeting.current && !store.meeting.current.cleared,
+      onclick: (event: Event) => { event.stopPropagation(); onMeeting(w.id); },
+    }, w.meetingOriginDesk ? '↩︎' : '🪑') : null;
     ul.append(
       h(
         'li',
@@ -32,6 +40,7 @@ export function renderWorkers(onOpen: (id: string) => void) {
           usageState === 'tracked' && w.usage ? h('span.cost', { title: usageTitle(w.usage, providerKind) }, usageLabel(w.usage, providerKind)) : null),
         w.lost ? h('span.pill.lost', { title: 'Its worktree was deleted outside agent-office: open it to fix it' }, 'worktree deleted') : h('span.pill', { class: w.status }, asking ? 'NEEDS YOU' : (STATUS_LABEL[w.status] ?? w.status)),
         ask,
+        meetingButton,
       ),
     );
   }

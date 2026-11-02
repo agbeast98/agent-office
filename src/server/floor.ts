@@ -27,6 +27,7 @@ import { landedWork, landedWorkers, type Landed } from './leave-on-merge.js';
 import type { Ledger } from './usage.js';
 import type { Capacity } from './machine.js';
 import { officePrompt, type PromptSource } from './prompts.js';
+import { WorkerBrowsers } from './worker-browser.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -113,6 +114,8 @@ export class Floor {
   readonly dir: string;
   readonly project: ProjectInfo;
   readonly workers: WorkerManager;
+  /** One private persistent browser context per worker, shown in its terminal's Browser tab. */
+  readonly workerBrowsers: WorkerBrowsers;
   readonly github: GitHub;
   readonly queue: TaskQueue;
   readonly changes: Changes;
@@ -154,6 +157,7 @@ export class Floor {
     excludeFromGit(def.dir);
     this.project = projectInfo(def.dir, def.name, ctx.agentCmd, ctx.agentArgs);
     this.docs = new Docs(def.dir);
+    this.workerBrowsers = new WorkerBrowsers(dataDir);
     // Before the workers and the dog: the back office's desks are only there once it's built.
     this.plan = new FloorPlanStore(dataDir);
     this.jail = new Jail(dataDir);
@@ -184,6 +188,7 @@ export class Floor {
           this.sendLandedHome();
         },
         remove: (workerId, info) => {
+          void this.workerBrowsers.close(workerId);
           this.changes?.forget(workerId);
           // Sent home on a map that keeps workers (the castle locks them up, the station puts them out
           // of its airlock): it's kept, for good (a meeting's workers aren't sent home when it's over,
@@ -204,6 +209,7 @@ export class Floor {
       ctx.prompts,
       ctx.runAs,
       ctx.dshProfile,
+      def.id,
     );
     this.workers.wing = () => this.plan.wing;
 
@@ -409,7 +415,10 @@ export class Floor {
   }
 
   /** With `keep` (a restart), the workers' terminals keep running for the next office to pick up. */
-  shutdown(keep = false) {
+  async shutdown(keep = false): Promise<void> {
+    // Start closing Chromium immediately, before stopping workers, and wait before the server exits.
+    // Profiles are removed only by the worker-removal callback for workers actually sent home.
+    const browserShutdown = this.workerBrowsers.shutdown();
     clearInterval(this.timer);
     clearTimeout(this.landedTimer);
     this.dog.stop();
@@ -419,5 +428,6 @@ export class Floor {
     this.changes.stop();
     this.whiteboard.flush();
     this.workers.shutdown(keep);
+    await browserShutdown;
   }
 }

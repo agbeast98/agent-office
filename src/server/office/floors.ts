@@ -54,7 +54,7 @@ export function floorHelpers(ctx: Ctx): FloorHelpers {
       } else ctx.sendTo(c, { t: 'toast', text: `🛗 ${who} took ${name} off the building`, level: 'info' });
     }
     ctx.floors.delete(floor.id);
-    floor.shutdown();
+    void floor.shutdown();
     floorsChanged();
     // Its workers made room under the worker limit.
     ctx.pumpQueues();

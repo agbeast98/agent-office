@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { AgentChoice, AgentEffort, AgentProvider, TerminalHit, WorkerInfo, WorkerKind, WorkerRepo, WorkerStatus } from '../../shared/protocol.js';
 import { AGENT_PROVIDERS, takesEffort, takesModel } from '../../shared/providers.js';
 import { Worktrees, workspaceOf, type WorktreeCleanup, type WorktreeState } from '../worktrees.js';
-import { DESK_BY_ID, STATION_AGENT, deskBuilt } from '../../shared/layout.js';
+import { DESK_BY_ID, MEETING_SEATS, STATION_AGENT, deskBuilt } from '../../shared/layout.js';
 import { stationBrief } from '../stations.js';
 import type { PromptSource } from '../prompts.js';
 import type { GhAs } from '../signins.js';
@@ -29,6 +29,7 @@ import type { HookEnv, OpenedPr, RepoSource, RunAs, Worker, WorkerContext, Worke
 import { clamp, safeEq, truncate } from './util.js';
 import { COLORS, NAMES, newWorker } from './worker.js';
 import { WorkerTrees, lostMessage } from './worktree.js';
+import { SEO_ROSTER, withSeoIdentity } from './seo-roster.js';
 
 const SCREEN_INTERVAL_MS = 250;
 /** How often a steady typist's "last typed" time is refreshed for everyone. */
@@ -88,6 +89,7 @@ export class WorkerManager {
     private runAs?: RunAs,
     /** The DSH profile a DeepSeek Harness worker boots (default "acp"). */
     dshProfile: string = DSH_PROFILE_DEFAULT,
+    private floorId?: string,
   ) {
     this.defaultProvider = configuredProvider(agentCmd);
     this.trees = new Worktrees(dir);
@@ -124,7 +126,13 @@ export class WorkerManager {
     this.host = new PtyHost(dataDir, () => this.events.toast("The workers' terminal host stopped — resuming them", 'warn'));
     this.scrollback = new ScrollbackStore(dataDir);
     this.drops = new DropStore(dataDir);
-    restoreWorkers(this.statePath, this.workers, this.defaultProvider, (deskId) => this.deskOccupied(deskId));
+    // Restore physical seats without treating a guest's reserved home desk as occupied by the guest;
+    // the original employee may appear later in workers.json and must still be restored there.
+    restoreWorkers(this.statePath, this.workers, this.defaultProvider, (deskId) => [...this.workers.values()].some((w) => w.info.deskId === deskId));
+    if (this.floorId === 'seo') {
+      for (const worker of this.workers.values()) Object.assign(worker.info, withSeoIdentity(worker.info));
+      this.persist();
+    }
     this.scrollback.prune(new Set(this.workers.keys()));
     this.drops.prune(new Set(this.workers.keys()));
     // A session may have ended (and written its final tally) while the office was down.
@@ -185,6 +193,17 @@ export class WorkerManager {
     return this.workers.get(id)?.info;
   }
 
+  /** Reads the active worker conversation only through its provider adapter. */
+  conversation(id: string, after = 0) {
+    const w = this.workers.get(id);
+    if (!w || w.info.kind !== 'agent') return { status: 'unsupported' as const, cursor: 0, messages: [] };
+    const adapter = providerAdapter(w.info.provider ?? this.defaultProvider);
+    // Re-establish provider paths on demand as well as at process launch/adoption. Codex chat can
+    // recover its worker-specific rollout even when the native lifecycle hook didn't report one.
+    adapter?.usage?.locate?.(this.handleOf(w), this.cwd(w.info), childEnv());
+    return adapter?.conversation?.(this.handleOf(w), after) ?? { status: 'unsupported' as const, cursor: 0, messages: [] };
+  }
+
   /** The account a worker runs as (see RunAs), if not the office. */
   ownerOf(id: string): string | undefined {
     return this.workers.get(id)?.owner;
@@ -210,8 +229,35 @@ export class WorkerManager {
   }
 
   deskOccupied(deskId: string): boolean {
-    for (const w of this.workers.values()) if (w.info.deskId === deskId) return true;
+    for (const w of this.workers.values()) if (w.info.deskId === deskId || w.info.meetingOriginDesk === deskId) return true;
     return false;
+  }
+
+  /** Seat an existing employee at the meeting table without starting another provider session. */
+  visitMeeting(id: string): string | undefined {
+    const w = this.workers.get(id);
+    if (!w || w.info.kind !== 'agent') return 'این ایجنت در دسترس نیست.';
+    if (w.info.meeting) return 'این صندلی برای جلسهٔ کاری دیگری رزرو شده است.';
+    if (w.info.meetingOriginDesk) return `${w.info.name} از قبل در اتاق جلسه است.`;
+    const chair = MEETING_SEATS.find((seat) => ![...this.workers.values()].some((x) => x.info.deskId === seat.id));
+    if (!chair) return 'صندلی خالی در اتاق جلسه وجود ندارد.';
+    w.info.meetingOriginDesk = w.info.deskId;
+    w.info.deskId = chair.id;
+    this.emitUpdate(w);
+    this.persist();
+  }
+
+  /** Return an invited employee to the desk reserved for them when they entered the room. */
+  returnFromMeeting(id: string): string | undefined {
+    const w = this.workers.get(id);
+    const origin = w?.info.meetingOriginDesk;
+    if (!w || !origin) return 'این ایجنت مهمان جلسه نیست.';
+    const occupied = [...this.workers.values()].some((x) => x.info.id !== id && x.info.deskId === origin);
+    if (occupied) return 'میز اصلی این ایجنت فعلاً اشغال است.';
+    w.info.deskId = origin;
+    delete w.info.meetingOriginDesk;
+    this.emitUpdate(w);
+    this.persist();
   }
 
   /**
@@ -249,7 +295,8 @@ export class WorkerManager {
     if (full) return full;
     const used = new Set([...this.workers.values()].map((w) => w.info.name.replace(/ 🐚$/, '')));
     const agent = seat.station && STATION_AGENT[seat.station];
-    const name = agent ? agent.name : (NAMES.find((n) => !used.has(n)) ?? `Worker ${this.workers.size + 1}`);
+    const profile = this.floorId === 'seo' && !meeting ? SEO_ROSTER[deskId] : undefined;
+    const name = profile?.name ?? (agent ? agent.name : (NAMES.find((n) => !used.has(n)) ?? `Worker ${this.workers.size + 1}`));
     const id = randomBytes(6).toString('hex');
     let wt: WorkerInfo['worktree'] = meeting?.worktree;
     let others: WorkerRepo[] | undefined;
@@ -274,6 +321,7 @@ export class WorkerManager {
       effort: takesEffort(selectedProvider) ? effort : undefined,
       deskId,
       name: kind === 'shell' ? `${name} 🐚` : name,
+      ...(kind === 'agent' && profile ? { role: profile.role } : {}),
       color: kind === 'shell' ? '#8d99ae' : agent ? agent.color : COLORS[Math.floor(Math.random() * COLORS.length)],
       status: 'starting',
       acked: true,
@@ -295,7 +343,8 @@ export class WorkerManager {
     this.workers.set(id, w);
     if (info.prompt) this.tasks.notePrompt(w, info.prompt);
     // A board agent is told what it's there for ahead of its first request (which is what shows).
-    this.launch(w, seat.station && info.prompt ? `${stationBrief(seat.station, this.prompts)}\n\n${info.prompt}` : info.prompt, undefined);
+    const rolePrompt = info.role ? `نقش شما در تیم: ${info.role}. در کارهای مرتبط با تیم، با همین مسئولیت پاسخ بدهید.\n\n` : '';
+    this.launch(w, `${rolePrompt}${seat.station && info.prompt ? `${stationBrief(seat.station, this.prompts)}\n\n${info.prompt}` : info.prompt ?? ''}` || undefined, undefined);
     this.persist();
     return info;
   }
@@ -503,7 +552,8 @@ export class WorkerManager {
     if (w.dsh) {
       const clean = text.replace(/\r\n?/g, '\n').trim();
       if (!clean) return 'Empty prompt';
-      w.dsh.prompt(clean);
+      const assigned = w.info.role ? `یادآوری نقش شما: ${w.info.role}.\n\n${clean}` : clean;
+      w.dsh.prompt(assigned);
       w.info.activity = truncate(clean, 80);
       this.tasks.notePrompt(w, clean);
       if (by) w.info.lastInput = { by, at: Date.now() };
@@ -513,8 +563,9 @@ export class WorkerManager {
     if (!w.pty) return 'Worker is not running';
     const clean = text.replace(/\r\n?/g, '\n').trim();
     if (!clean) return 'Empty prompt';
+    const assigned = w.info.role ? `یادآوری نقش شما: ${w.info.role}.\n\n${clean}` : clean;
     // Bracketed paste keeps multi-line prompts in one message, then Enter submits.
-    w.pty.write(`\x1b[200~${clean}\x1b[201~`);
+    w.pty.write(`\x1b[200~${assigned}\x1b[201~`);
     setTimeout(() => w.pty?.write('\r'), 120);
     w.info.activity = truncate(clean, 80);
     this.tasks.notePrompt(w, clean);

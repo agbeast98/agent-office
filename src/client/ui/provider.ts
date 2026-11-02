@@ -158,21 +158,21 @@ function loadCatalogue(provider: AgentProvider): Promise<void> | undefined {
  * takes, and how its model is asked for, is its row in the provider table (shared/providers.ts), so
  * a provider added there gets its fields here.
  */
-export function agentFields(project: ProjectInfo | null, id: string, initial: AgentChoice, label = 'Provider'): AgentFields {
+export function agentFields(project: ProjectInfo | null, id: string, initial: AgentChoice, label = 'Provider', locale: 'en' | 'fa' = 'en'): AgentFields {
   const options = supportedProviders(project);
   const fallback = resolvedProvider(project?.defaultProvider, project);
-  const select = h('select.provider-select', { id, 'aria-label': 'Worker provider' }) as HTMLSelectElement;
+  const select = h('select.provider-select', { id, 'aria-label': locale === 'fa' ? 'ارائه‌دهندهٔ ایجنت' : 'Worker provider' }) as HTMLSelectElement;
   for (const provider of options) select.append(h('option', { value: provider }, PROVIDER_LABEL[provider]));
   const note = h('small.provider-note');
   // A model is picked from a list or typed in, by provider: the two controls take turns.
-  const modelLabel = h('label', {}, 'Model') as HTMLLabelElement;
+  const modelLabel = h('label', {}, locale === 'fa' ? 'مدل' : 'Model') as HTMLLabelElement;
   const modelSelect = h('select', { id: `${id}-model` }) as HTMLSelectElement;
   const modelInput = h('input', { type: 'text', id: `${id}-model-id`, list: `${id}-models`, autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
   const suggestions = h('datalist', { id: `${id}-models` });
-  const effortLabel = h('label', { for: `${id}-effort` }, 'Effort');
+  const effortLabel = h('label', { for: `${id}-effort` }, locale === 'fa' ? 'میزان استدلال' : 'Effort');
   const effortSelect = h('select', { id: `${id}-effort` }) as HTMLSelectElement;
-  effortSelect.append(h('option', { value: '' }, 'Default'));
-  for (const e of AGENT_EFFORTS) effortSelect.append(h('option', { value: e }, EFFORT_LABEL[e]));
+  effortSelect.append(h('option', { value: '' }, locale === 'fa' ? 'پیش‌فرض' : 'Default'));
+  for (const e of AGENT_EFFORTS) effortSelect.append(h('option', { value: e }, locale === 'fa' ? ({ low: 'کم', medium: 'متوسط', high: 'زیاد', xhigh: 'بسیار زیاد', max: 'بیشینه' } as Record<AgentEffort, string>)[e] : EFFORT_LABEL[e]));
   const hint = h('small.provider-model-hint');
   const fields = h('div.provider-model', {}, modelLabel, modelSelect, modelInput, suggestions, effortLabel, effortSelect, hint);
   const element = h('div.provider-choice', {}, h('label', { for: id }, label), select, note, fields);
@@ -192,7 +192,7 @@ export function agentFields(project: ProjectInfo | null, id: string, initial: Ag
   const pick = (id: string) => {
     const models = known();
     chosen = id;
-    modelSelect.replaceChildren(h('option', { value: '' }, meta().models?.unset ?? 'Default'), ...models.map((m) => h('option', { value: m.id }, m.name ?? m.id)));
+    modelSelect.replaceChildren(h('option', { value: '' }, locale === 'fa' ? 'پیش‌فرض' : meta().models?.unset ?? 'Default'), ...models.map((m) => h('option', { value: m.id }, m.name ?? m.id)));
     if (id && !models.some((m) => m.id === id)) modelSelect.append(h('option', { value: id }, id));
     modelSelect.value = id;
     if (modelInput.value.trim() !== id) modelInput.value = id;
@@ -219,7 +219,7 @@ export function agentFields(project: ProjectInfo | null, id: string, initial: Ag
     for (const control of [modelSelect, modelInput]) control.setAttribute('aria-label', `${m.label} model`);
     modelInput.placeholder = field?.unset ?? '';
     modelInput.maxLength = field?.max ?? 256;
-    effortLabel.textContent = m.effortLabel ?? 'Effort';
+    effortLabel.textContent = locale === 'fa' ? 'میزان استدلال' : m.effortLabel ?? 'Effort';
     effortLabel.classList.toggle('hidden', !m.takesEffort);
     effortSelect.classList.toggle('hidden', !m.takesEffort);
     effortSelect.setAttribute('aria-label', m.effortLabel ? `${m.label} ${m.effortLabel.toLowerCase()} level` : `${m.label} reasoning effort`);
@@ -289,20 +289,23 @@ export function agentFields(project: ProjectInfo | null, id: string, initial: Ag
  * Which worker to start: the office's default (⚙️ Settings), shown as a line, with an ✏️ Edit button
  * that opens the provider, model and effort fields to pick another for this one.
  */
-export function providerPicker(project: ProjectInfo | null, id: string, label = 'Worker'): ProviderPicker {
+export function providerPicker(project: ProjectInfo | null, id: string, label = 'Worker', locale: 'en' | 'fa' = 'en'): ProviderPicker {
   let editing = false;
-  const fields = agentFields(project, id, officeChoice(project));
+  const fields = agentFields(project, id, officeChoice(project), locale === 'fa' ? 'ارائه‌دهنده' : 'Provider', locale);
   fields.element.classList.add('hidden');
   const current = h('span.provider-current');
   const edit = h('button.btn.small', { type: 'button', 'aria-expanded': 'false' }) as HTMLButtonElement;
   const element = h('div.provider-pick', {}, h('div.provider-summary', {}, h('span.provider-label', {}, label), current, edit), fields.element);
+  const displayChoice = (choice: AgentChoice) => locale === 'fa'
+    ? choiceLabel(choice).replace(/\bLow\b/g, 'کم').replace(/\bMedium\b/g, 'متوسط').replace(/\bHigh\b/g, 'زیاد').replace(/\bExtra high\b/g, 'بسیار زیاد').replace(/\bMax\b/g, 'بیشینه')
+    : choiceLabel(choice);
   const paint = () => {
     const def = officeChoice(project);
-    current.textContent = choiceLabel(def);
-    current.title = store.prompts.agent ? 'The office’s default worker, set in ⚙️ Settings' : 'The office’s default worker (its --agent); an admin can pick another in ⚙️ Settings';
+    current.textContent = displayChoice(def);
+    current.title = locale === 'fa' ? 'مدل پیش‌فرض دفتر؛ از تنظیمات می‌توانید آن را تغییر دهید.' : store.prompts.agent ? 'The office’s default worker, set in ⚙️ Settings' : 'The office’s default worker (its --agent); an admin can pick another in ⚙️ Settings';
     current.classList.toggle('hidden', editing);
-    edit.textContent = editing ? '↺ Use the default' : '✏️ Edit';
-    edit.title = editing ? `Back to ${choiceLabel(def)}` : 'Pick another provider, model or effort for this one';
+    edit.textContent = editing ? (locale === 'fa' ? '↺ بازگشت به پیش‌فرض' : '↺ Use the default') : (locale === 'fa' ? '✏️ تغییر' : '✏️ Edit');
+    edit.title = locale === 'fa' ? (editing ? `بازگشت به ${displayChoice(def)}` : 'انتخاب ارائه‌دهنده، مدل یا میزان استدلال') : editing ? `Back to ${choiceLabel(def)}` : 'Pick another provider, model or effort for this one';
     edit.setAttribute('aria-expanded', String(editing));
     fields.element.classList.toggle('hidden', !editing);
   };

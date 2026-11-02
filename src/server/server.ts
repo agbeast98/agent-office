@@ -52,7 +52,7 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
   tailnet.start(() => services.list().map((s) => s.port));
 
   /** With `keep` (a restart), workers' terminals keep running for the next office to pick up. */
-  const shutdown = (keep = false) => {
+  const shutdown = async (keep = false) => {
     stopTimers();
     ctx.cancelFloorsChanged();
     ctx.arcade.flush();
@@ -63,7 +63,7 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
     ctx.machine.stop();
     ctx.sky.stop();
     ctx.themes.stop();
-    for (const f of ctx.floors.values()) f.shutdown(keep);
+    const browserShutdown = [...ctx.floors.values()].map((f) => f.shutdown(keep));
     ctx.building.shutdown(keep);
     ctx.ledger.flush();
     ctx.limits.close();
@@ -72,6 +72,7 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
     for (const c of ctx.clients.values()) c.ws.close();
     server.close();
     hookServer.close();
+    await Promise.allSettled(browserShutdown);
   };
 
   /** A link (path and fragment) that signs one browser in, once; see Auth.linkKey. */

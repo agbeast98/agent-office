@@ -16,6 +16,16 @@ export const jailView: ViewPieces['jail'] = (_ctx, floor) => floor?.jail.state()
 const TYPING_GAP_MS = 500;
 
 export const workerHandlers = {
+  'worker.meeting'(ctx, c, msg) {
+    const w = workerOf(ctx, msg.workerId);
+    if (!w) return;
+    const current = w.floor.meetings.state().current;
+    if (current && !current.cleared) return ctx.warn(c, 'ابتدا جلسهٔ کاری فعلی را خالی کنید؛ مهمانان را نمی‌شود با صندلی‌های آن جلسه جابه‌جا کرد.');
+    const error = w.info.meetingOriginDesk
+      ? w.floor.workers.returnFromMeeting(w.wid)
+      : w.floor.workers.visitMeeting(w.wid);
+    if (error) ctx.warn(c, error);
+  },
   'worker.spawn'(ctx, c, msg) {
     const who = c.peer.name;
     const floor = here(ctx, c);

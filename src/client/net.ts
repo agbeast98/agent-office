@@ -87,7 +87,14 @@ export class Net {
     this.restartExpected = true;
   }
 
-  send(msg: ClientMsg) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  send(msg: ClientMsg): boolean {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    try {
+      ws.send(JSON.stringify(msg));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

@@ -26,6 +26,7 @@ export function saveWorkers(file: string, workers: Iterable<Worker>, stopping: b
     effort: info.effort,
     deskId: info.deskId,
     name: info.name,
+    role: info.role,
     color: info.color,
     createdBy: info.createdBy,
     createdAt: info.createdAt,
@@ -39,6 +40,7 @@ export function saveWorkers(file: string, workers: Iterable<Worker>, stopping: b
     pr: info.pr,
     pastPrs: info.pastPrs,
     meeting: info.meeting,
+    meetingOriginDesk: info.meetingOriginDesk,
     workedMs: workedMs(info),
     tracker: info.kind === 'agent' ? tracker : undefined,
     usage: providerAdapter(info.provider)?.usage?.persisted ? info.usage : undefined,
@@ -80,6 +82,7 @@ export function restoreWorkers(file: string, workers: Map<string, Worker>, defau
         effort: savedEffort(provider, s.effort),
         deskId: s.deskId,
         name: s.name ?? 'Worker',
+        role: typeof s.role === 'string' ? s.role.slice(0, 100) : undefined,
         color: s.color ?? COLORS[0],
         status: 'offline',
         acked: true,
@@ -100,6 +103,7 @@ export function restoreWorkers(file: string, workers: Map<string, Worker>, defau
         viewers: [],
         viewerIds: [],
         meeting: typeof s.meeting === 'string' && DESK_BY_ID.get(s.deskId)?.room ? s.meeting : undefined,
+        meetingOriginDesk: typeof s.meetingOriginDesk === 'string' && DESK_BY_ID.has(s.meetingOriginDesk) && !!DESK_BY_ID.get(s.deskId)?.room && !DESK_BY_ID.get(s.meetingOriginDesk)?.room ? s.meetingOriginDesk : undefined,
         workedMs: typeof s.workedMs === 'number' && Number.isFinite(s.workedMs) && s.workedMs > 0 ? s.workedMs : undefined,
       };
       const w = newWorker(info, tracker, typeof s.hookToken === 'string' && s.hookToken ? s.hookToken : undefined);
