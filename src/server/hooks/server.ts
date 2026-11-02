@@ -21,6 +21,36 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
     }
     if (url.pathname === '/office/queue') return officeQueue(ctx, req, res, url);
     if (url.pathname === '/office/workers' || url.pathname.startsWith('/office/workers/')) return officeWorkers(ctx, req, res, url);
+    if (url.pathname === '/office/browser') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
+      const workerId = url.searchParams.get('worker') ?? '';
+      const floor = ctx.workerFloor(workerId);
+      const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+      if (!floor?.workers.authenticate(workerId, token)) return send(res, 401, { error: 'This worker cannot access its browser.' });
+      let body: Record<string, unknown>;
+      try {
+        const value = JSON.parse(await readBody(req, 12_000));
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return send(res, 400, { error: 'Bad request' });
+        body = value as Record<string, unknown>;
+      } catch {
+        return send(res, 400, { error: 'Bad request' });
+      }
+      try {
+        const browsers = floor.workerBrowsers;
+        if (body.action === 'open') return send(res, 200, await browsers.navigate(workerId, body.url, 'agent'));
+        if (body.action === 'view') return send(res, 200, await browsers.view(workerId));
+        if (body.action === 'text') return send(res, 200, { text: await browsers.text(workerId, 'agent') });
+        if (body.action === 'click') return send(res, 200, await browsers.click(workerId, body.selector, 'agent'));
+        if (body.action === 'type') return send(res, 200, await browsers.type(workerId, body.selector, body.text, 'agent'));
+        if (body.action === 'back') return send(res, 200, await browsers.back(workerId, 'agent'));
+        if (body.action === 'forward') return send(res, 200, await browsers.forward(workerId, 'agent'));
+        if (body.action === 'reload') return send(res, 200, await browsers.reload(workerId, 'agent'));
+        if (body.action === 'screenshot') return send(res, 200, { data: (await browsers.screenshot(workerId)).toString('base64') });
+        return send(res, 400, { error: 'Unknown browser action' });
+      } catch (error) {
+        return send(res, 400, { error: error instanceof Error ? error.message : 'Browser action failed' });
+      }
+    }
     // Each provider with hooks has its route, /hooks/<provider> (see providers/).
     const route = url.pathname.startsWith('/hooks/') ? url.pathname.slice('/hooks/'.length) : '';
     const hook = providerHook(route);

@@ -69,6 +69,14 @@ export interface ProviderUsage<S> {
   restore?(state: S, saved: Record<string, unknown>): void;
 }
 
+/** A bounded, read-only view of a provider's current user/assistant conversation. */
+export interface ProviderConversation {
+  status: 'waiting' | 'ready' | 'unsupported';
+  cursor: number;
+  messages: { id: string; role: 'user' | 'assistant'; text: string; at?: string }[];
+  unchanged?: boolean;
+}
+
 export interface ProviderAdapter<S = undefined, P = undefined> {
   readonly id: AgentProvider;
   /** Env vars its own sessions set that would make a worker think it's one of their children: no worker gets them (see childEnv). */
@@ -109,6 +117,8 @@ export interface ProviderAdapter<S = undefined, P = undefined> {
     blocked?(text: string, early: boolean): string | undefined;
   };
   usage?: ProviderUsage<S>;
+  /** A provider-native conversation reader; never inferred from terminal escape output. */
+  conversation?(h: WorkerHandle<S>, after?: number): ProviderConversation;
   /** The office names its workers' tasks (see TaskNamer); the others keep the task their first prompt gives. */
   namesTasks?: boolean;
 }

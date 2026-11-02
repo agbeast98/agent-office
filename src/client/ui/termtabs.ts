@@ -3,6 +3,8 @@
 // anyone else, and they're kept per worker until the page reloads.
 import './termtabs.css';
 import { clip, h, toast } from './dom';
+import { workerBrowser } from './worker-browser';
+import type { TermChat } from './termchat';
 
 /** A web page pinned open beside a worker's terminal. */
 interface WebTab {
@@ -24,12 +26,13 @@ export interface TermTabsOptions {
   /** The terminal's own area and keypad, hidden while a web page shows. */
   host: HTMLElement;
   keypad: HTMLElement | null;
+  chat?: TermChat;
   /** Back on the terminal's tab. */
   focusTerm(): void;
 }
 
 /** The tab bar (above the terminal) and where the pages show (beside it). */
-export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLElement; pages: HTMLElement } {
+export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLElement; pages: HTMLElement; dispose(): void } {
   const tabsBar = h('div.term-tabs', { role: 'tablist', 'aria-label': 'Tabs' });
   const tabName = h('input', { type: 'text', placeholder: 'Tab name (e.g. ChatGPT)', 'aria-label': 'Tab name', maxlength: '40', autocomplete: 'off' }) as HTMLInputElement;
   const tabUrl = h('input', { type: 'url', placeholder: 'https://…', 'aria-label': 'Web page address', autocomplete: 'off' }) as HTMLInputElement;
@@ -40,6 +43,10 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
   const openOut = h('a.term-tab-out.hidden', { target: '_blank', rel: 'noopener noreferrer', title: "Open this page in a browser tab of its own (for a site that won't show here)" }, '↗ New tab') as HTMLAnchorElement;
   const bar = h('div.term-tabbar', {}, tabsBar, openOut, addBtn, form);
   const pages = h('div.term-webhost.hidden');
+  const browser = workerBrowser(workerId);
+  browser.panel.classList.add('hidden');
+  opts.chat?.panel.classList.add('hidden');
+  pages.append(browser.panel, ...(opts.chat ? [opts.chat.panel] : []));
 
   const tabs = tabsByWorker.get(workerId) ?? [];
   tabsByWorker.set(workerId, tabs);
@@ -48,8 +55,11 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
 
   const render = () => {
     const mainTab = h('div.term-tab', { class: active === 'main' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'main'), onclick: () => show('main') }, '💻 Terminal'));
+    const browserTab = h('div.term-tab', { class: active === 'browser' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'browser'), onclick: () => show('browser') }, '🌐 Browser'));
     tabsBar.replaceChildren(
       mainTab,
+      browserTab,
+      ...(opts.chat ? [h('div.term-tab', { class: active === 'chat' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'chat'), onclick: () => show('chat') }, '💬 Chat'))] : []),
       ...tabs.map((t) =>
         h(
           'div.term-tab',
@@ -77,8 +87,15 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
   const show = (id: string) => {
     active = id;
     const onMain = id === 'main';
+    const onBrowser = id === 'browser';
+    const onChat = id === 'chat';
     opts.host.classList.toggle('hidden', !onMain);
     pages.classList.toggle('hidden', onMain);
+    browser.panel.classList.toggle('hidden', !onBrowser);
+    browser.visible(onBrowser);
+    opts.chat?.panel.classList.toggle('hidden', !onChat);
+    if (onChat) opts.chat?.show();
+    else opts.chat?.hide();
     opts.keypad?.classList.toggle('hidden', !onMain);
     for (const [tid, frame] of frames) frame.classList.toggle('hidden', tid !== id);
     render();
@@ -129,5 +146,5 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
     closeForm();
     show(tab.id);
   });
-  return { bar, pages };
+  return { bar, pages, dispose: () => { browser.dispose(); opts.chat?.dispose(); } };
 }

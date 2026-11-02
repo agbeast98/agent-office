@@ -14,6 +14,7 @@ import { DROP_MAX_BYTES, droppedPaths } from '../../shared/drops';
 import { engineLabel, providerUsageNote, providerUsageState, providerWaitingLabel, resolvedProvider } from './provider';
 import { naturalKey } from './termkeys';
 import { termTabs } from './termtabs';
+import { termChat } from './termchat';
 import { dictateField, dictation } from './dictate';
 
 /** A line to scroll to once the terminal has loaded: a search hit (see search.ts). */
@@ -134,7 +135,8 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
   const sayBtn = h('button.btn.primary', { type: 'submit' }, 'Send');
   const sayForm = h('form.term-say', {}, dictateField(say), sayBtn);
   const keypad = opts.keypad ? h('div.term-keypad', {}, keys, sayForm) : null;
-  const tabs = termTabs(workerId, { host, keypad, focusTerm: () => term.focus() });
+  const chat = resolvedProvider(info.provider, store.project) === 'codex' ? termChat(workerId, (prompt) => net.send({ t: 'worker.prompt', workerId, prompt })) : undefined;
+  const tabs = termTabs(workerId, { host, keypad, chat, focusTerm: () => term.focus() });
   // What you say is typed in at the terminal's cursor, as a paste, for you to read over and send (see dictate.ts).
   const mic = dictation(
     {
@@ -346,6 +348,7 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
       clearInterval(typingTimer);
       ro.disconnect();
       mic.drop();
+      tabs.dispose();
       net.send({ t: 'worker.detach', workerId });
       term.dispose();
       if (current?.modal === modal) current = null;

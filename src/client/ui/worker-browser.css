@@ -1,0 +1,37 @@
+/* Worker browser: a live viewport beside the terminal, with handoff made explicit. */
+.worker-browser { display: flex; flex-direction: column; min-width: 0; min-height: 0; width: 100%; height: 100%; background: #10141b; color: #eef2f5; }
+.wb-toolbar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; background: #181e27; border-bottom: 1px solid #303a45; }
+.wb-toolbar .btn { flex: none; min-height: 32px; padding: 3px 10px; border-color: #394551; background: #232c36; color: #e7edf1; }
+.wb-toolbar .btn:hover:not(:disabled) { background: #303c47; }
+.wb-toolbar .btn:disabled { opacity: .42; }
+.wb-nav { width: 34px; justify-content: center; font-size: 18px !important; }
+.wb-address { flex: 1 1 auto; min-width: 80px; height: 34px; padding: 0 12px; border: 1px solid #34414e; border-radius: 8px; outline: none; color: #eaf0f3; background: #0d1218; font: 13px/1.2 ui-monospace, "SF Mono", Consolas, monospace; }
+.wb-address:focus { border-color: #54b9ad; box-shadow: 0 0 0 2px #54b9ad35; }
+.wb-go { min-width: 44px; justify-content: center; }
+.wb-take { margin-left: 4px; white-space: nowrap; }
+.person-control .wb-take { color: #fff1cf !important; border-color: #aa8045 !important; background: #59462b !important; }
+.wb-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px; border-bottom: 1px solid #29323c; color: #aab6c2; font-size: 12px; }
+.wb-title { min-width: 0; overflow: hidden; color: #dce5eb; text-overflow: ellipsis; white-space: nowrap; }
+.wb-status { flex: none; }
+.wb-status::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0; border-radius: 50%; background: #53b9ad; box-shadow: 0 0 8px #53b9ad72; }
+.person-control .wb-status::before { background: #e6b15b; box-shadow: 0 0 8px #e6b15b72; }
+.wb-status.error { color: #ffc1ad; }
+.wb-status.error::before { background: #ec745d; box-shadow: 0 0 8px #ec745d72; }
+.wb-viewport { position: relative; flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 180px; overflow: hidden; outline: none; background: radial-gradient(ellipse at 50% 15%, #2d3944 0, #1a222c 52%, #111720 100%); }
+.wb-viewport:focus-visible { box-shadow: inset 0 0 0 2px #e6b15b; }
+.wb-viewport.open { padding: 12px; }
+.wb-page { display: block; max-width: 100%; max-height: 100%; object-fit: contain; border: 1px solid #44515d; border-radius: 7px; box-shadow: 0 14px 38px #05090e88; user-select: none; }
+.wb-empty { display: flex; flex-direction: column; align-items: center; max-width: 390px; padding: 26px; text-align: center; }
+.wb-globe { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 16px; border: 1px solid #5d7978; border-radius: 16px; color: #81cec3; background: linear-gradient(145deg, #243b3b, #1a282f); font-size: 25px; box-shadow: 0 8px 24px #0003; }
+.wb-empty h3 { margin: 0 0 7px; color: #edf2f4; font-size: 17px; }
+.wb-empty p { margin: 0 0 18px; color: #a8b5bf; font-size: 13px; line-height: 1.55; }
+.wb-empty .btn.primary { padding: 7px 15px; border: 1px solid #75c9be; color: #09201e; background: #8bdbcf; font-weight: 800; }
+.wb-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 13px; border-top: 1px solid #29323c; color: #8f9ca8; font-size: 11px; }
+@media (max-width: 680px) {
+  .wb-toolbar { flex-wrap: wrap; }
+  .wb-address { order: 1; flex-basis: calc(100% - 58px); }
+  .wb-go { order: 2; }
+  .wb-take { margin-left: auto; }
+  .wb-meta { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .wb-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
