@@ -4,7 +4,6 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { codexHookArgs, codexModelArgs, normalizeCodexHook, writeCodexHook } from '../codex.js';
 import { CodexUsageReader } from '../codex-usage.js';
-import { CodexChatReader } from '../codex-chat.js';
 import { codexMcpArgs } from '../office-workers.js';
 import { reduceLifecycle, type ToolTracker } from '../workers/lifecycle.js';
 import type { WorkerHandle } from '../workers/types.js';
@@ -12,7 +11,6 @@ import type { ProviderAdapter } from './types.js';
 
 interface CodexState {
   usage: CodexUsageReader;
-  chat: CodexChatReader;
   /** Where its sessions are logged (see codexHome). */
   home?: string;
   /** This worker's unique Codex workspace; used to find its root rollout if hooks fail. */
@@ -93,7 +91,7 @@ function codexHook(h: WorkerHandle<CodexState>, event: string, payload: unknown)
 export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   id: 'codex',
   scrubEnv: ['CODEX_THREAD_ID', 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'],
-  createState: () => ({ usage: new CodexUsageReader(), chat: new CodexChatReader(), tools: new Map(), pending: new Set() }),
+  createState: () => ({ usage: new CodexUsageReader(), tools: new Map(), pending: new Set() }),
   prepare: ({ dataDir, mcpScript }) => ({ hook: writeCodexHook(dataDir), mcpScript }),
   launch({ h, args, prompt, resumeSessionId, setup }) {
     // Resumed too: Codex resumes on whatever its config says now, not on the model the session ran on.
@@ -127,14 +125,5 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
     restore(s, saved) {
       if (typeof saved.codexTranscript === 'string') s.transcript = saved.codexTranscript;
     },
-  },
-  conversation(h, after = 0) {
-    const { transcript, home, workspace, chat } = h.state;
-    if (!home) return { status: 'waiting', cursor: 0, messages: [] };
-    const discovered = workspace ? chat.findForCwd(home, workspace) : undefined;
-    const file = transcript ?? discovered?.file;
-    const sessionId = h.info.sessionId ?? discovered?.sessionId;
-    if (!file || !sessionId) return { status: 'waiting', cursor: 0, messages: [] };
-    return chat.read(file, sessionId, home, after);
   },
 };

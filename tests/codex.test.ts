@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -14,38 +14,6 @@ import {
   writeCodexHook,
 } from '../src/server/codex.js';
 import { codex } from '../src/server/providers/codex.js';
-import { CodexChatReader } from '../src/server/codex-chat.js';
-
-test('finds only this worker workspace rollout and reads current Codex user and assistant items', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'agent-office-chat-'));
-  try {
-    const home = path.join(root, 'codex-home');
-    const cwd = path.join(root, 'worker-workspace');
-    const sessions = path.join(home, 'sessions', '2026', '11', '01');
-    mkdirSync(sessions, { recursive: true });
-    const sessionId = 'session-123';
-    const file = path.join(sessions, `rollout-2026-11-01T12-00-00-${sessionId}.jsonl`);
-    const records = [
-      { type: 'session_meta', payload: { id: sessionId, cwd } },
-      { type: 'response_item', timestamp: '2026-11-01T12:00:01.000Z', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'سلام' }] } },
-      { type: 'response_item', timestamp: '2026-11-01T12:00:02.000Z', payload: { type: 'message', role: 'assistant', phase: 'final_answer', content: [{ type: 'output_text', text: 'سلام، پیام را گرفتم.' }] } },
-    ];
-    writeFileSync(file, `${records.map((row) => JSON.stringify(row)).join('\n')}\n`);
-    const reader = new CodexChatReader();
-    const found = reader.findForCwd(home, cwd);
-    assert.deepEqual(found, { file, sessionId });
-    assert.equal(reader.findForCwd(home, path.join(root, 'other-workspace')), undefined);
-    assert.deepEqual(reader.read(found!.file, found!.sessionId, home), {
-      status: 'ready', cursor: Buffer.byteLength(`${records.map((row) => JSON.stringify(row)).join('\n')}\n`),
-      messages: [
-        { id: `${sessionId}:${Buffer.byteLength(JSON.stringify(records[0])) + 1}`, role: 'user', text: 'سلام', at: '2026-11-01T12:00:01.000Z' },
-        { id: `${sessionId}:${Buffer.byteLength(JSON.stringify(records[0])) + 1 + Buffer.byteLength(JSON.stringify(records[1])) + 1}`, role: 'assistant', text: 'سلام، پیام را گرفتم.', at: '2026-11-01T12:00:02.000Z' },
-      ],
-    });
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
 
 test('normalizes bounded root Codex hook payloads and passes only the metric reader path', () => {
   assert.deepEqual(normalizeCodexHook('SessionStart', {
