@@ -194,7 +194,9 @@ export class WorkerBrowsers {
     const url = checkedUrl(address);
     const s = await this.session(workerId);
     if (s.control !== actor) throw new Error(`The browser is currently controlled by ${s.control === 'person' ? 'you' : 'the agent'}.`);
-    await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    // Answered is enough to show the page: a slow site gets a few more seconds to build it, not an error that leaves the browser blank.
+    await s.page.goto(url, { waitUntil: 'commit', timeout: 30_000 });
+    await s.page.waitForLoadState('domcontentloaded', { timeout: 15_000 }).catch(() => {});
     this.note(workerId, actor, 'open', url);
     return this.view(workerId);
   }
@@ -405,8 +407,10 @@ export class WorkerBrowsers {
 
 function checkedUrl(input: unknown): string {
   if (typeof input !== 'string' || input.length > 2048) throw new Error('Give an http:// or https:// address (up to 2048 characters).');
+  // "karlancer.com" with no scheme is meant as https.
+  const address = /^[a-z][a-z0-9+.-]*:/i.test(input.trim()) ? input.trim() : `https://${input.trim()}`;
   let url: URL;
-  try { url = new URL(input); } catch { throw new Error('That is not a valid web address.'); }
+  try { url = new URL(address); } catch { throw new Error('That is not a valid web address.'); }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only http:// and https:// addresses are allowed.');
   if (url.username || url.password) throw new Error('Addresses with embedded passwords are not allowed.');
   return url.href;
