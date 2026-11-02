@@ -102,6 +102,10 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
     (x, y, z) => sound.stepAt(x, z, y),
     () => ctx.world().ways,
   );
+  // The team meeting waits for each to sit down at the table before telling them what it is about (see features/manager).
+  arrivals.onSit = (model) => {
+    for (const [id, v] of workerViews) if (v.model === model) window.dispatchEvent(new CustomEvent('office:seated', { detail: id }));
+  };
   /** Set while a floor's workers arrive with it (a welcome, an elevator ride): they're in their seats already. */
   let seatedAlready = false;
   /** A floor arriving (a welcome, a floor.enter): nobody's still leaving or coming in, and its workers are seated already. */

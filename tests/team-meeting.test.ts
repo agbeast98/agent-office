@@ -233,3 +233,44 @@ test('a poll stays as it was, and a meeting saved before modes existed reads as 
     assert.equal(new TeamMeetings(dir).current?.mode, 'poll');
   } finally { done(); }
 });
+
+test('what a member is told waits until they have sat down, and the fallback tells whoever was never reported', () => {
+  const { meetings, done } = fresh();
+  try {
+    const started = meetings.start('مدیرعامل', 'موضوع', MEMBERS);
+    assert.ok(started.ok);
+    assert.ok(started.meeting.members.every((m) => m.joinedAt && !m.arrivedAt), 'called, not yet at the table');
+    meetings.hold(started.notices);
+    const first = meetings.arrived('a');
+    assert.deepEqual(first.map((n) => n.to), ['a'], 'told when they sit');
+    assert.match(first[0].text, /meeting_say/);
+    assert.deepEqual(meetings.arrived('a'), [], 'only once');
+    assert.deepEqual(meetings.arrived('zzz'), [], 'not a member');
+    assert.ok(meetings.current?.members[0].arrivedAt);
+    assert.deepEqual(meetings.arriveAll().map((n) => n.to), ['b', 'm'], 'the others are told anyway after the wait');
+    assert.ok(meetings.current?.members.every((m) => m.arrivedAt));
+    assert.deepEqual(meetings.arriveAll(), []);
+  } finally { done(); }
+});
+
+test('what the person says to the room can be answered by each of them, even after they spoke, and even in a vote', () => {
+  const { dir, meetings, done } = fresh();
+  try {
+    meetings.start('مدیرعامل', 'موضوع', MEMBERS);
+    meetings.say({ id: 'a', name: 'آوا' }, 'نظر اول');
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'دوم').ok, false);
+    meetings.say({ name: 'مدیرعامل' }, 'کسی آب می‌تواند بخرد؟');
+    assert.ok(meetings.say({ id: 'a', name: 'آوا' }, 'نه، پرداخت نمی‌کنم').ok, 'answers the question');
+    assert.ok(meetings.say({ id: 'b', name: 'نیما' }, 'من هم نه').ok);
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'باز').ok, false, 'once per question');
+    assert.equal(meetings.current?.said.filter((s) => s.id).length, 3);
+    meetings.end();
+
+    meetings.start('مدیرعامل', 'آیا؟', MEMBERS, '', { mode: 'vote' });
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'نظر').ok, false, 'in a vote they vote');
+    meetings.say({ name: 'مدیرعامل' }, 'دلیلتان؟');
+    assert.ok(meetings.say({ id: 'a', name: 'آوا' }, 'دلیلم این است').ok, 'but may answer the person');
+    // A restart counts everyone as seated: nobody is left waiting for a walk that won't happen.
+    assert.ok(new TeamMeetings(dir).current?.members.every((m) => m.arrivedAt));
+  } finally { done(); }
+});

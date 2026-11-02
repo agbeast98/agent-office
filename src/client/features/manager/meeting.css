@@ -87,3 +87,5 @@
 .mr-vote span { font-weight: 800; } .mr-vote.yes span { color: #2c7a43; } .mr-vote.no span { color: #b3402a; } .mr-vote small { color: #555; }
 .mr-seat { font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .mr-seat.no { color: #b3402a; font-weight: 700; }
 .meetroom [hidden] { display: none !important; }
+.mr-chip.ready i { background: #c9a227; animation: mr-pulse 1s infinite; } .mr-chip.come i { background: #ef8354; animation: mr-pulse .7s infinite; }
+.mr-msg.ghost { opacity: .7; } .mr-msg.ghost .mr-text { color: var(--muted); animation: mr-pulse 1.2s infinite; }

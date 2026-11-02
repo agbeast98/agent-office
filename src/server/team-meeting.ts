@@ -26,6 +26,8 @@ export interface MeetingSaid {
 export type MeetingMode = 'poll' | 'debate' | 'vote';
 export type Choice = 'yes' | 'no' | 'abstain';
 
+export interface Member { id: string; name: string; joinedAt?: number; arrivedAt?: number }
+
 export interface Vote { id: string; name: string; choice: Choice; reason: string; at: number }
 
 export interface TeamMeeting {
@@ -45,8 +47,8 @@ export interface TeamMeeting {
   startedAt: number;
   endedAt?: number;
   round: number;
-  /** Who is to come: worker ids and the names they had. */
-  members: { id: string; name: string }[];
+  /** Who is to come: worker ids and the names they had, when they were called and when they sat down at the table. */
+  members: Member[];
   said: MeetingSaid[];
   agenda: { text: string; done: boolean }[];
   decisions: { at: number; by: string; text: string }[];
@@ -99,6 +101,8 @@ export function minutesOf(m: TeamMeeting, tasks: { id: string; title: string; st
 export class TeamMeetings {
   current?: TeamMeeting;
   past: TeamMeeting[] = [];
+  /** What a member is to be told once they have sat down at the table (not kept across a restart: see fill). */
+  private waiting = new Map<string, Notice>();
   private file: string;
   private dir: string;
 
@@ -150,8 +154,9 @@ export class TeamMeetings {
     const items = clip(agenda, AGENDA_MAX * ITEM_MAX).split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, AGENDA_MAX);
     const mode: MeetingMode = opts.mode === 'debate' || opts.mode === 'vote' ? opts.mode : 'poll';
     const rounds = mode === 'debate' ? Math.min(MAX_ROUNDS, Math.max(2, Math.floor(Number(opts.rounds)) || 3)) : 1;
+    const joinedAt = Date.now();
     const meeting: TeamMeeting = {
-      id: `M-${Date.now().toString(36)}`, mode, rounds, manager: opts.manager, votes: [], topic: subject, calledBy: by, startedAt: Date.now(), round: 1, members, said: [],
+      id: `M-${joinedAt.toString(36)}`, mode, rounds, manager: opts.manager, votes: [], topic: subject, calledBy: by, startedAt: joinedAt, round: 1, members: members.map((m) => ({ ...m, joinedAt })), said: [],
       agenda: items.map((text) => ({ text: text.slice(0, ITEM_MAX), done: false })), decisions: [], tasks: [], asked: [],
     };
     this.current = meeting;
@@ -178,12 +183,14 @@ export class TeamMeetings {
     const said = clip(text, SAID_MAX);
     if (!said) return fail('Say something');
     const answering = !!by.id && m.asked.includes(by.id);
+    if (m.mode === 'vote' && by.id && !answering) return fail('This meeting is a vote: use meeting_vote');
     if (by.id && !answering && m.said.some((s) => s.id === by.id && s.round === m.round && !s.note)) return fail('You have already spoken this round: wait for the next one');
     if (answering) m.asked = m.asked.filter((x) => x !== by.id);
-    if (m.mode === 'vote' && by.id) return fail('This meeting is a vote: use meeting_vote');
+    // What the person says to the room may be answered by each of them, once, even in a round they have spoken in.
+    if (!by.id) m.asked = m.members.map((x) => x.id);
     const key = typeof to === 'string' ? to.trim() : '';
     const target = key ? m.members.find((x) => x.id !== by.id && (x.name === key || x.id === key)) : undefined;
-    this.push(m, { at: Date.now(), round: m.round, by: by.name, id: by.id, text: said, ...(target ? { to: target } : {}) });
+    this.push(m, { at: Date.now(), round: m.round, by: by.name, id: by.id, text: said, ...(target ? { to: { id: target.id, name: target.name } } : {}) });
     const notices: Notice[] = target ? [{ to: target.id, text: `در جلسه‌ی «${m.topic}» ${by.name} خطاب به تو گفت: ${said}` }] : [];
     return { ok: true, meeting: m, notices: by.id && m.mode === 'debate' ? [...notices, ...this.advance(m)] : notices };
   }
@@ -238,6 +245,37 @@ export class TeamMeetings {
     this.save();
   }
 
+  /** Keeps what each is to be told until they have sat down (see arrived), or the fallback says to tell them anyway. */
+  hold(notices: Notice[]) {
+    for (const n of notices) this.waiting.set(n.to, n);
+  }
+
+  /** What was kept for `id` (or for everyone), now to be told. */
+  release(id?: string): Notice[] {
+    const out = [...this.waiting].filter(([to]) => !id || to === id).map(([, n]) => n);
+    for (const n of out) this.waiting.delete(n.to);
+    return out;
+  }
+
+  /** `id` has sat down at the table: they are told what the meeting is about. */
+  arrived(id: string): Notice[] {
+    const x = this.current?.members.find((m) => m.id === id);
+    if (!x || x.arrivedAt) return [];
+    x.arrivedAt = Date.now();
+    this.save();
+    return this.release(id);
+  }
+
+  /** Whoever hasn't been reported sitting by now (nobody is watching the 3D view, or they can't be seated) is counted as there. */
+  arriveAll(): Notice[] {
+    const m = this.current;
+    if (!m) return [];
+    const at = Date.now();
+    for (const x of m.members) x.arrivedAt ??= at;
+    this.save();
+    return this.release();
+  }
+
   /** The person asks one member something directly; that member may answer even if they spoke this round. */
   ask(by: string, to: string, text: unknown): MeetingOutcome {
     const m = this.current;
@@ -247,7 +285,7 @@ export class TeamMeetings {
     const asked = clip(text, SAID_MAX);
     if (!asked) return fail('Say what to ask');
     if (!m.asked.includes(who.id)) m.asked.push(who.id);
-    this.push(m, { at: Date.now(), round: m.round, by, text: asked, to: who });
+    this.push(m, { at: Date.now(), round: m.round, by, text: asked, to: { id: who.id, name: who.name } });
     return { ok: true, meeting: m, notices: [{ to: who.id, text: `در جلسه‌ی «${m.topic}» ${by} مستقیم از تو پرسید: ${asked}\nکوتاه (حداکثر ۱۰ خط) با meeting_say جواب بده.` }] };
   }
 
@@ -284,7 +322,7 @@ export class TeamMeetings {
     if (!m) return fail('No meeting is on');
     if (m.members.some((x) => x.id === member.id)) return fail('They are already in the meeting');
     if (m.members.length >= CHAIRS) return fail(`The meeting room has ${CHAIRS} chairs`);
-    m.members.push(member);
+    m.members.push({ ...member, joinedAt: Date.now() });
     this.save();
     const heard = m.said.filter((s) => !s.note).slice(-8).map((s) => `• ${s.by}: ${s.text}`).join('\n');
     return { ok: true, meeting: m, notices: [{ to: member.id, text: `به جلسه‌ی تیمی دعوت شدی (دور ${m.round}). موضوع: «${m.topic}».${heard ? `\nتا الان گفته‌اند:\n${heard}` : ''}\nنظرت را کوتاه با meeting_say بگو.` }] };
@@ -378,5 +416,6 @@ export class TeamMeetings {
 
 /** A meeting saved before agendas, decisions and tasks existed gets them empty. */
 function fill(m: TeamMeeting): TeamMeeting {
-  return { ...m, mode: m.mode ?? 'poll', rounds: m.rounds ?? 1, votes: m.votes ?? [], agenda: m.agenda ?? [], decisions: m.decisions ?? [], tasks: m.tasks ?? [], asked: m.asked ?? [] };
+  const now = Date.now();
+  return { ...m, members: m.members.map((x) => ({ ...x, joinedAt: x.joinedAt ?? m.startedAt, arrivedAt: x.arrivedAt ?? now })), mode: m.mode ?? 'poll', rounds: m.rounds ?? 1, votes: m.votes ?? [], agenda: m.agenda ?? [], decisions: m.decisions ?? [], tasks: m.tasks ?? [], asked: m.asked ?? [] };
 }

@@ -450,6 +450,8 @@ const IN_SPACING = 0.9;
  */
 export class Arrivals {
   private walkers: Arriver[] = [];
+  /** Told when one has sat down. */
+  onSit?: (model: Worker) => void;
   /** When (performance.now(), in seconds) the next one to arrive may step out: they come one at a time. */
   private nextAt = 0;
 
@@ -560,5 +562,6 @@ export class Arrivals {
     root.position.set(0, 0, 0);
     root.rotation.set(0, 0, 0);
     root.scale.setScalar(1);
+    this.onSit?.(w.model);
   }
 }

@@ -10,6 +10,16 @@ import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
 
+/** How long a member who isn't reported sitting down is waited for before they're told anyway. */
+const ARRIVE_FALLBACK_MS = 20_000;
+
+/** Tells them once they sit (the 3D view says so), or after a while if no one is watching. */
+function holdUntilSeated(floor: Floor, notices: Parameters<typeof tell>[1], by: string) {
+  floor.teamMeetings.hold(notices);
+  const timer = setTimeout(() => tell(floor, floor.teamMeetings.arriveAll(), by), ARRIVE_FALLBACK_MS);
+  timer.unref();
+}
+
 const agents = (floor: Floor) => floor.workers.list().filter((w) => w.kind === 'agent');
 
 /** The tasks a meeting made, as they are now. */
@@ -34,6 +44,7 @@ export const teamMeetingRoutes = {
       const one = wanted ? floor.teamMeetings.find(wanted) : undefined;
       return send(res, 200, {
         manager: boss?.id,
+        now: Date.now(),
         people: people.map((w) => ({ id: w.id, name: w.name, role: w.role, color: w.color, status: w.status, activity: w.activity, inMeeting: !!current?.members.some((m) => m.id === w.id), seated: !!w.meetingOriginDesk })),
         current: current && full(current),
         past: past.slice(0, 15).map((m) => ({ id: m.id, topic: m.topic, startedAt: m.startedAt, endedAt: m.endedAt, summary: m.summary, said: m.said.filter((s) => !s.note).length, decisions: m.decisions.length, tasks: m.tasks.length, members: m.members.map((x) => x.name) })),
@@ -90,8 +101,17 @@ export const teamMeetingRoutes = {
             const why = floor.workers.visitMeeting(m.id);
             return why ? [{ name: m.name, why }] : [];
           });
-          tell(floor, result.notices, name);
+          holdUntilSeated(floor, result.notices, name);
+          // Someone who can't sit at the table is told at once, wherever they are.
+          for (const n of notSeated) {
+            const w = workers.find((x) => x.name === n.name);
+            if (w) tell(floor, meetings.arrived(w.id), name);
+          }
           return send(res, 200, { ok: true, notSeated });
+        }
+        case 'arrived': {
+          tell(floor, meetings.arrived(typeof body.worker === 'string' ? body.worker : ''), name);
+          return send(res, 200, { ok: true });
         }
         case 'seat': {
           const why = floor.workers.visitMeeting(typeof body.worker === 'string' ? body.worker : '');
@@ -102,7 +122,7 @@ export const teamMeetingRoutes = {
           break;
         case 'say':
           result = meetings.say({ name }, body.text);
-          if (result.ok) tell(floor, result.meeting.members.map((m) => ({ to: m.id, text: `در جلسه‌ی «${result.ok ? result.meeting.topic : ''}» ${name} گفت: ${str(body.text, 3000)}` })), name);
+          if (result.ok) tell(floor, result.meeting.members.map((m) => ({ to: m.id, text: `در جلسه‌ی «${result.ok ? result.meeting.topic : ''}» ${name} به همه گفت: ${str(body.text, 3000)}\nهمه جواب بدهند: کوتاه (حداکثر ۱۰ خط) با ابزار meeting_say، حتی اگر فقط بگویی به تو مربوط نیست یا نمی‌توانی. این بار نوبت اضافه است. در ترمینال جواب نده.` })), name);
           break;
         case 'ask':
           result = meetings.ask(name, typeof body.to === 'string' ? body.to : '', body.text);
@@ -135,6 +155,8 @@ export const teamMeetingRoutes = {
               meetings.dismiss(w.id);
               return send(res, 400, { error: seated });
             }
+            holdUntilSeated(floor, result.notices, name);
+            return send(res, 200, { ok: true });
           }
           break;
         }

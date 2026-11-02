@@ -9,7 +9,7 @@ import { agenda, detail, history, notes, results } from './meeting-work';
 // earlier meetings. Everything is read from, and sent to, the server every couple of seconds (see
 // server/http/routes/team-meeting.ts), so what the team says shows up here as they say it.
 
-const POLL_MS = 2000;
+const POLL_MS = 1500;
 const TOPICS = ['گزارش وضعیت هر نفر', 'برنامه‌ی این هفته', 'بررسی نتایج و نکات یادگرفته‌شده', 'مشکلات و گرفتاری‌ها'];
 type Tab = 'chat' | 'people' | 'agenda' | 'results' | 'notes' | 'past';
 const TABS: { id: Tab; label: string }[] = [

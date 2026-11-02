@@ -1,5 +1,5 @@
 import { h, toast } from '../../ui/dom';
-import { CHAIRS, CHOICE_FA, MODE_FA, clock, doing, type Act, type Full, type Person, type State } from './meeting-model';
+import { CHAIRS, CHOICE_FA, MODE_FA, clock, phase, type Act, type Full, type Person, type State } from './meeting-model';
 
 // The meeting room's conversation and its people: who said what in each round (with who is typing, who has
 // spoken and who is still to), the box to say something to everyone or ask one person, and the people at the
@@ -16,7 +16,10 @@ function avatar(name: string, color?: string, boss = false) {
 export function feed(m: Full, state: State) {
   const said = m.said.filter((s) => !s.note);
   const rounds = [...new Set(said.map((s) => s.round))].sort((a, b) => a - b);
-  if (!rounds.length) return h('div.mr-empty', {}, h('b', {}, '🕐 هنوز کسی چیزی نگفته'), 'پیام جلسه به همه‌ی حاضران رسیده است؛ نظرها همین‌جا ظاهر می‌شود.');
+  // Whoever is writing their answer shows as a line of its own at the end, so the room is never silent while they work.
+  const writing = m.members.filter((x) => phase(m, x.id, state).cls === 'work');
+  const ghosts = writing.map((x) => h('div.mr-msg.ghost', {}, avatar(x.name, byId(state, x.id)?.color), h('div.mr-bub', {}, h('div.mr-who', {}, h('b', {}, x.name)), h('div.mr-text', {}, 'در حال پاسخ دادن…'))));
+  if (!rounds.length) return h('div.mr-empty', {}, h('b', {}, '🕐 هنوز کسی چیزی نگفته'), 'هر نفر که سر میز بنشیند از موضوع باخبر می‌شود و نظرش همین‌جا ظاهر می‌شود.', ...ghosts);
   return h('div.mr-feed', {}, ...rounds.flatMap((r) => [
     h('div.mr-round', {}, h('span', {}, `دور ${r}`)),
     ...said.filter((s) => s.round === r).map((s) => {
@@ -26,7 +29,7 @@ export function feed(m: Full, state: State) {
         h('div.mr-bub', {}, h('div.mr-who', {}, h('b', {}, s.by), s.to ? h('span.mr-to', {}, `← ${s.to.name}`) : null, !you && who?.role ? h('small', {}, who.role.split(':')[0]) : null, h('time', {}, clock(s.at))),
           h('div.mr-text', { dir: 'auto' }, s.text)));
     }),
-  ]));
+  ]).concat(ghosts));
 }
 
 /** How this meeting goes, and for a debate or a vote where it has got to. */
@@ -52,8 +55,7 @@ export function modeBar(m: Full, act: Act) {
 /** Who has spoken this round and who is still to, live. */
 export function roundStrip(m: Full, state: State) {
   return h('div.mr-strip', {}, h('span.mr-rd', {}, `${MODE_FA[m.mode]} · دور ${m.round}${m.mode === 'debate' ? ` از ${m.rounds}` : ''}`), ...m.members.map((x) => {
-    const spoke = m.mode === 'vote' ? m.votes.some((v) => v.id === x.id) : m.said.some((s) => s.id === x.id && s.round === m.round && !s.note);
-    const d = doing(byId(state, x.id), spoke);
+    const d = phase(m, x.id, state);
     return h('span.mr-chip', { class: d.cls, title: byId(state, x.id)?.activity ?? '' }, h('i'), x.name, h('small', {}, d.text));
   }));
 }
@@ -90,9 +92,8 @@ export function people(m: Full, state: State, act: Act, askOne: (id: string) => 
   const full = m.members.length >= CHAIRS;
   const card = (p: Person) => {
     const mine = m.members.some((x) => x.id === p.id);
-    const spoke = m.said.some((s) => s.id === p.id && s.round === m.round && !s.note);
     const last = [...m.said].reverse().find((s) => s.id === p.id && !s.note);
-    const d = doing(p, spoke);
+    const d = phase(m, p.id, state);
     return h('div.mr-person', { class: `${mine ? '' : 'out'} ${p.id === state.manager ? 'boss' : ''}` },
       h('div.mr-ph', {}, avatar(p.name, p.color, p.id === state.manager), h('div', {}, h('b', {}, p.name), p.role ? h('small', {}, p.role.split(':')[0]) : null), mine ? h('span.mr-chip', { class: d.cls }, h('i'), d.text) : h('span.mr-chip.off', {}, 'بیرون از جلسه')),
       mine ? h('div.mr-seat', { class: p.seated ? 'ok' : 'no' }, p.seated ? '🪑 سر میز جلسه نشسته' : '⚠ هنوز سر میز نیامده', p.seated ? null : h('button.btn', { type: 'button', onclick: async () => { if (await act('seat', { worker: p.id })) toast(`${p.name} سر میز نشست`); } }, '🪑 بنشان')) : null,

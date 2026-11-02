@@ -17,7 +17,7 @@ export interface Full {
   votes: Vote[];
   result?: { verdict: 'accepted' | 'rejected' | 'tie'; yes: number; no: number; abstain: number };
   concluded?: boolean;
-  members: { id: string; name: string }[];
+  members: { id: string; name: string; joinedAt?: number; arrivedAt?: number }[];
   said: Said[];
   agenda: { text: string; done: boolean }[];
   decisions: { at: number; by: string; text: string }[];
@@ -28,7 +28,7 @@ export interface Full {
   taskList: TaskRow[];
 }
 export interface PastRow { id: string; topic: string; startedAt: number; endedAt?: number; summary?: string; said: number; decisions: number; tasks: number; members: string[] }
-export interface State { manager?: string; people: Person[]; current?: Full; past: PastRow[]; detail?: Full }
+export interface State { now?: number; manager?: string; people: Person[]; current?: Full; past: PastRow[]; detail?: Full }
 
 /** Sends an action to the meeting; resolves to whether it worked (the error is shown by whoever sent it). */
 export type Act = (action: string, extra?: Record<string, unknown>) => Promise<boolean>;
@@ -46,10 +46,21 @@ export const STATUS_FA: Record<string, string> = { todo: 'انجام‌نشده'
 export const clock = (at: number) => new Date(at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
 export const day = (at: number) => new Date(at).toLocaleDateString('fa-IR', { month: 'long', day: 'numeric' });
 
-/** What a person is doing right now, in a word. */
-export function doing(p: Person | undefined, spoke: boolean): { text: string; cls: string } {
-  if (!p) return { text: 'نیست', cls: 'off' };
-  if (p.status === 'working') return { text: 'در حال نوشتن…', cls: 'work' };
+/** How long after being called a member still shows as getting ready, before they are on their way. */
+const READY_MS = 3000;
+
+/**
+ * Where a member of the meeting has got to: getting ready, on their way to the table, at it and writing
+ * their answer, waiting their turn, or having said their piece (this round, or voted).
+ */
+export function phase(m: Full, id: string, state: State): { text: string; cls: string } {
+  const x = m.members.find((y) => y.id === id);
+  const p = state.people.find((y) => y.id === id);
+  if (!x || !p) return { text: 'نیست', cls: 'off' };
+  const spoke = m.mode === 'vote' ? m.votes.some((v) => v.id === id) : m.said.some((s) => s.id === id && s.round === m.round && !s.note);
+  if (spoke) return { text: m.mode === 'vote' ? 'رأی داد ✓' : 'گفت ✓', cls: 'done' };
+  if (!x.arrivedAt) return (state.now ?? Date.now()) - (x.joinedAt ?? 0) < READY_MS ? { text: 'در حال آماده شدن…', cls: 'ready' } : { text: 'در حال آمدن…', cls: 'come' };
+  if (p.status === 'working') return { text: 'در حال پاسخ دادن…', cls: 'work' };
   if (p.status === 'needs_input') return { text: 'منتظر شماست', cls: 'wait' };
-  return spoke ? { text: 'گفت ✓', cls: 'done' } : { text: 'منتظر نوبت', cls: 'idle' };
+  return { text: 'منتظر نوبت', cls: 'idle' };
 }

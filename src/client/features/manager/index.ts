@@ -19,5 +19,10 @@ export function installManager(ctx: Ctx) {
     hint: () => ({ k: 'manager', parts: [hintTitle('👑 کامپیوتر مدیر'), aside('کارها و دستورها'), key('E', 'باز کردن')] }),
     use: onE(() => show()),
   });
+  // A worker sat down at the meeting table: the team meeting tells it what it is about.
+  window.addEventListener('office:seated', (e) => {
+    if (!store.floor) return;
+    void fetch(`/api/team/meeting?floor=${encodeURIComponent(store.floor)}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'arrived', worker: (e as CustomEvent<string>).detail }) }).catch(() => {});
+  });
   return { showManager: show };
 }
