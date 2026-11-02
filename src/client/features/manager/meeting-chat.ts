@@ -1,5 +1,5 @@
 import { h, toast } from '../../ui/dom';
-import { CHAIRS, clock, doing, type Act, type Full, type Person, type State } from './meeting-model';
+import { CHAIRS, CHOICE_FA, MODE_FA, clock, doing, type Act, type Full, type Person, type State } from './meeting-model';
 
 // The meeting room's conversation and its people: who said what in each round (with who is typing, who has
 // spoken and who is still to), the box to say something to everyone or ask one person, and the people at the
@@ -29,10 +29,30 @@ export function feed(m: Full, state: State) {
   ]));
 }
 
+/** How this meeting goes, and for a debate or a vote where it has got to. */
+export function modeBar(m: Full, act: Act) {
+  if (m.mode === 'poll') return null;
+  if (m.mode === 'debate') {
+    const state = m.concluded ? '✅ بحث تمام شد؛ از مدیر جمع‌بندی خواسته شد' : `دور ${m.round} از ${m.rounds} · دورها خودکار می‌گذرد، وقتی همه جواب هم را دادند`;
+    return h('div.mr-mode', {}, h('b', {}, '🗣 بحث بین خودشان'), h('span', {}, state));
+  }
+  const r = m.result;
+  const total = Math.max(1, m.members.length);
+  const bar = (c: 'yes' | 'no' | 'abstain') => {
+    const n = m.votes.filter((v) => v.choice === c).length;
+    return h('div.mr-bar', { class: c }, h('span', {}, `${CHOICE_FA[c]} ${n}`), h('i', { style: `width:${Math.round((n / total) * 100)}%` }));
+  };
+  const verdict = r ? { accepted: '✅ تصویب شد', rejected: '❌ رد شد', tie: '⚖️ مساوی شد' }[r.verdict] : `${m.votes.length} از ${m.members.length} رأی داده‌اند`;
+  return h('div.mr-mode.vote', {}, h('div.mr-vhead', {}, h('b', {}, '🗳 رأی‌گیری'), h('span.mr-verdict', { class: r?.verdict ?? '' }, verdict),
+    r ? null : h('button.btn', { type: 'button', disabled: !m.votes.length, title: 'رأی‌های داده‌شده همین حالا شمرده شود', onclick: () => void act('closevote') }, 'شمارش همین حالا')),
+  bar('yes'), bar('no'), bar('abstain'),
+  ...m.votes.map((v) => h('div.mr-vote', { class: v.choice, dir: 'auto' }, h('b', {}, v.name), h('span', {}, CHOICE_FA[v.choice]), v.reason ? h('small', {}, v.reason) : null)));
+}
+
 /** Who has spoken this round and who is still to, live. */
 export function roundStrip(m: Full, state: State) {
-  return h('div.mr-strip', {}, h('span.mr-rd', {}, `دور ${m.round}`), ...m.members.map((x) => {
-    const spoke = m.said.some((s) => s.id === x.id && s.round === m.round && !s.note);
+  return h('div.mr-strip', {}, h('span.mr-rd', {}, `${MODE_FA[m.mode]} · دور ${m.round}${m.mode === 'debate' ? ` از ${m.rounds}` : ''}`), ...m.members.map((x) => {
+    const spoke = m.mode === 'vote' ? m.votes.some((v) => v.id === x.id) : m.said.some((s) => s.id === x.id && s.round === m.round && !s.note);
     const d = doing(byId(state, x.id), spoke);
     return h('span.mr-chip', { class: d.cls, title: byId(state, x.id)?.activity ?? '' }, h('i'), x.name, h('small', {}, d.text));
   }));
@@ -75,6 +95,7 @@ export function people(m: Full, state: State, act: Act, askOne: (id: string) => 
     const d = doing(p, spoke);
     return h('div.mr-person', { class: `${mine ? '' : 'out'} ${p.id === state.manager ? 'boss' : ''}` },
       h('div.mr-ph', {}, avatar(p.name, p.color, p.id === state.manager), h('div', {}, h('b', {}, p.name), p.role ? h('small', {}, p.role.split(':')[0]) : null), mine ? h('span.mr-chip', { class: d.cls }, h('i'), d.text) : h('span.mr-chip.off', {}, 'بیرون از جلسه')),
+      mine ? h('div.mr-seat', { class: p.seated ? 'ok' : 'no' }, p.seated ? '🪑 سر میز جلسه نشسته' : '⚠ هنوز سر میز نیامده', p.seated ? null : h('button.btn', { type: 'button', onclick: async () => { if (await act('seat', { worker: p.id })) toast(`${p.name} سر میز نشست`); } }, '🪑 بنشان')) : null,
       mine ? h('div.mr-last', { dir: 'auto' }, last ? `«${last.text.slice(0, 180)}${last.text.length > 180 ? '…' : ''}»` : 'هنوز چیزی نگفته') : null,
       h('div.mg-row', {}, ...(mine
         ? [h('button.btn', { type: 'button', onclick: () => askOne(p.id) }, '❓ پرسش'), h('button.btn', { type: 'button', title: 'از جلسه مرخص و به میزش برگردد', onclick: () => void act('dismiss', { worker: p.id }) }, '↩ مرخص')]

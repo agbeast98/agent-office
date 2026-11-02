@@ -34,7 +34,7 @@ export const teamMeetingRoutes = {
       const one = wanted ? floor.teamMeetings.find(wanted) : undefined;
       return send(res, 200, {
         manager: boss?.id,
-        people: people.map((w) => ({ id: w.id, name: w.name, role: w.role, color: w.color, status: w.status, activity: w.activity, inMeeting: !!current?.members.some((m) => m.id === w.id) })),
+        people: people.map((w) => ({ id: w.id, name: w.name, role: w.role, color: w.color, status: w.status, activity: w.activity, inMeeting: !!current?.members.some((m) => m.id === w.id), seated: !!w.meetingOriginDesk })),
         current: current && full(current),
         past: past.slice(0, 15).map((m) => ({ id: m.id, topic: m.topic, startedAt: m.startedAt, endedAt: m.endedAt, summary: m.summary, said: m.said.filter((s) => !s.note).length, decisions: m.decisions.length, tasks: m.tasks.length, members: m.members.map((x) => x.name) })),
         ...(one && one !== current ? { detail: full(one) } : {}),
@@ -82,11 +82,24 @@ export const teamMeetingRoutes = {
         case 'start': {
           const ids = Array.isArray(body.members) ? body.members.filter((x): x is string => typeof x === 'string') : [];
           const members = (body.members === 'all' ? workers : workers.filter((w) => ids.includes(w.id))).map((w) => ({ id: w.id, name: w.name }));
-          result = meetings.start(name, body.topic, members, body.agenda);
-          // They sit down at the meeting room's table, as many as it has chairs for.
-          if (result.ok) for (const m of members) floor.workers.visitMeeting(m.id);
-          break;
+          const boss = floor.teamTasks.manager(workers);
+          result = meetings.start(name, body.topic, members, body.agenda, { mode: body.mode, rounds: body.rounds, manager: boss && { id: boss.id, name: boss.name } });
+          if (!result.ok) break;
+          // They sit down at the meeting room's table, as many as it has chairs for; whoever can't is said so.
+          const notSeated = members.flatMap((m) => {
+            const why = floor.workers.visitMeeting(m.id);
+            return why ? [{ name: m.name, why }] : [];
+          });
+          tell(floor, result.notices, name);
+          return send(res, 200, { ok: true, notSeated });
         }
+        case 'seat': {
+          const why = floor.workers.visitMeeting(typeof body.worker === 'string' ? body.worker : '');
+          return why ? send(res, 400, { error: why }) : send(res, 200, { ok: true });
+        }
+        case 'closevote':
+          result = meetings.closeVote();
+          break;
         case 'say':
           result = meetings.say({ name }, body.text);
           if (result.ok) tell(floor, result.meeting.members.map((m) => ({ to: m.id, text: `در جلسه‌ی «${result.ok ? result.meeting.topic : ''}» ${name} گفت: ${str(body.text, 3000)}` })), name);

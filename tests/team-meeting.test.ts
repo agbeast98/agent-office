@@ -155,3 +155,81 @@ test('ending writes the minutes as a file that can be read back, with everything
     assert.equal(new TeamMeetings(dir).past[0].decisions.length, 1, 'kept across a restart');
   } finally { done(); }
 });
+
+test('a debate runs its rounds by itself, each answering the others, then asks the manager to sum it up', () => {
+  const { meetings, done } = fresh();
+  try {
+    const started = meetings.start('مدیرعامل', 'ارزان یا گران؟', MEMBERS, '', { mode: 'debate', rounds: 2, manager: MEMBERS[2] });
+    assert.ok(started.ok);
+    assert.equal(started.meeting.mode, 'debate');
+    assert.match(started.notices[0].text, /بحث آزاد بین خودتان است و 2 دور/);
+
+    const a = meetings.say({ id: 'a', name: 'آوا' }, 'من گران‌تر می‌گویم');
+    assert.ok(a.ok);
+    assert.deepEqual(a.notices, [], 'the round goes on until all have spoken');
+    meetings.say({ id: 'b', name: 'نیما' }, 'من مخالفم', 'آوا');
+    const last = meetings.say({ id: 'm', name: 'علیرضا' }, 'میانه بهتر است', 'نیما');
+    assert.ok(last.ok);
+    assert.equal(last.meeting.round, 2, 'round two began without anyone pressing next');
+    assert.equal(last.notices.length, 4, 'one for the one addressed, three for the new round');
+    assert.ok(last.notices.some((n) => n.to === 'b' && /خطاب به تو/.test(n.text)));
+    assert.ok(last.notices.some((n) => n.to === 'a' && /دور 2 از 2/.test(n.text) && /من مخالفم/.test(n.text)));
+    assert.deepEqual(last.meeting.said[1].to, { id: 'a', name: 'آوا' });
+
+    meetings.say({ id: 'a', name: 'آوا' }, 'قبول');
+    meetings.say({ id: 'b', name: 'نیما' }, 'قبول');
+    const end = meetings.say({ id: 'm', name: 'علیرضا' }, 'پس میانه');
+    assert.ok(end.ok);
+    assert.equal(end.meeting.concluded, true);
+    assert.equal(end.meeting.round, 2, 'no round past the last');
+    assert.deepEqual(end.notices.map((n) => n.to), ['m'], 'the manager is asked to sum up');
+    assert.equal(meetings.start('x', 'y', MEMBERS).ok, false);
+  } finally { done(); }
+});
+
+test('a vote counts itself once all have voted, keeps the result as a decision, and is closed by the person early', () => {
+  const { meetings, done } = fresh();
+  try {
+    const poll = meetings.start('مدیرعامل', 'آیا ساعت ارسال ثابت باشد؟', MEMBERS, '', { mode: 'vote', manager: MEMBERS[2] });
+    assert.ok(poll.ok);
+    assert.match(poll.notices[0].text, /meeting_vote/);
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'نظرم این است').ok, false, 'members vote, they do not talk');
+    assert.ok(meetings.say({ name: 'مدیرعامل' }, 'لطفاً دلیل بگویید').ok, 'the person still can');
+    assert.equal(meetings.vote({ id: 'zzz', name: 'غریبه' }, 'yes', '').ok, false);
+    assert.equal(meetings.vote({ id: 'a', name: 'آوا' }, 'maybe', '').ok, false);
+
+    assert.ok(meetings.vote({ id: 'a', name: 'آوا' }, 'no', 'داده نداریم').ok);
+    assert.ok(meetings.vote({ id: 'a', name: 'آوا' }, 'yes', 'نظرم عوض شد').ok, 'a vote can be changed');
+    assert.equal(meetings.current?.votes.length, 1);
+    assert.ok(meetings.vote({ id: 'b', name: 'نیما' }, 'yes', 'ساده‌تر است').ok);
+    const counted = meetings.vote({ id: 'm', name: 'علیرضا' }, 'no', 'انعطاف لازم است');
+    assert.ok(counted.ok);
+    assert.deepEqual(counted.meeting.result, { verdict: 'accepted', yes: 2, no: 1, abstain: 0 });
+    assert.match(counted.meeting.decisions[0].text, /تصویب شد \(2 موافق، 1 مخالف، 0 ممتنع\)/);
+    assert.deepEqual(counted.notices.map((n) => n.to), ['m']);
+    assert.equal(meetings.vote({ id: 'a', name: 'آوا' }, 'no', '').ok, false, 'closed');
+
+    meetings.end();
+    meetings.start('مدیرعامل', 'دوباره؟', MEMBERS, '', { mode: 'vote' });
+    assert.equal(meetings.closeVote().ok, false, 'no one has voted');
+    meetings.vote({ id: 'a', name: 'آوا' }, 'no', 'نه');
+    meetings.vote({ id: 'b', name: 'نیما' }, 'abstain', '');
+    const early = meetings.closeVote();
+    assert.ok(early.ok);
+    assert.equal(early.meeting.result?.verdict, 'rejected');
+    const ended = meetings.end();
+    assert.ok(ended.ok);
+    assert.match(meetings.minutesFile(ended.ok ? ended.meeting.id : '') ?? '', /## رأی‌ها[\s\S]*آوا: مخالف — نه/);
+  } finally { done(); }
+});
+
+test('a poll stays as it was, and a meeting saved before modes existed reads as one', () => {
+  const { dir, meetings, done } = fresh();
+  try {
+    const started = meetings.start('مدیرعامل', 'موضوع', MEMBERS);
+    assert.ok(started.ok && started.meeting.mode === 'poll' && started.meeting.rounds === 1);
+    assert.equal(meetings.vote({ id: 'a', name: 'آوا' }, 'yes', '').ok, false, 'not a vote');
+    assert.deepEqual(meetings.say({ id: 'a', name: 'آوا' }, 'سلام').ok && meetings.current?.round, 1, 'no round of its own accord');
+    assert.equal(new TeamMeetings(dir).current?.mode, 'poll');
+  } finally { done(); }
+});

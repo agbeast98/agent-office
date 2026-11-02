@@ -70,3 +70,20 @@
   .mr-nav { flex-direction: row; flex-wrap: wrap; } .mr-tab { padding: 6px 9px; }
   .mr-main { overflow: visible; flex: none; }
 }
+
+.mr-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.mr-mode-card { font: inherit; text-align: start; display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border: 2px solid var(--ink); border-radius: 12px; background: #fff; cursor: pointer; }
+.mr-mode-card small { color: var(--muted); line-height: 1.6; } .mr-mode-card:hover { background: #fff3d6; }
+.mr-mode-card.on { background: #ffe0b8; box-shadow: 3px 3px 0 var(--ink); }
+.mr-mode { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 8px 12px; border: 2px solid var(--ink); border-radius: 12px; background: #e8f1ff; font-size: 13px; }
+.mr-mode.vote { flex-direction: column; align-items: stretch; background: #f3ecff; }
+.mr-vhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .mr-vhead .btn { margin-inline-start: auto; }
+.mr-verdict { font-weight: 800; } .mr-verdict.accepted { color: #2c7a43; } .mr-verdict.rejected { color: #b3402a; }
+.mr-bar { position: relative; height: 22px; border-radius: 8px; border: 2px solid var(--ink); background: #fff; overflow: hidden; }
+.mr-bar span { position: relative; z-index: 1; padding: 0 8px; font-size: 12px; font-weight: 700; line-height: 18px; }
+.mr-bar i { position: absolute; inset: 0 auto 0 0; background: #cfd8ff; } .mr-bar.yes i { background: #b9e6c6; } .mr-bar.no i { background: #ffc9c0; }
+[dir=rtl] .mr-bar i { inset: 0 0 0 auto; }
+.mr-vote { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 12px; padding: 3px 8px; border-radius: 8px; background: #fff; }
+.mr-vote span { font-weight: 800; } .mr-vote.yes span { color: #2c7a43; } .mr-vote.no span { color: #b3402a; } .mr-vote small { color: #555; }
+.mr-seat { font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .mr-seat.no { color: #b3402a; font-weight: 700; }
+.meetroom [hidden] { display: none !important; }

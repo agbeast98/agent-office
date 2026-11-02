@@ -47,7 +47,7 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
 
   if (req.method === 'GET' && url.searchParams.get('meeting') === '1') {
     const m = floor.teamMeetings.current;
-    return send(res, 200, m ? { id: m.id, topic: m.topic, round: m.round, members: m.members.map((x) => x.name), agenda: m.agenda.map((a) => a.text), asked_you: m.asked.includes(me.id) || undefined, decisions: m.decisions.map((d) => d.text), summary: m.summary, said: m.said.filter((s) => !s.note).map((s) => ({ round: s.round, by: s.by, ...(s.to ? { to: s.to.name } : {}), text: s.text })) } : { none: true });
+    return send(res, 200, m ? { id: m.id, topic: m.topic, mode: m.mode, round: m.round, of_rounds: m.mode === 'debate' ? m.rounds : undefined, voted: m.mode === 'vote' ? m.votes.some((v) => v.id === me.id) : undefined, result: m.result, members: m.members.map((x) => x.name), agenda: m.agenda.map((a) => a.text), asked_you: m.asked.includes(me.id) || undefined, decisions: m.decisions.map((d) => d.text), summary: m.summary, said: m.said.filter((s) => !s.note).map((s) => ({ round: s.round, by: s.by, ...(s.to ? { to: s.to.name } : {}), text: s.text })) } : { none: true });
   }
   if (req.method === 'GET') {
     const q = url.searchParams;
@@ -79,12 +79,14 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
       result = tasks.note(by, id, body.text, workers);
       break;
     case 'meeting_say':
+    case 'meeting_vote':
     case 'meeting_decision':
     case 'meeting_summary': {
       const meetings = floor.teamMeetings;
       const bossOnly = { ok: false as const, error: 'Only the manager records decisions and the summary' };
-      const m = body.action === 'meeting_say' ? meetings.say({ id: me.id, name: me.name }, body.text) : !by.boss ? bossOnly : body.action === 'meeting_decision' ? meetings.decide(me.name, body.text) : meetings.setSummary(body.text);
+      const m = body.action === 'meeting_say' ? meetings.say({ id: me.id, name: me.name }, body.text, body.to) : body.action === 'meeting_vote' ? meetings.vote({ id: me.id, name: me.name }, body.choice, body.reason) : !by.boss ? bossOnly : body.action === 'meeting_decision' ? meetings.decide(me.name, body.text) : meetings.setSummary(body.text);
       if (!m.ok) return send(res, 400, { error: m.error });
+      tell(floor, m.notices, me.name);
       return send(res, 200, { ok: true, said: m.meeting.said.length });
     }
     default:

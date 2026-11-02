@@ -22,8 +22,24 @@ export interface MeetingSaid {
   to?: { id: string; name: string };
 }
 
+/** poll: each says their piece, and the person hands out the next round; debate: they answer each other round after round by themselves; vote: a yes or no question. */
+export type MeetingMode = 'poll' | 'debate' | 'vote';
+export type Choice = 'yes' | 'no' | 'abstain';
+
+export interface Vote { id: string; name: string; choice: Choice; reason: string; at: number }
+
 export interface TeamMeeting {
   id: string;
+  mode: MeetingMode;
+  /** How many rounds a debate runs by itself before the manager is asked to sum it up. */
+  rounds: number;
+  /** Who writes it up: told when a debate or a vote is over. */
+  manager?: { id: string; name: string };
+  votes: Vote[];
+  /** Set when a vote has been counted. */
+  result?: { verdict: 'accepted' | 'rejected' | 'tie'; yes: number; no: number; abstain: number };
+  /** A debate that has run its rounds. */
+  concluded?: boolean;
   topic: string;
   calledBy: string;
   startedAt: number;
@@ -49,6 +65,9 @@ const ITEM_MAX = 300;
 const AGENDA_MAX = 12;
 const KEEP_PAST = 15;
 const MAX_SAID = 400;
+const MAX_ROUNDS = 6;
+const MODE_FA: Record<MeetingMode, string> = { poll: 'نظرخواهی', debate: 'بحث بین خودشان', vote: 'رأی‌گیری' };
+const CHOICE_FA: Record<Choice, string> = { yes: 'موافق', no: 'مخالف', abstain: 'ممتنع' };
 /** The meeting room has this many chairs. */
 export const CHAIRS = 5;
 
@@ -62,6 +81,8 @@ const stamp = (at: number) => new Date(at).toLocaleString('fa-IR', { hour12: fal
 /** The meeting written out for reading later. */
 export function minutesOf(m: TeamMeeting, tasks: { id: string; title: string; status: string; assignee?: string }[] = []): string {
   const lines = [`# ${m.topic}`, '', `- شروع: ${stamp(m.startedAt)}${m.endedAt ? ` · پایان: ${stamp(m.endedAt)}` : ''}`, `- برگزارکننده: ${m.calledBy}`, `- حاضران: ${m.members.map((x) => x.name).join('، ')}`];
+  lines.splice(5, 0, `- شیوه: ${MODE_FA[m.mode]}${m.mode === 'debate' ? ` (${m.rounds} دور)` : ''}`);
+  if (m.votes.length) lines.push('', '## رأی‌ها', ...m.votes.map((v) => `- ${v.name}: ${CHOICE_FA[v.choice]}${v.reason ? ` — ${v.reason.replace(/\n/g, ' ')}` : ''}`));
   if (m.agenda.length) lines.push('', '## دستور جلسه', ...m.agenda.map((a) => `- [${a.done ? 'x' : ' '}] ${a.text}`));
   if (m.summary) lines.push('', '## جمع‌بندی مدیر', m.summary);
   if (m.decisions.length) lines.push('', '## تصمیم‌ها', ...m.decisions.map((d, i) => `${i + 1}. ${d.text} (${d.by})`));
@@ -120,30 +141,37 @@ export class TeamMeetings {
   }
 
   /** Calls everyone in `members` to talk about `topic`. One meeting at a time. */
-  start(by: string, topic: unknown, members: { id: string; name: string }[], agenda: unknown = ''): MeetingOutcome {
+  start(by: string, topic: unknown, members: { id: string; name: string }[], agenda: unknown = '', opts: { mode?: unknown; rounds?: unknown; manager?: { id: string; name: string } } = {}): MeetingOutcome {
     if (this.current) return fail('A meeting is already on: end it first');
     const subject = clip(topic, TOPIC_MAX);
     if (!subject) return fail('Say what the meeting is about');
     if (members.length < 1) return fail('Say who is to come');
     if (members.length > CHAIRS) return fail(`The meeting room has ${CHAIRS} chairs`);
     const items = clip(agenda, AGENDA_MAX * ITEM_MAX).split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, AGENDA_MAX);
+    const mode: MeetingMode = opts.mode === 'debate' || opts.mode === 'vote' ? opts.mode : 'poll';
+    const rounds = mode === 'debate' ? Math.min(MAX_ROUNDS, Math.max(2, Math.floor(Number(opts.rounds)) || 3)) : 1;
     const meeting: TeamMeeting = {
-      id: `M-${Date.now().toString(36)}`, topic: subject, calledBy: by, startedAt: Date.now(), round: 1, members, said: [],
+      id: `M-${Date.now().toString(36)}`, mode, rounds, manager: opts.manager, votes: [], topic: subject, calledBy: by, startedAt: Date.now(), round: 1, members, said: [],
       agenda: items.map((text) => ({ text: text.slice(0, ITEM_MAX), done: false })), decisions: [], tasks: [], asked: [],
     };
     this.current = meeting;
     this.save();
     const names = members.map((m) => m.name).join('، ');
     const points = items.length ? ` دستور جلسه: ${items.map((t, i) => `${i + 1}) ${t}`).join(' ')}.` : '';
+    const how = mode === 'vote'
+      ? 'این یک رأی‌گیری است. با ابزار meeting_vote رأی بده (yes موافق، no مخالف، abstain ممتنع) و در reason دلیلت را در یک تا دو خط بنویس. یک بار؛ بقیه‌ی رأی‌ها را نمی‌بینی.'
+      : mode === 'debate'
+        ? `این بحث آزاد بین خودتان است و ${rounds} دور دارد. نظر اولیه‌ات را کوتاه و روشن (حداکثر ۱۰ خط) با meeting_say بگو. بعد از هر دور حرف بقیه به تو داده می‌شود و باید مستقیم جواب یکی‌شان را بدهی (در to نام او را بنویس)، موافقت یا مخالفتت را با دلیل بگو و تکرار نکن.`
+        : 'نظر و پیشنهادت را کوتاه و روشن (حداکثر ۱۰ خط) با ابزار meeting_say ثبت کن، یک بار.';
     const notices = members.map((m) => ({
       to: m.id,
-      text: `جلسه‌ی تیمی (دور ۱). موضوع: «${subject}».${points} شرکت‌کنندگان: ${names}. نظر و پیشنهادت را کوتاه و روشن (حداکثر ۱۰ خط) با ابزار meeting_say ثبت کن، یک بار. بقیه‌ی گفته‌ها را با meeting_read می‌بینی. در جلسه کاری انجام نده، فقط نظر بده.`,
+      text: `جلسه‌ی تیمی (${MODE_FA[mode]}، دور ۱). موضوع: «${subject}».${points} شرکت‌کنندگان: ${names}. ${how} بقیه‌ی گفته‌ها را با meeting_read می‌بینی. در جلسه کاری انجام نده.`,
     }));
     return { ok: true, meeting, notices };
   }
 
   /** What a member says; the person at the manager's computer says things too (no id). */
-  say(by: { id?: string; name: string }, text: unknown): MeetingOutcome {
+  say(by: { id?: string; name: string }, text: unknown, to?: unknown): MeetingOutcome {
     const m = this.current;
     if (!m) return fail('No meeting is on');
     if (by.id && !m.members.some((x) => x.id === by.id)) return fail('You are not in this meeting');
@@ -152,8 +180,56 @@ export class TeamMeetings {
     const answering = !!by.id && m.asked.includes(by.id);
     if (by.id && !answering && m.said.some((s) => s.id === by.id && s.round === m.round && !s.note)) return fail('You have already spoken this round: wait for the next one');
     if (answering) m.asked = m.asked.filter((x) => x !== by.id);
-    this.push(m, { at: Date.now(), round: m.round, by: by.name, id: by.id, text: said });
-    return { ok: true, meeting: m, notices: [] };
+    if (m.mode === 'vote' && by.id) return fail('This meeting is a vote: use meeting_vote');
+    const key = typeof to === 'string' ? to.trim() : '';
+    const target = key ? m.members.find((x) => x.id !== by.id && (x.name === key || x.id === key)) : undefined;
+    this.push(m, { at: Date.now(), round: m.round, by: by.name, id: by.id, text: said, ...(target ? { to: target } : {}) });
+    const notices: Notice[] = target ? [{ to: target.id, text: `در جلسه‌ی «${m.topic}» ${by.name} خطاب به تو گفت: ${said}` }] : [];
+    return { ok: true, meeting: m, notices: by.id && m.mode === 'debate' ? [...notices, ...this.advance(m)] : notices };
+  }
+
+  /** In a debate, once everyone has spoken the next round begins by itself, until the rounds are used up and the manager is asked to sum it up. */
+  private advance(m: TeamMeeting): Notice[] {
+    if (m.concluded || !m.members.every((x) => m.said.some((s) => s.id === x.id && s.round === m.round && !s.note))) return [];
+    if (m.round < m.rounds) {
+      const next = this.nextRound();
+      return next.ok ? next.notices : [];
+    }
+    m.concluded = true;
+    this.save();
+    const wrap = this.summarise(m.manager);
+    return wrap.ok ? wrap.notices : [];
+  }
+
+  /** A member's vote (changing it is allowed until the vote is counted); it is counted by itself once all have voted. */
+  vote(by: { id: string; name: string }, choice: unknown, reason: unknown): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    if (m.mode !== 'vote') return fail('This meeting is not a vote');
+    if (!m.members.some((x) => x.id === by.id)) return fail('You are not in this meeting');
+    if (m.result) return fail('The vote is closed');
+    if (choice !== 'yes' && choice !== 'no' && choice !== 'abstain') return fail('choice is yes, no or abstain');
+    m.votes = m.votes.filter((v) => v.id !== by.id);
+    m.votes.push({ id: by.id, name: by.name, choice, reason: clip(reason, ITEM_MAX), at: Date.now() });
+    this.save();
+    return m.votes.length >= m.members.length ? this.closeVote() : { ok: true, meeting: m, notices: [] };
+  }
+
+  /** Counts the votes so far (the person can do it before all are in); the outcome is kept as a decision. */
+  closeVote(): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    if (m.mode !== 'vote') return fail('This meeting is not a vote');
+    if (m.result) return fail('The vote is closed');
+    if (!m.votes.length) return fail('No one has voted yet');
+    const count = (c: Choice) => m.votes.filter((v) => v.choice === c).length;
+    const [yes, no, abstain] = [count('yes'), count('no'), count('abstain')];
+    m.result = { verdict: yes > no ? 'accepted' : no > yes ? 'rejected' : 'tie', yes, no, abstain };
+    const word = { accepted: 'تصویب شد', rejected: 'رد شد', tie: 'مساوی شد' }[m.result.verdict];
+    m.decisions.push({ at: Date.now(), by: 'رأی‌گیری', text: `«${m.topic}» ${word} (${yes} موافق، ${no} مخالف، ${abstain} ممتنع)` });
+    this.save();
+    const wrap = this.summarise(m.manager);
+    return { ok: true, meeting: m, notices: wrap.ok ? wrap.notices : [] };
   }
 
   private push(m: TeamMeeting, s: MeetingSaid) {
@@ -194,9 +270,10 @@ export class TeamMeetings {
     m.round++;
     m.asked = [];
     this.save();
+    const rounds = m.mode === 'debate' ? ` از ${m.rounds}` : '';
     const notices = m.members.map((x) => ({
       to: x.id,
-      text: `جلسه‌ی تیمی، دور ${m.round}. موضوع: «${m.topic}». نظرهای دور قبل:\n${digest || '(کسی چیزی نگفت)'}\nبا توجه به آن‌ها، موافقت یا اعتراض یا پیشنهاد اصلاحی‌ات را کوتاه با meeting_say بگو. تکرار نکن.`,
+      text: `جلسه‌ی تیمی، دور ${m.round}${rounds}. موضوع: «${m.topic}». نظرهای دور قبل:\n${digest || '(کسی چیزی نگفت)'}\nبا توجه به آن‌ها، موافقت یا اعتراض یا پیشنهاد اصلاحی‌ات را کوتاه با meeting_say بگو${m.mode === 'debate' ? ' و در to نام کسی را که جوابش را می‌دهی بنویس' : ''}. تکرار نکن.`,
     }));
     return { ok: true, meeting: m, notices };
   }
@@ -265,7 +342,7 @@ export class TeamMeetings {
     const m = this.current;
     if (!m) return fail('No meeting is on');
     if (!manager) return fail('There is no manager to write it up');
-    const all = m.said.filter((s) => !s.note).map((s) => `• (دور ${s.round}) ${s.by}: ${s.text}`).join('\n');
+    const all = [...m.said.filter((s) => !s.note).map((s) => `• (دور ${s.round}) ${s.by}${s.to ? ` ← ${s.to.name}` : ''}: ${s.text}`), ...m.votes.map((v) => `• رأی ${v.name}: ${CHOICE_FA[v.choice]}${v.reason ? ` — ${v.reason}` : ''}`)].join('\n');
     return { ok: true, meeting: m, notices: [{ to: manager.id, text: `جلسه‌ی «${m.topic}» تمام شد. گفته‌ها:\n${all || '(چیزی گفته نشد)'}\nهر تصمیم را جداگانه با meeting_decision ثبت کن، نتیجه را در چند خط با meeting_summary بنویس، و برای هر کار لازم با create_task کار بساز.` }] };
   }
 
@@ -301,5 +378,5 @@ export class TeamMeetings {
 
 /** A meeting saved before agendas, decisions and tasks existed gets them empty. */
 function fill(m: TeamMeeting): TeamMeeting {
-  return { ...m, agenda: m.agenda ?? [], decisions: m.decisions ?? [], tasks: m.tasks ?? [], asked: m.asked ?? [] };
+  return { ...m, mode: m.mode ?? 'poll', rounds: m.rounds ?? 1, votes: m.votes ?? [], agenda: m.agenda ?? [], decisions: m.decisions ?? [], tasks: m.tasks ?? [], asked: m.asked ?? [] };
 }

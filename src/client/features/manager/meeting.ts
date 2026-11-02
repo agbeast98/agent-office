@@ -1,7 +1,7 @@
 import './meeting.css';
 import { h, openModal, toast } from '../../ui/dom';
-import { composer, feed, people, roundStrip } from './meeting-chat';
-import { CHAIRS, type Full, type State } from './meeting-model';
+import { composer, feed, modeBar, people, roundStrip } from './meeting-chat';
+import { CHAIRS, MODES, MODE_FA, type Full, type Mode, type State } from './meeting-model';
 import { agenda, detail, history, notes, results } from './meeting-work';
 
 // The meeting room's window: calling a meeting (a subject, an agenda, who comes), and while it is on, its
@@ -43,9 +43,9 @@ export function openTeamMeeting(floor: string, special?: () => void) {
   async function act(action: string, extra: Record<string, unknown> = {}) {
     try {
       const res = await fetch(`/api/team/meeting?${qs}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
-      const out = (await res.json()) as { error?: string };
+      const out = (await res.json()) as { error?: string; notSeated?: { name: string; why: string }[] };
       if (!res.ok) throw new Error(out.error || 'انجام نشد');
-      msg.textContent = '';
+      msg.textContent = out.notSeated?.length ? `این‌ها سر میز نشستند ولی جایشان نشد: ${out.notSeated.map((x) => `${x.name} (${x.why})`).join('، ')}` : '';
       await load(true);
       return true;
     } catch (e) {
@@ -58,6 +58,10 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     const topic = h('textarea', { placeholder: 'موضوع جلسه: چه چیزی باید به نتیجه برسد؟', maxlength: '400', dir: 'auto', rows: '2' }) as HTMLTextAreaElement;
     const items = h('textarea', { placeholder: 'دستور جلسه (هر خط یک مورد، اختیاری)', maxlength: '3000', dir: 'auto', rows: '3' }) as HTMLTextAreaElement;
     const count = h('span.muted');
+    let mode: Mode = 'poll';
+    const rounds = h('select', { 'aria-label': 'تعداد دورها' }, ...[2, 3, 4, 5].map((n) => h('option', { value: String(n), selected: n === 3 }, `${n} دور`))) as HTMLSelectElement;
+    const cards = MODES.map((x) => h('button.mr-mode-card', { type: 'button', class: x.id === mode ? 'on' : '', onclick: () => { mode = x.id; cards.forEach((c, i) => c.classList.toggle('on', MODES[i].id === mode)); rounds.hidden = mode !== 'debate'; topic.placeholder = mode === 'vote' ? 'سؤال رأی‌گیری (بله یا نه)، مثلاً: آیا ساعت ارسال ثابت باشد؟' : 'موضوع جلسه: چه چیزی باید به نتیجه برسد؟'; } }, h('b', {}, `${x.icon} ${x.title}`), h('small', {}, x.text)));
+    rounds.hidden = true;
     const boxes = state.people.map((p) => {
       const cb = h('input', { type: 'checkbox', value: p.id, onchange: () => update() }) as HTMLInputElement;
       return { cb, row: h('label.mr-pick', {}, cb, h('span.mr-dot', { class: p.status }), ` ${p.name}`, p.role ? h('small', {}, p.role.split(':')[0]) : null) };
@@ -71,12 +75,12 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     const go = h('button.btn.primary', { type: 'button', onclick: async () => {
       const members = boxes.filter((b) => b.cb.checked).map((b) => b.cb.value);
       if (!topic.value.trim()) return void (msg.textContent = 'موضوع جلسه را بنویسید');
-      if (await act('start', { topic: topic.value, agenda: items.value, members })) { tab = 'chat'; toast('جلسه شروع شد؛ همه سر میز نشستند'); }
+      if (await act('start', { topic: topic.value, agenda: items.value, members, mode, rounds: Number(rounds.value) })) { tab = 'chat'; toast('جلسه شروع شد؛ همه سر میز نشستند'); }
     } }, '🤝 شروع جلسه');
     const nobody = state.people.length === 0;
     update();
     return h('div.mr-start', {},
-      h('div.mr-sec', {}, h('h4', {}, 'جلسه‌ی تازه'), topic,
+      h('div.mr-sec', {}, h('h4', {}, 'جلسه‌ی تازه'), h('div.mr-modes', {}, ...cards), rounds, topic,
         h('div.mr-chips', {}, ...TOPICS.map((t) => h('button.mr-topic', { type: 'button', onclick: () => { topic.value = t; } }, t))), items,
         h('div.mr-who-row', {}, h('h4', {}, 'چه کسانی بیایند؟'), count, h('button.btn', { type: 'button', onclick: gather }, '👥 جمع کردن همه')),
         nobody ? h('div.mg-empty', {}, 'کسی در تیم نیست.') : h('div.mr-picks', {}, ...boxes.map((b) => b.row)),
@@ -86,7 +90,7 @@ export function openTeamMeeting(floor: string, special?: () => void) {
   };
 
   const live = (m: Full) => {
-    if (tab === 'chat') return [roundStrip(m, state), feed(m, state)];
+    if (tab === 'chat') return [roundStrip(m, state), modeBar(m, act), feed(m, state)].filter((x): x is NonNullable<typeof x> => !!x);
     if (tab === 'people') return [people(m, state, act, (id) => { tab = 'chat'; render(); dock.askOne(id); })];
     if (tab === 'agenda') return [agenda(m, act)];
     if (tab === 'results') return [results(m, state.people.filter((p) => m.members.some((x) => x.id === p.id)), act)];
@@ -102,10 +106,12 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     const m = state.current;
     const keep = main.scrollTop;
     title.textContent = m ? `🤝 ${m.topic}` : '🤝 اتاق جلسه';
-    pill.textContent = m ? `● در جریان · دور ${m.round}` : 'آماده';
+    pill.textContent = m ? `● ${MODE_FA[m.mode]} · دور ${m.round}` : 'آماده';
     pill.className = `mr-pill ${m ? 'on' : ''}`;
     endBtn.toggleAttribute('hidden', !m);
     dock.el.hidden = !(m && tab === 'chat');
+    nextBtn.hidden = m?.mode === 'vote';
+    nextBtn.textContent = m?.mode === 'debate' ? '⏭ دور بعد (زودتر)' : '↻ دور بعد';
     if (m) dock.sync(m);
     nav.replaceChildren(...(m ? TABS : [TABS[5]]).map((t) => h('button.mr-tab', { type: 'button', role: 'tab', class: t.id === tab || (!m && t.id === 'past') ? 'on' : '', 'aria-selected': String(t.id === tab), onclick: () => { tab = t.id; if (t.id !== 'past') reading = undefined; render(); } }, t.label, badge(t.id, m) ? h('span.mr-badge', {}, String(badge(t.id, m))) : null)));
     nav.toggleAttribute('hidden', !m);
@@ -116,8 +122,9 @@ export function openTeamMeeting(floor: string, special?: () => void) {
 
   endBtn.addEventListener('click', () => { if (confirm('جلسه تمام شود؟ صورت‌جلسه ذخیره می‌شود و همه به میزشان برمی‌گردند.')) void act('end').then((ok) => ok && (tab = 'chat')); });
   // The summary asks the manager; next round asks everyone: both live with the conversation.
+  const nextBtn = h('button.btn', { type: 'button', title: 'نظرهای این دور را به همه می‌دهد تا جواب بدهند', onclick: () => void act('next') }, '↻ دور بعد');
   const actions = h('div.mr-acts', {},
-    h('button.btn', { type: 'button', title: 'نظرهای این دور را به همه می‌دهد تا جواب بدهند', onclick: () => void act('next') }, '↻ دور بعد'),
+    nextBtn,
     h('button.btn', { type: 'button', title: 'از مدیر می‌خواهد تصمیم‌ها و کارهای بعدی را بنویسد', onclick: () => void act('summarise').then((ok) => ok && toast('از مدیر جمع‌بندی خواسته شد')) }, '📝 جمع‌بندی توسط مدیر'));
   dock.el.append(actions);
 
