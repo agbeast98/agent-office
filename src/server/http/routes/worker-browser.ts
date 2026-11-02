@@ -53,6 +53,8 @@ export const workerBrowserRoutes = {
       }
       const browser = found.floor.workerBrowsers;
       try {
+        if (body.action === 'allow' || body.action === 'deny') return send(res, 200, await browser.approve(found.workerId, body.action));
+        if (body.action === 'mode') return send(res, 200, await browser.setMode(found.workerId, body.mode));
         if (body.action === 'take') return send(res, 200, await browser.control(found.workerId, 'person'));
         if (body.action === 'release') return send(res, 200, await browser.control(found.workerId, 'agent'));
         if (body.action === 'open') {

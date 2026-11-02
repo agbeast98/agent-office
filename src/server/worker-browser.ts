@@ -1,7 +1,20 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+
+/** 'ask': the agent needs the person's say-so before anything that sends or confirms; 'auto': it doesn't. */
+export type BrowserMode = 'ask' | 'auto';
+
+/** Something the agent wanted to do that waits for the person (see WorkerBrowsers.guard). */
+export interface BrowserRequest {
+  action: 'click' | 'press';
+  label: string;
+  selector?: string;
+  key?: string;
+  url: string;
+  at: number;
+}
 
 export interface BrowserView {
   workerId: string;
@@ -9,8 +22,15 @@ export interface BrowserView {
   url?: string;
   title?: string;
   control: 'agent' | 'person';
+  mode: BrowserMode;
+  pending?: BrowserRequest;
   error?: string;
 }
+
+/** How long an approval (or a refusal) of one action on one page holds. */
+const DECISION_MS = 2 * 60_000;
+/** Buttons and links that send, confirm, pay or delete, in Persian and English. */
+const SENSITIVE = /(ارسال|ثبت|تایید|تأیید|پرداخت|حذف|انتشار|خرید|پیشنهاد|submit|send|publish|confirm|pay|delete|remove|buy|order|apply|post|bid|checkout)/i;
 
 interface Session {
   context: BrowserContext;
@@ -24,10 +44,88 @@ export class WorkerBrowsers {
   private sessions = new Map<string, Promise<Session>>();
   private root: string;
   private closing = false;
+  private modes = new Map<string, BrowserMode>();
+  private pending = new Map<string, BrowserRequest>();
+  /** What the person approved ('allow') or turned down ('deny'), by worker, action and page, until it expires. */
+  private decisions = new Map<string, { verdict: 'allow' | 'deny'; until: number }>();
 
   constructor(dataDir: string) {
     this.root = path.join(dataDir, 'worker-browsers');
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
+    try {
+      const saved = JSON.parse(readFileSync(path.join(this.root, 'modes.json'), 'utf8')) as Record<string, unknown>;
+      for (const [id, mode] of Object.entries(saved)) if (mode === 'auto' || mode === 'ask') this.modes.set(id, mode);
+    } catch {
+      // No choices made yet: every browser asks.
+    }
+  }
+
+  mode(workerId: string): BrowserMode {
+    return this.modes.get(workerId) ?? 'ask';
+  }
+
+  setMode(workerId: string, mode: unknown) {
+    if (mode !== 'ask' && mode !== 'auto') throw new Error('The mode is ask or auto.');
+    this.modes.set(workerId, mode);
+    this.pending.delete(workerId);
+    try {
+      writeFileSync(path.join(this.root, 'modes.json'), JSON.stringify(Object.fromEntries(this.modes)), { mode: 0o600 });
+    } catch {
+      // The choice still holds until the office restarts.
+    }
+    this.note(workerId, 'person', 'mode', mode);
+    return this.view(workerId);
+  }
+
+  /** One line of what happened in this browser, for whoever wants to check on it later. Typed text is never written down. */
+  private note(workerId: string, actor: 'agent' | 'person', action: string, detail = '', url = '') {
+    try {
+      appendFileSync(`${this.profile(workerId)}.log.jsonl`, `${JSON.stringify({ at: new Date().toISOString(), actor, action, detail: detail.slice(0, 200), url: url.slice(0, 300) })}\n`, { mode: 0o600 });
+    } catch {
+      // A log that can't be written is not a reason to stop the page.
+    }
+  }
+
+  /** The last lines of this browser's log. */
+  history(workerId: string, lines = 100): string[] {
+    try {
+      return readFileSync(`${this.profile(workerId)}.log.jsonl`, 'utf8').trim().split('\n').slice(-lines);
+    } catch {
+      return [];
+    }
+  }
+
+  private key(workerId: string, action: string, target: string, url: string) {
+    return `${workerId}|${action}|${target}|${url.split('#')[0]}`;
+  }
+
+  /**
+   * In 'ask' mode the agent can't send, confirm, pay or delete on its own: the first try is kept
+   * for the person to approve or turn down, and the agent is told to wait; once approved, the same
+   * action on the same page goes through (for a couple of minutes).
+   */
+  private guard(workerId: string, s: Session, request: Omit<BrowserRequest, 'url' | 'at'>, sensitive: boolean) {
+    if (!sensitive || this.mode(workerId) === 'auto') return;
+    const url = s.page.url();
+    const key = this.key(workerId, request.action, request.selector ?? request.key ?? '', url);
+    const decision = this.decisions.get(key);
+    if (decision && decision.until > Date.now()) {
+      this.decisions.delete(key);
+      if (decision.verdict === 'allow') return;
+      throw new Error(`The person said no to "${request.label}". Do not try again; ask them what to do instead.`);
+    }
+    this.pending.set(workerId, { ...request, url, at: Date.now() });
+    this.note(workerId, 'agent', 'waiting-for-approval', `${request.action}: ${request.label}`, url);
+    throw new Error(`"${request.label}" sends or confirms something, so it needs the person's approval. It is waiting in the 🌐 Browser tab. Tell them, then try the very same action again once they say they approved it.`);
+  }
+
+  approve(workerId: string, verdict: 'allow' | 'deny') {
+    const request = this.pending.get(workerId);
+    if (!request) throw new Error('Nothing is waiting for approval.');
+    this.pending.delete(workerId);
+    this.decisions.set(this.key(workerId, request.action, request.selector ?? request.key ?? '', request.url), { verdict, until: Date.now() + DECISION_MS });
+    this.note(workerId, 'person', verdict === 'allow' ? 'approved' : 'refused', request.label, request.url);
+    return this.view(workerId);
   }
 
   private profile(workerId: string) {
@@ -49,6 +147,8 @@ export class WorkerBrowsers {
           permissions: [],
           args: process.platform === 'linux' ? ['--no-sandbox'] : [],
         });
+        // Functions sent to the page are compiled in the office; a build step that wraps them in a __name helper must not break there.
+        await context.addInitScript('window.__name = window.__name || ((f) => f);');
         const page = context.pages()[0] ?? (await context.newPage());
         return { context, page, control: 'agent' as const };
       })();
@@ -63,17 +163,19 @@ export class WorkerBrowsers {
     const s = await this.session(workerId);
     if (s.control !== actor) throw new Error(`The browser is currently controlled by ${s.control === 'person' ? 'you' : 'the agent'}.`);
     await s.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    this.note(workerId, actor, 'open', url);
     return this.view(workerId);
   }
 
   async view(workerId: string): Promise<BrowserView> {
     const opening = this.sessions.get(workerId);
-    if (!opening) return { workerId, open: false, control: 'agent' };
+    if (!opening) return { workerId, open: false, control: 'agent', mode: this.mode(workerId) };
     try {
       const s = await opening;
-      return { workerId, open: true, url: s.page.url(), title: await s.page.title().catch(() => ''), control: s.control, ...(s.error ? { error: s.error } : {}) };
+      const pending = this.pending.get(workerId);
+      return { workerId, open: true, url: s.page.url(), title: await s.page.title().catch(() => ''), control: s.control, mode: this.mode(workerId), ...(pending ? { pending } : {}), ...(s.error ? { error: s.error } : {}) };
     } catch (error) {
-      return { workerId, open: false, control: 'agent', error: errorMessage(error) };
+      return { workerId, open: false, control: 'agent', mode: this.mode(workerId), error: errorMessage(error) };
     }
   }
 
@@ -98,7 +200,20 @@ export class WorkerBrowsers {
     const s = await this.session(workerId);
     if (s.control !== actor) throw new Error('The browser is currently under human control.');
     const target = checkedSelector(selector);
-    await s.page.locator(target).first().click({ timeout: 8000 });
+    const el = s.page.locator(target).first();
+    if (actor === 'agent') {
+      const found = await el.evaluate((node: Element) => {
+        const input = node as HTMLInputElement;
+        const type = (node.getAttribute('type') ?? '').toLowerCase();
+        const text = (node.textContent || input.value || node.getAttribute('aria-label') || node.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        const submits = (node.tagName === 'BUTTON' && (type === '' || type === 'submit') && !!node.closest('form')) || (node.tagName === 'INPUT' && (type === 'submit' || type === 'image'));
+        return { text, submits };
+      }, undefined, { timeout: 5000 }).catch(() => undefined);
+      if (!found) throw new Error('No element matches that selector.');
+      this.guard(workerId, s, { action: 'click', label: found.text || target, selector: target }, found.submits || SENSITIVE.test(found.text));
+    }
+    await el.click({ timeout: 8000 });
+    this.note(workerId, actor, 'click', target, s.page.url());
     return this.view(workerId);
   }
 
@@ -107,13 +222,95 @@ export class WorkerBrowsers {
     if (s.control !== actor) throw new Error('The browser is currently under human control.');
     const target = checkedSelector(selector);
     if (typeof text !== 'string' || text.length > 5000) throw new Error('Text must be at most 5000 characters.');
-    await s.page.locator(target).first().fill(text, { timeout: 8000 });
+    const field = s.page.locator(target).first();
+    if (actor === 'agent' && (await field.evaluate((node: Element) => (node.getAttribute('type') ?? '').toLowerCase() === 'password', undefined, { timeout: 5000 }).catch(() => false))) {
+      throw new Error('Passwords are typed by the person (Take control), never by the agent.');
+    }
+    await field.fill(text, { timeout: 8000 });
+    this.note(workerId, actor, 'type', `${target} (${text.length} characters)`, s.page.url());
+    return this.view(workerId);
+  }
+
+  /** The things on the page that can be clicked or filled, each with a selector the agent can pass to click and type. */
+  async snapshot(workerId: string, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    const items = await s.page.evaluate(() => {
+      const path = (el: Element): string => {
+        if (el.id && document.querySelectorAll(`#${CSS.escape(el.id)}`).length === 1) return `#${CSS.escape(el.id)}`;
+        const parts: string[] = [];
+        for (let node: Element | null = el; node && node !== document.body && parts.length < 6; node = node.parentElement) {
+          const same: Element[] = node.parentElement ? [...node.parentElement.children].filter((c) => c.tagName === node!.tagName) : [];
+          parts.unshift(`${node.tagName.toLowerCase()}${same.length > 1 ? `:nth-of-type(${same.indexOf(node) + 1})` : ''}`);
+        }
+        return parts.join(' > ');
+      };
+      const visible = (el: Element) => {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        const st = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && st.display !== 'none';
+      };
+      return [...document.querySelectorAll('a[href], button, input, select, textarea, [role="button"], [role="link"], [role="tab"], [onclick]')]
+        .filter(visible)
+        .slice(0, 80)
+        .map((el) => {
+          const input = el as HTMLInputElement;
+          const type = (el.getAttribute('type') ?? '').toLowerCase();
+          const label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || (el.textContent ?? '') || input.value || el.getAttribute('name') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+          return { kind: el.tagName.toLowerCase() + (type ? `[${type}]` : ''), label, selector: path(el), ...(el.tagName === 'A' ? { href: (el as HTMLAnchorElement).href.slice(0, 200) } : {}) };
+        });
+    });
+    return { url: s.page.url(), title: await s.page.title().catch(() => ''), items };
+  }
+
+  async press(workerId: string, key: unknown, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    if (typeof key !== 'string' || !['Enter', 'Tab', 'Escape', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageDown', 'PageUp', 'Home', 'End'].includes(key)) throw new Error('That key is not available.');
+    if (actor === 'agent' && key === 'Enter') {
+      const inForm = await s.page.evaluate(() => !!(document.activeElement as HTMLInputElement | null)?.form).catch(() => false);
+      this.guard(workerId, s, { action: 'press', label: 'Enter', key }, inForm);
+    }
+    await s.page.keyboard.press(key);
+    this.note(workerId, actor, 'press', key, s.page.url());
+    return this.view(workerId);
+  }
+
+  async scroll(workerId: string, direction: unknown, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    if (direction !== 'down' && direction !== 'up' && direction !== 'top' && direction !== 'bottom') throw new Error('Scroll down, up, top or bottom.');
+    await s.page.evaluate((d: string) => {
+      if (d === 'top') window.scrollTo(0, 0);
+      else if (d === 'bottom') window.scrollTo(0, document.body.scrollHeight);
+      else window.scrollBy(0, (d === 'down' ? 1 : -1) * Math.round(window.innerHeight * 0.8));
+    }, direction);
+    return this.view(workerId);
+  }
+
+  async wait(workerId: string, seconds: unknown, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    const n = typeof seconds === 'number' && Number.isFinite(seconds) ? Math.min(15, Math.max(0.5, seconds)) : 2;
+    await s.page.waitForTimeout(n * 1000);
+    return this.view(workerId);
+  }
+
+  async select(workerId: string, selector: unknown, value: unknown, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    if (typeof value !== 'string' || value.length > 200) throw new Error('Give the option to pick, up to 200 characters.');
+    const target = checkedSelector(selector);
+    const el = s.page.locator(target).first();
+    await el.selectOption({ label: value }, { timeout: 8000 }).catch(() => el.selectOption(value, { timeout: 8000 }));
+    this.note(workerId, actor, 'select', target, s.page.url());
     return this.view(workerId);
   }
 
   async control(workerId: string, value: 'agent' | 'person') {
     const s = await this.session(workerId);
     s.control = value;
+    this.note(workerId, 'person', value === 'person' ? 'took-control' : 'released-control', '', s.page.url());
     return this.view(workerId);
   }
 

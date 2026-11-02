@@ -2,7 +2,7 @@ import './worker-browser.css';
 import { h, toast } from './dom';
 import { store } from '../state';
 
-interface BrowserState { open: boolean; url?: string; title?: string; control: 'agent' | 'person'; error?: string }
+interface BrowserState { open: boolean; url?: string; title?: string; control: 'agent' | 'person'; mode?: 'ask' | 'auto'; pending?: { action: 'click' | 'press'; label: string; url: string }; error?: string }
 
 /** The owner-facing window into the private browser session belonging to one worker. */
 export function workerBrowser(workerId: string): { panel: HTMLElement; visible(on: boolean): void; dispose(): void } {
@@ -13,12 +13,18 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
   const reload = h('button.btn.wb-nav', { type: 'button', 'aria-label': 'Reload', title: 'Reload' }, '↻');
   const take = h('button.btn.wb-take', { type: 'button' }, 'Take control');
   const status = h('span.wb-status', {}, 'Browser is ready when you are');
+  const mode = h('select.wb-mode', { 'aria-label': 'ارسال و تأیید توسط ایجنت', title: 'وقتی ایجنت بخواهد چیزی را ارسال، ثبت، پرداخت یا حذف کند' },
+    h('option', { value: 'ask' }, '🛡️ ارسال با تأیید من'), h('option', { value: 'auto' }, '⚡ خودکار، بدون پرسیدن')) as HTMLSelectElement;
+  const askText = h('span.wb-ask-text');
+  const allow = h('button.btn.wb-allow', { type: 'button' }, '✓ تأیید');
+  const deny = h('button.btn.wb-deny', { type: 'button' }, '✕ رد');
+  const ask = h('div.wb-ask.hidden', { role: 'alert', dir: 'rtl', lang: 'fa' }, askText, allow, deny);
   const title = h('span.wb-title', {}, 'Private worker browser');
   const image = h('img.wb-page', { alt: 'Live screenshot of this worker’s private browser page', draggable: 'false' }) as HTMLImageElement;
   const empty = h('div.wb-empty', {}, h('div.wb-globe', {}, '◉'), h('h3', {}, 'A browser for this desk'), h('p', {}, 'The page the agent opens appears here. Its browsing session is isolated from your personal Chrome profile.'), h('button.btn.primary', { type: 'button' }, 'Open browser'));
   const frame = h('div.wb-viewport', { role: 'application', tabindex: '0', 'aria-label': 'Browser preview. Take control to click or type.' }, empty, image);
   const form = h('form.wb-toolbar', {}, back, forward, reload, address, go, take);
-  const panel = h('section.worker-browser', { 'aria-label': 'Worker browser' }, form, h('div.wb-meta', {}, title, status), frame, h('footer.wb-footer', {}, h('span', {}, '🔒 Isolated profile · shared with the people in this office'), h('span', {}, 'Human and agent controls take turns')));
+  const panel = h('section.worker-browser', { 'aria-label': 'Worker browser' }, form, h('div.wb-meta', {}, title, mode, status), ask, frame, h('footer.wb-footer', {}, h('span', {}, '🔒 Isolated profile · shared with the people in this office'), h('span', {}, 'Human and agent controls take turns')));
   const qs = () => new URLSearchParams({ floor: store.floor ?? '', worker: workerId });
   const endpoint = (name: string) => `/api/worker-browser/${name}?${qs().toString()}`;
   let shown = false;
@@ -81,6 +87,9 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     take.setAttribute('aria-pressed', String(state.control === 'person'));
     status.textContent = state.error ? state.error : isOpen ? state.control === 'person' ? 'The browser is under human control' : 'The agent is using this browser' : 'Browser is ready when you are';
     status.classList.toggle('error', !!state.error);
+    mode.value = state.mode ?? 'ask';
+    ask.classList.toggle('hidden', !state.pending);
+    if (state.pending) askText.textContent = `ایجنت می‌خواهد «${state.pending.label}» را ${state.pending.action === 'press' ? 'با Enter بفرستد' : 'بزند'} (${state.pending.url}). اجازه می‌دهید؟`;
     back.disabled = forward.disabled = reload.disabled = !isOpen || state.control !== 'person';
     go.disabled = !address.value.trim();
   };
@@ -89,6 +98,9 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     const url = address.value.trim() || 'https://www.google.com';
     void request('open', { url });
   });
+  mode.addEventListener('change', () => void request('mode', { mode: mode.value }));
+  allow.addEventListener('click', () => void request('allow'));
+  deny.addEventListener('click', () => void request('deny'));
   take.addEventListener('click', () => void request(state.control === 'person' ? 'release' : 'take'));
   back.addEventListener('click', () => void request('back'));
   forward.addEventListener('click', () => void request('forward'));

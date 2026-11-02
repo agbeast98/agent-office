@@ -365,6 +365,11 @@ const BROWSER_TOOLS = [
   { name: 'browser_open', action: 'open', title: 'Open a web page', description: "Opens an http or https page in this worker's own browser, which the person sees live in the 🌐 Browser tab of your terminal. Use it, not a browser of your own, whenever you are asked to open or look at a site.", props: { url: { type: 'string', description: 'The page address, http:// or https://.' } }, required: ['url'] },
   { name: 'browser_read_page', action: 'text', title: 'Read the page', description: 'Returns the visible text of the page open in your browser.', props: {}, required: [] },
   { name: 'browser_screenshot', action: 'screenshot', title: 'Screenshot the page', description: 'Returns an image of the page open in your browser.', props: {}, required: [] },
+  { name: 'browser_snapshot', action: 'snapshot', title: 'List what can be clicked', description: 'Lists the visible links, buttons and fields of the open page, each with a CSS selector to pass to browser_click, browser_type or browser_select. Use it before clicking, instead of guessing selectors.', props: {}, required: [] },
+  { name: 'browser_press', action: 'press', title: 'Press a key', description: 'Presses Enter, Tab, Escape, an arrow, PageUp/PageDown, Home or End. Enter inside a form sends it, which needs the person’s approval.', props: { key: { type: 'string', description: 'The key.' } }, required: ['key'] },
+  { name: 'browser_scroll', action: 'scroll', title: 'Scroll the page', description: 'Scrolls the page down, up, to the top or to the bottom.', props: { direction: { type: 'string', enum: ['down', 'up', 'top', 'bottom'] } }, required: ['direction'] },
+  { name: 'browser_wait', action: 'wait', title: 'Wait', description: 'Waits up to 15 seconds for the page to load or change.', props: { seconds: { type: 'number', description: 'How long, 0.5 to 15.' } }, required: [] },
+  { name: 'browser_select', action: 'select', title: 'Pick an option', description: 'Picks an option (by its text or value) in the select box a CSS selector names.', props: { selector: { type: 'string', description: 'A CSS selector.' }, value: { type: 'string', description: 'The option.' } }, required: ['selector', 'value'] },
   { name: 'browser_status', action: 'view', title: 'What is open', description: 'Says which page is open in your browser (address, title) and who has control.', props: {}, required: [] },
   { name: 'browser_click', action: 'click', title: 'Click an element', description: 'Clicks the element a CSS selector names on the open page.', props: { selector: { type: 'string', description: 'A CSS selector.' } }, required: ['selector'] },
   { name: 'browser_type', action: 'type', title: 'Type into an element', description: 'Types text into the element a CSS selector names on the open page.', props: { selector: { type: 'string', description: 'A CSS selector.' }, text: { type: 'string', description: 'What to type.' } }, required: ['selector', 'text'] },
@@ -373,7 +378,7 @@ const BROWSER_TOOLS = [
   { name: 'browser_reload', action: 'reload', title: 'Reload the page', description: 'Reloads the open page.', props: {}, required: [] },
 ];
 for (const t of BROWSER_TOOLS) {
-  TOOLS.push({ name: t.name, title: t.title, description: t.description, inputSchema: { type: 'object', properties: t.props, ...(t.required.length ? { required: t.required } : {}), additionalProperties: false }, annotations: { readOnlyHint: ['browser_read_page', 'browser_screenshot', 'browser_status'].includes(t.name), openWorldHint: true } });
+  TOOLS.push({ name: t.name, title: t.title, description: t.description, inputSchema: { type: 'object', properties: t.props, ...(t.required.length ? { required: t.required } : {}), additionalProperties: false }, annotations: { readOnlyHint: ['browser_read_page', 'browser_screenshot', 'browser_status', 'browser_snapshot'].includes(t.name), openWorldHint: true } });
 }
 
 /** One browser action, asked of the office; resolves to what it answered, or throws with why it said no. */
@@ -394,7 +399,7 @@ const INSTRUCTIONS =
   'puts a new agent to work, send_home sends agents home and deletes their worktrees and branches, tell_worker gives one a prompt, and link_pr says which pull request is a ' +
   "worker's when list_workers does not show it. Everyone in the office sees who did what. " +
   'The office-workers command on your PATH does the same from a shell. ' +
-  "The browser_* tools drive this worker's own browser, shown live in the 🌐 Browser tab of its terminal: open sites with browser_open rather than a browser of your own, so the person can see the page.";
+  "The browser_* tools drive this worker's own browser, shown live in the 🌐 Browser tab of its terminal: open sites with browser_open rather than a browser of your own, so the person can see the page. Use browser_snapshot to find what to click. Anything that sends, confirms, pays or deletes needs the person's approval (you are told when it is waiting); never type passwords, the person does.";
 
 /** Runs a tool; resolves to its text, and whether nothing it was asked came off, or throws with why it failed. */
 async function runTool(name, args, io) {

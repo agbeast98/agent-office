@@ -45,6 +45,11 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
         if (body.action === 'back') return send(res, 200, await browsers.back(workerId, 'agent'));
         if (body.action === 'forward') return send(res, 200, await browsers.forward(workerId, 'agent'));
         if (body.action === 'reload') return send(res, 200, await browsers.reload(workerId, 'agent'));
+        if (body.action === 'snapshot') return send(res, 200, await browsers.snapshot(workerId));
+        if (body.action === 'press') return send(res, 200, await browsers.press(workerId, body.key, 'agent'));
+        if (body.action === 'scroll') return send(res, 200, await browsers.scroll(workerId, body.direction, 'agent'));
+        if (body.action === 'wait') return send(res, 200, await browsers.wait(workerId, body.seconds, 'agent'));
+        if (body.action === 'select') return send(res, 200, await browsers.select(workerId, body.selector, body.value, 'agent'));
         if (body.action === 'screenshot') return send(res, 200, { data: (await browsers.screenshot(workerId)).toString('base64') });
         return send(res, 400, { error: 'Unknown browser action' });
       } catch (error) {

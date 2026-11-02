@@ -35,3 +35,10 @@
   .wb-meta { align-items: flex-start; flex-direction: column; gap: 4px; }
   .wb-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+
+.wb-mode { flex: none; height: 26px; padding: 0 8px; border: 1px solid #394551; border-radius: 7px; color: #e7edf1; background: #232c36; font-size: 12px; }
+.wb-ask { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #aa8045; color: #fff1cf; background: #59462b; font-size: 13px; }
+.wb-ask.hidden { display: none; }
+.wb-ask-text { flex: 1 1 auto; line-height: 1.6; }
+.wb-allow { border-color: #75c9be !important; color: #09201e !important; background: #8bdbcf !important; font-weight: 800; }
+.wb-deny { border-color: #ec745d !important; color: #ffd9d0 !important; background: #5a2a22 !important; }
