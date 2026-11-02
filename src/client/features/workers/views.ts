@@ -151,6 +151,9 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
         v.laptop.root.removeFromParent();
         desk.laptopAnchor.add(v.laptop.root);
         desk.seatAnchor.add(v.model.root);
+        v.model.root.position.set(0, 0, 0);
+        v.model.root.rotation.set(0, 0, 0);
+        v.model.root.scale.setScalar(1);
         v.model.setPropSpot(v.model.root.worldToLocal(desk.laptopAnchor.localToWorld(desk.def.station ? new THREE.Vector3(0.62, 0.9, 0) : new THREE.Vector3(0.64, 0.5, -0.1))));
         if (desk.def.room && !seatedAlready) arrivals.add(v.model, desk);
         desk.chair.rotation.y = 0;
