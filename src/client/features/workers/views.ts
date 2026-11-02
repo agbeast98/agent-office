@@ -142,6 +142,21 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
         v = { model, laptop, deskId: w.deskId, status: '', acked: true };
         workerViews.set(w.id, v);
       }
+      // Called to the meeting table, or sent back to its desk (the office moved it): it goes there, walking in when it is the table.
+      if (v.deskId !== w.deskId) {
+        arrivals.forget(v.model);
+        court?.release(w.id);
+        departures.vacate(w.deskId);
+        v.model.root.removeFromParent();
+        v.laptop.root.removeFromParent();
+        desk.laptopAnchor.add(v.laptop.root);
+        desk.seatAnchor.add(v.model.root);
+        v.model.setPropSpot(v.model.root.worldToLocal(desk.laptopAnchor.localToWorld(desk.def.station ? new THREE.Vector3(0.62, 0.9, 0) : new THREE.Vector3(0.64, 0.5, -0.1))));
+        if (desk.def.room && !seatedAlready) arrivals.add(v.model, desk);
+        desk.chair.rotation.y = 0;
+        noOutline(desk.group);
+        v.deskId = w.deskId;
+      }
       if (v.status !== w.status || v.acked !== w.acked) {
         // It just finished or started waiting on you (not already so when this page first saw it): ding (one that needs you has an alarm of its own, see features/needsyou), and notify if you're away.
         if (waitingOnSomeone(w) && v.status !== '' && w.status !== v.status) {
