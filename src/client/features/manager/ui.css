@@ -1,0 +1,39 @@
+/* The manager's computer: the team's tasks in columns, with the people and a box to tell them things. */
+.manager-window { width: min(1180px, 96vw); height: min(760px, 92vh); display: flex; flex-direction: column; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
+.manager-window > header { display: flex; align-items: center; gap: 12px; direction: ltr; }
+.manager-window > header > * { direction: rtl; }
+.manager-window > header .close { margin-left: auto; }
+.manager-window h2 { margin: 0; font-size: 18px; }
+.mg-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 340px; gap: 12px; padding: 10px 14px 14px; }
+.mg-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.mg-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.mg-person { display: flex; align-items: center; gap: 6px; padding: 3px 9px; border: 2px solid var(--ink); border-radius: 14px; background: var(--paper); font-size: 12px; font-weight: 700; }
+.mg-person i { width: 8px; height: 8px; border-radius: 50%; background: #9aa; }
+.mg-person i.working { background: #3ba55d; } .mg-person i.needs_input { background: #e6a72d; } .mg-person i.done, .mg-person i.idle { background: #4f86f7; }
+.mg-person.boss { background: #ffe9a8; }
+.mg-board { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.mg-col { min-height: 0; display: flex; flex-direction: column; border: 2px solid var(--ink); border-radius: 12px; background: #fffaf3; }
+.mg-col h3 { margin: 0; padding: 7px 10px; font-size: 13px; border-bottom: 2px solid var(--ink); display: flex; justify-content: space-between; }
+.mg-cards { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.mg-card { padding: 7px 9px; border: 2px solid var(--ink); border-radius: 9px; background: #fff; cursor: pointer; font-size: 13px; line-height: 1.6; }
+.mg-card:hover { background: #fff3d6; } .mg-card.on { outline: 3px solid #ef8354; }
+.mg-card .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.mg-chip { padding: 0 6px; border-radius: 8px; background: #eee; } .mg-chip.high { background: #ffc9c0; } .mg-chip.req { background: #d8ecff; }
+.mg-side { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.mg-box { border: 2px solid var(--ink); border-radius: 12px; padding: 9px 11px; background: #fffaf3; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.mg-box h4 { margin: 0; font-size: 13px; }
+.mg-box textarea, .mg-box input, .mg-box select { width: 100%; box-sizing: border-box; font: inherit; padding: 5px 8px; border: 2px solid var(--ink); border-radius: 8px; background: #fff; }
+.mg-box textarea { min-height: 64px; resize: vertical; }
+.mg-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.mg-notes { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.mg-note { padding: 4px 8px; border-radius: 8px; background: #f3ede2; font-size: 12px; white-space: pre-wrap; }
+.mg-empty { color: var(--muted); font-size: 12px; padding: 6px; }
+.mg-msg { font-size: 12px; color: #b3402a; }
+@media (max-width: 900px) {
+  .mg-body { grid-template-columns: 1fr; overflow-y: auto; align-content: start; }
+  .mg-main { min-height: auto; }
+  .mg-board { flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mg-col { min-height: 130px; }
+  .mg-cards { max-height: 240px; }
+  .mg-side { overflow: visible; }
+}

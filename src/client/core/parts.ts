@@ -16,6 +16,7 @@ import type { Confetti } from '../world/confetti';
 import type { Hands } from '../world/hands';
 import type { Smoke } from '../world/smoke';
 import type { installArcade } from '../features/arcade';
+import type { installManager } from '../features/manager';
 import type { installBar } from '../features/bar';
 import type { installBarGames } from '../features/bargames';
 import type { installBasketball } from '../features/basketball';
@@ -97,6 +98,7 @@ export interface Parts {
   gallery: Made<typeof installGallery>;
   tv: Made<typeof installTv>;
   arcade: Made<typeof installArcade>;
+  manager: Made<typeof installManager>;
   rooftop: Made<typeof installRooftop>;
   telescope: Made<typeof installTelescope>;
   dog: Made<typeof installDog>;

@@ -136,8 +136,10 @@ export function buildLoft(group: THREE.Group, colliders: Collider[], interactabl
   bossChair.position.set(0, 0, 1.0);
   desk.add(bossChair);
   seatable(bossChair, 'boss-chair', 1.2, interactables);
-  // Clicking the screen is using the chair: sit down, then play.
-  screen.userData.interact = bossChair.userData.interact;
+  // The monitor is the manager's computer (features/manager); the chair still sits down and plays.
+  const managerPc: Interactable = { kind: 'manager', x: deskX, y: floorY, z: deskZ - 0.3, radius: 2.4 };
+  screen.userData.interact = managerPc;
+  interactables.push(managerPc);
   desk.position.set(deskX, floorY, deskZ);
   group.add(desk);
   colliders.push({ minX: deskX - 1.3, maxX: deskX + 1.3, minZ: deskZ - 0.6, maxZ: deskZ + 0.6, bottom: floorY, top: floorY + 0.8 });

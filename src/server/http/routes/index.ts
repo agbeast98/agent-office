@@ -8,6 +8,7 @@ import { fileRoutes } from './files.js';
 import { githubRoutes } from './github.js';
 import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
+import { teamRoutes } from './team.js';
 import { serviceRoutes } from './services.js';
 import { workerBrowserRoutes } from './worker-browser.js';
 import { workerChatRoutes } from './worker-chat.js';
@@ -34,6 +35,8 @@ export const routes: readonly Route[] = [
   workerBrowserRoutes.screenshot,
   workerBrowserRoutes.action,
   workerChatRoutes.transcript,
+  teamRoutes.team,
+  teamRoutes.action,
   fileRoutes.image,
   fileRoutes.whiteboardFile,
   fileRoutes.termDrop,

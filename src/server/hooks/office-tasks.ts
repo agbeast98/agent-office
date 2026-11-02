@@ -5,7 +5,7 @@ import { readBody, send } from '../http/util.js';
 import type { Notice, Outcome, TeamTask } from '../team-tasks.js';
 
 /** What a worker is shown of a task. */
-const view = (t: TeamTask) => ({
+export const view = (t: TeamTask) => ({
   id: t.id,
   title: t.title,
   detail: t.detail,
@@ -20,7 +20,7 @@ const view = (t: TeamTask) => ({
 });
 
 /** Tells the workers a change concerns, waking one that is asleep. A worker that can't be reached isn't a reason to fail the change. */
-function tell(floor: Floor, notices: Notice[], by: string) {
+export function tell(floor: Floor, notices: Notice[], by: string) {
   for (const n of notices) {
     const w = floor.workers.get(n.to);
     if (!w || w.kind !== 'agent') continue;
