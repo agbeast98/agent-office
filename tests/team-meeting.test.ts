@@ -65,3 +65,93 @@ test('the manager is asked to write it up, the outcome is kept, and ending moves
     done();
   }
 });
+
+test('an agenda is told to everyone, and points can be added and ticked off', () => {
+  const { meetings, done } = fresh();
+  try {
+    const started = meetings.start('مدیرعامل', 'برنامه‌ی هفته', MEMBERS, '1) قیمت‌ها\n- ساعت کاری\n\n');
+    assert.ok(started.ok);
+    assert.deepEqual(started.meeting.agenda.map((a) => a.text), ['قیمت‌ها', 'ساعت کاری']);
+    assert.match(started.notices[0].text, /دستور جلسه: 1\) قیمت‌ها 2\) ساعت کاری/);
+    assert.ok(meetings.agendaItem({ add: 'گزارش روزانه' }).ok);
+    assert.ok(meetings.agendaItem({ toggle: 0 }).ok);
+    assert.deepEqual(meetings.current?.agenda.map((a) => a.done), [true, false, false]);
+    assert.equal(meetings.agendaItem({ add: '  ' }).ok, false);
+    assert.equal(meetings.agendaItem({ toggle: 9 }).ok, false);
+    assert.equal(meetings.start('x', 'y', MEMBERS.concat(MEMBERS, MEMBERS)).ok, false, 'more people than chairs');
+  } finally { done(); }
+});
+
+test('asking one person lets them answer again, tells only them, and a note is told to no one', () => {
+  const { meetings, done } = fresh();
+  try {
+    meetings.start('مدیرعامل', 'موضوع', MEMBERS);
+    meetings.say({ id: 'a', name: 'آوا' }, 'نظر اول');
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'نظر دوم').ok, false);
+
+    const asked = meetings.ask('مدیرعامل', 'a', 'منظورت از قیمت چیست؟');
+    assert.ok(asked.ok);
+    assert.deepEqual(asked.notices.map((n) => n.to), ['a']);
+    assert.match(asked.notices[0].text, /منظورت از قیمت چیست/);
+    assert.ok(meetings.say({ id: 'a', name: 'آوا' }, 'منظورم قیمت پایه است').ok, 'answering a question is allowed');
+    assert.equal(meetings.say({ id: 'a', name: 'آوا' }, 'باز هم').ok, false, 'but only once per question');
+    assert.equal(meetings.ask('مدیرعامل', 'zzz', 'سلام').ok, false);
+    assert.equal(meetings.ask('مدیرعامل', 'a', ' ').ok, false);
+
+    const noted = meetings.note('مدیرعامل', 'یادم باشد قیمت را چک کنم');
+    assert.ok(noted.ok);
+    assert.deepEqual(noted.notices, []);
+    const next = meetings.nextRound();
+    assert.ok(next.ok);
+    assert.ok(!next.notices[0].text.includes('یادم باشد'), 'a note is not handed to the next round');
+    assert.match(next.notices[0].text, /مدیرعامل ← آوا/);
+    const summary = meetings.summarise({ id: 'm', name: 'علیرضا' });
+    assert.ok(summary.ok && !summary.notices[0].text.includes('یادم باشد'));
+    assert.match(summary.ok ? summary.notices[0].text : '', /meeting_decision/);
+  } finally { done(); }
+});
+
+test('people come and go mid-meeting, within the chairs, and a decision or a task is kept with the meeting', () => {
+  const { meetings, done } = fresh();
+  try {
+    meetings.start('مدیرعامل', 'موضوع', MEMBERS.slice(0, 2));
+    meetings.say({ id: 'a', name: 'آوا' }, 'سلام');
+    const joined = meetings.invite(MEMBERS[2]);
+    assert.ok(joined.ok);
+    assert.match(joined.notices[0].text, /سلام/, 'the newcomer is told what has been said');
+    assert.equal(meetings.invite(MEMBERS[2]).ok, false, 'already in');
+    for (const x of ['c', 'd']) assert.ok(meetings.invite({ id: x, name: x }).ok);
+    assert.equal(meetings.invite({ id: 'e', name: 'e' }).ok, false, 'five chairs');
+    assert.ok(meetings.dismiss('d').ok);
+    assert.equal(meetings.dismiss('d').ok, false);
+    assert.ok(meetings.say({ id: 'm', name: 'علیرضا' }, 'من هم').ok);
+
+    assert.ok(meetings.decide('علیرضا', 'قیمت پایه ۵ میلیون').ok);
+    assert.equal(meetings.decide('علیرضا', '').ok, false);
+    meetings.linkTask('T-4');
+    meetings.linkTask('T-4');
+    assert.deepEqual(meetings.current?.tasks, ['T-4']);
+    assert.equal(meetings.current?.decisions.length, 1);
+  } finally { done(); }
+});
+
+test('ending writes the minutes as a file that can be read back, with everything in it but the notes’ privacy kept', () => {
+  const { dir, meetings, done } = fresh();
+  try {
+    meetings.start('مدیرعامل', 'ارزیابی قیمت', MEMBERS, 'قیمت\nزمان');
+    meetings.say({ id: 'a', name: 'آوا' }, 'پنج میلیون');
+    meetings.ask('مدیرعامل', 'b', 'نظر تو؟');
+    meetings.say({ id: 'b', name: 'نیما' }, 'کمی بیشتر');
+    meetings.note('مدیرعامل', 'یادداشت شخصی');
+    meetings.decide('علیرضا', 'قیمت ۶ میلیون');
+    meetings.setSummary('نتیجه: ۶ میلیون');
+    const ended = meetings.end([{ id: 'T-7', title: 'ارسال پیشنهاد', status: 'todo', assignee: 'مهسا' }]);
+    assert.ok(ended.ok);
+    const file = ended.ok ? ended.meeting.minutes : undefined;
+    assert.ok(file && file.endsWith(`${ended.ok ? ended.meeting.id : ''}.md`));
+    const text = meetings.minutesFile(ended.ok ? ended.meeting.id : '') ?? '';
+    for (const want of ['# ارزیابی قیمت', 'آوا، نیما، علیرضا', 'پنج میلیون', 'مدیرعامل ← نیما', 'قیمت ۶ میلیون', 'نتیجه: ۶ میلیون', 'T-7 · ارسال پیشنهاد', '## دستور جلسه', 'یادداشت شخصی']) assert.ok(text.includes(want), want);
+    assert.equal(new TeamMeetings(dir).minutesFile('M-zzz'), undefined);
+    assert.equal(new TeamMeetings(dir).past[0].decisions.length, 1, 'kept across a restart');
+  } finally { done(); }
+});

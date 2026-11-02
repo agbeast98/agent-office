@@ -1,6 +1,7 @@
 import './ui.css';
 import { h, openModal, toast } from '../../ui/dom';
 import { openTeamMeeting } from './meeting';
+import { approvalsBox, dayBar, personBox, scheduleBox, type Approval, type ScheduleItem } from './extras';
 
 // The manager's computer: the team's tasks in columns (to do, doing, review, blocked, done), the people
 // and what they're up to, a box to tell them things, and on the right whatever task you open: its notes,
@@ -23,7 +24,7 @@ interface Task {
   updatedAt: number;
   notes: Note[];
 }
-interface Team { manager?: { id: string; name: string }; hiringLocked?: boolean; people: Person[]; tasks: Task[] }
+interface Team { manager?: { id: string; name: string }; hiringLocked?: boolean; notifyConfigured?: boolean; schedule?: ScheduleItem[]; approvals?: Approval[]; people: Person[]; tasks: Task[] }
 
 const COLUMNS: { status: string; title: string }[] = [
   { status: 'todo', title: '📥 انجام‌نشده' },
@@ -46,6 +47,8 @@ export function openManager(floor: string) {
   let selected = '';
   let timer: ReturnType<typeof setInterval> | undefined;
   let drafting = false;
+  /** What the side shows besides a task: the timetable, or one person being edited. */
+  let panel: { kind: 'schedule' } | { kind: 'person'; id: string } | undefined;
 
   const people = h('div.mg-people');
   const board = h('div.mg-board');
@@ -56,14 +59,15 @@ export function openManager(floor: string) {
   const newBtn = h('button.btn', { type: 'button' }, '＋ کار تازه');
   const meetBtn = h('button.btn', { type: 'button', title: 'جلسه‌ با همین افراد، بدون استخدام' }, '🤝 جلسه‌ی تیمی');
   const lockBtn = h('button.btn', { type: 'button', title: 'وقتی قفل است هیچ ایجنتی استخدام نمی‌شود' }, '🔒 استخدام');
+  const schedBtn = h('button.btn', { type: 'button', title: 'مصاحبه‌ی هفتگی، بازبینی روزانه و شروع روز، خودکار' }, '⏰ زمان‌بندی');
   const el = h('div.modal.manager-window', { role: 'dialog', 'aria-label': 'کامپیوتر مدیر', lang: 'fa', dir: 'rtl' },
-    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, lockBtn),
-    h('div.mg-body', {}, h('div.mg-main', {}, people, board, msg), side));
+    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, schedBtn, lockBtn),
+    h('div.mg-body', {}, h('div.mg-main', {}, dayBar((a, x) => call(a, x)), people, board, msg), side));
   const modal = openModal(el, { doing: 'در کامپیوتر مدیر', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
   const call = async (action: string, extra: Record<string, unknown>) => {
     try {
-      const res = await fetch(`/api/team/action?${qs}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
+      const res = await fetch(`/api/team/${action === 'schedule' ? 'schedule' : 'action'}?${qs}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
       const out = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(out.error || 'انجام نشد');
       msg.textContent = '';
@@ -94,7 +98,7 @@ export function openManager(floor: string) {
   };
 
   const renderPeople = () => {
-    people.replaceChildren(...team.people.map((p) => h('span.mg-person', { class: p.id === team.manager?.id ? 'boss' : '', title: p.activity ?? '' }, h('i', { class: p.status }), p.name, p.role ? h('small.muted', {}, ` · ${p.role.split(':')[0]}`) : null)));
+    people.replaceChildren(...team.people.map((p) => h('span.mg-person', { class: p.id === team.manager?.id ? 'boss' : '', title: `${p.activity ?? ''} — برای ویرایش نام و نقش بزنید`.trim(), role: 'button', tabindex: '0', onclick: () => { panel = { kind: 'person', id: p.id }; drafting = false; render(); } }, h('i', { class: p.status }), p.name, p.role ? h('small.muted', {}, ` · ${p.role.split(':')[0]}`) : null)));
     const keep = mgr.value;
     mgr.replaceChildren(...team.people.map((p) => h('option', { value: p.id }, p.name)));
     mgr.value = team.manager?.id ?? keep;
@@ -156,7 +160,10 @@ export function openManager(floor: string) {
     renderPeople();
     renderBoard();
     const t = team.tasks.find((x) => x.id === selected);
-    side.replaceChildren(commandBox(), ...(drafting ? [newTaskBox()] : t ? [detailBox(t)] : [h('div.mg-box', {}, h('div.mg-empty', {}, 'روی یک کار بزنید تا جزئیاتش را ببینید، یا «کار تازه» را بزنید.'))]));
+    const back = () => { panel = undefined; render(); };
+    const person = panel?.kind === 'person' ? team.people.find((x) => x.id === (panel as { id: string }).id) : undefined;
+    const extra = panel?.kind === 'schedule' ? scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, back) : person ? personBox(person, call, back) : null;
+    side.replaceChildren(...(approvalsBox(team.approvals ?? [], call) ? [approvalsBox(team.approvals ?? [], call) as HTMLElement] : []), commandBox(), ...(extra ? [extra] : drafting ? [newTaskBox()] : t ? [detailBox(t)] : [h('div.mg-box', {}, h('div.mg-empty', {}, 'روی یک کار بزنید تا جزئیاتش را ببینید، یا «کار تازه» را بزنید.'))]));
   };
 
   /** Draws only when something changed, so a half-typed note isn't wiped by the refresh. */
@@ -183,8 +190,9 @@ export function openManager(floor: string) {
   };
 
   mgr.addEventListener('change', () => void call('manager', { worker: mgr.value }));
-  newBtn.addEventListener('click', () => { drafting = true; render(); });
-  meetBtn.addEventListener('click', () => openTeamMeeting(floor, team.people.map((p) => ({ id: p.id, name: p.name }))));
+  newBtn.addEventListener('click', () => { drafting = true; panel = undefined; render(); });
+  schedBtn.addEventListener('click', () => { panel = panel?.kind === 'schedule' ? undefined : { kind: 'schedule' }; drafting = false; render(); });
+  meetBtn.addEventListener('click', () => openTeamMeeting(floor));
   lockBtn.addEventListener('click', () => void call('lock', { on: !team.hiringLocked }));
   void load().then(() => render());
   timer = setInterval(() => void load(), POLL_MS);

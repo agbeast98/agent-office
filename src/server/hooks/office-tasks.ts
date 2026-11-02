@@ -47,7 +47,7 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
 
   if (req.method === 'GET' && url.searchParams.get('meeting') === '1') {
     const m = floor.teamMeetings.current;
-    return send(res, 200, m ? { id: m.id, topic: m.topic, round: m.round, members: m.members.map((x) => x.name), summary: m.summary, said: m.said.map((s) => ({ round: s.round, by: s.by, text: s.text })) } : { none: true });
+    return send(res, 200, m ? { id: m.id, topic: m.topic, round: m.round, members: m.members.map((x) => x.name), agenda: m.agenda.map((a) => a.text), asked_you: m.asked.includes(me.id) || undefined, decisions: m.decisions.map((d) => d.text), summary: m.summary, said: m.said.filter((s) => !s.note).map((s) => ({ round: s.round, by: s.by, ...(s.to ? { to: s.to.name } : {}), text: s.text })) } : { none: true });
   }
   if (req.method === 'GET') {
     const q = url.searchParams;
@@ -79,9 +79,11 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
       result = tasks.note(by, id, body.text, workers);
       break;
     case 'meeting_say':
+    case 'meeting_decision':
     case 'meeting_summary': {
       const meetings = floor.teamMeetings;
-      const m = body.action === 'meeting_say' ? meetings.say({ id: me.id, name: me.name }, body.text) : by.boss ? meetings.setSummary(body.text) : { ok: false as const, error: 'Only the manager writes the summary' };
+      const bossOnly = { ok: false as const, error: 'Only the manager records decisions and the summary' };
+      const m = body.action === 'meeting_say' ? meetings.say({ id: me.id, name: me.name }, body.text) : !by.boss ? bossOnly : body.action === 'meeting_decision' ? meetings.decide(me.name, body.text) : meetings.setSummary(body.text);
       if (!m.ok) return send(res, 400, { error: m.error });
       return send(res, 200, { ok: true, said: m.meeting.said.length });
     }
@@ -90,6 +92,11 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
   }
   if (!result.ok) return send(res, 400, { error: result.error });
   tell(floor, result.notices, me.name);
+  // A task the manager makes while a meeting is on is kept with that meeting.
+  if (body.action === 'create' && by.boss && result.task) floor.teamMeetings.linkTask(result.task.id);
+  if (result.task && (result.task.status === 'review' || result.task.status === 'blocked')) {
+    void floor.notifier.send(`${result.task.status === 'review' ? '🔍 منتظر بازبینی' : '⛔ گیرکرده'}: ${result.task.id} «${result.task.title}» (${me.name})`);
+  }
   ctx.toastFloor(floor, `📋 ${me.name}: ${body.action === 'note' ? 'note on' : body.action === 'update' ? 'updated' : body.action === 'request' ? 'asked the manager for' : 'created'} ${result.task?.id} «${result.task?.title}»`);
   return send(res, 200, { task: result.task && view(result.task), told: result.notices.map((n) => floor.workers.get(n.to)?.name).filter(Boolean) });
 }

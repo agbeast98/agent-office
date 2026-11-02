@@ -14,7 +14,8 @@ const PAGE = `<!doctype html><meta charset="utf-8"><title>تست</title>
   <select id="kind" name="kind"><option>سایت</option><option>سئو</option></select>
   <button id="go" type="submit">ارسال پیشنهاد</button>
 </form>
-<button id="plain" type="button" onclick="document.title='clicked'">نمایش</button>`;
+<button id="plain" type="button" onclick="document.title='clicked'">نمایش</button>
+<button id="pay" type="button">پرداخت نهایی</button>`;
 
 const chrome = () => [process.env.AGENT_OFFICE_CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].some((p) => p && existsSync(p));
 
@@ -82,6 +83,17 @@ test('the worker browser asks before it sends, reads the page, and never types a
     assert.equal(new WorkerBrowsers(dir).mode(id), 'auto');
     await browsers.click(id, '#go');
     assert.equal(sent.length, 2);
+
+    // Paying and deleting ask the person even in hands-off mode, and the office is told.
+    const told: string[] = [];
+    browsers.onPending = (w, r) => told.push(`${w}:${r.label}`);
+    await browsers.navigate(id, base);
+    await assert.rejects(browsers.click(id, '#pay'), /needs the person's approval/);
+    assert.equal((await browsers.view(id)).pending?.risky, true);
+    assert.deepEqual(told, ['w1:پرداخت نهایی']);
+    assert.deepEqual(browsers.waiting().map((a) => a.workerId), ['w1']);
+    await browsers.approve(id, 'deny');
+    assert.deepEqual(browsers.waiting(), []);
 
     // While the person has the browser, the agent can't touch it.
     await browsers.control(id, 'person');

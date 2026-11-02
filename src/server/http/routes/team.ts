@@ -3,7 +3,6 @@
 import { tell, view } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
 import type { Actor, Outcome } from '../../team-tasks.js';
-import type { MeetingOutcome } from '../../team-meeting.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
@@ -22,6 +21,9 @@ export const teamRoutes = {
       return send(res, 200, {
         manager: boss ? { id: boss.id, name: boss.name } : undefined,
         hiringLocked: ctx.ledger.hiringLocked,
+        notifyConfigured: floor.notifier.configured,
+        schedule: floor.teamSchedule.items.map(({ lastRun: _lastRun, ...i }) => i),
+        approvals: floor.workerBrowsers.waiting().map((a) => ({ workerId: a.workerId, name: floor.workers.get(a.workerId)?.name ?? a.workerId, ...a.request })),
         people: workers.map((w) => ({ id: w.id, name: w.name, role: w.role, status: w.status, activity: w.activity })),
         tasks: floor.teamTasks.all().map((t) => ({ ...view(t), assigneeId: t.assignee?.id, notes: t.notes.slice(-20), updatedAt: t.updatedAt, createdAt: t.createdAt })),
       });
@@ -65,6 +67,37 @@ export const teamRoutes = {
           tasks.setManager(w.id);
           return send(res, 200, { ok: true });
         }
+        case 'approval': {
+          const worker = typeof body.worker === 'string' ? body.worker : '';
+          if (body.verdict !== 'allow' && body.verdict !== 'deny') return send(res, 400, { error: 'verdict is allow or deny' });
+          try {
+            await floor.workerBrowsers.approve(worker, body.verdict);
+          } catch (e) {
+            return send(res, 400, { error: e instanceof Error ? e.message : 'Nothing is waiting' });
+          }
+          tell(floor, [{ to: worker, text: body.verdict === 'allow' ? 'مدیرعامل اقدام منتظر تأیید را تأیید کرد: همان اقدام را دوباره روی همان صفحه انجام بده.' : 'مدیرعامل اقدام منتظر تأیید را رد کرد: دوباره امتحان نکن؛ از او بپرس چه کنی.' }], by.name);
+          return send(res, 200, { ok: true });
+        }
+        case 'workday':
+        case 'report': {
+          const boss = tasks.manager(workers);
+          if (!boss) return send(res, 400, { error: 'There is no manager' });
+          const text = body.action === 'workday'
+            ? 'مدیرعامل شروع روز کاری را اعلام کرد. rules.md و profile.md را بخوان (خالی بودند: فقط خبر بده). کارهای امروز را با create_task بین شکارچی، بررسی‌کننده و نویسنده پخش کن و گزارش کوتاه بده.'
+            : 'مدیرعامل گزارش امروز را می‌خواهد: وضعیت کارها (list_tasks)، ارسال‌های امروز، آنچه منتظر تأیید است و پیشنهادت برای فردا را در چند خط در daily.md بنویس و همین را به او بگو.';
+          tell(floor, [{ to: boss.id, text }], by.name);
+          return send(res, 200, { ok: true, told: [boss.name] });
+        }
+        case 'stop': {
+          // Esc interrupts what an agent is doing (it keeps its session and waits for the next word).
+          for (const w of workers) floor.workers.write(w.id, '', by.name);
+          return send(res, 200, { ok: true, stopped: workers.map((w) => w.name) });
+        }
+        case 'person': {
+          const worker = typeof body.worker === 'string' ? body.worker : '';
+          if (!floor.workers.describe(worker, str(body.name, 60).trim(), str(body.role, 300).trim())) return send(res, 400, { error: 'No such person' });
+          return send(res, 200, { ok: true });
+        }
         case 'lock':
           ctx.ledger.setHiringLocked(body.on === true);
           return send(res, 200, { ok: true, hiringLocked: ctx.ledger.hiringLocked });
@@ -84,72 +117,25 @@ export const teamRoutes = {
       return send(res, 200, { ok: true, task: result.task && view(result.task) });
     },
   },
-  /** GET /api/team/meeting?floor=<id>: the meeting that is on, and the last few. */
-  meeting: {
-    method: 'GET',
-    path: '/api/team/meeting',
-    auth: 'session',
-    handle(ctx, { res, url }) {
-      const floor = floorParam(ctx, url);
-      if (!floor) return send(res, 404, { error: 'No such floor' });
-      const { current, past } = floor.teamMeetings;
-      return send(res, 200, { current, past: past.slice(0, 5).map((m) => ({ id: m.id, topic: m.topic, startedAt: m.startedAt, summary: m.summary, said: m.said.length })) });
-    },
-  },
-  /** POST /api/team/meeting?floor=<id>: { action: start | say | next | summarise | end, ... } */
-  meetingAction: {
+  /** POST /api/team/schedule?floor=<id>: { id, enabled?, time?, days? } */
+  schedule: {
     method: 'POST',
-    path: '/api/team/meeting',
+    path: '/api/team/schedule',
     auth: 'session',
-    async handle(ctx, { req, res, url, session }) {
+    async handle(ctx, { req, res, url }) {
       if (!sameOrigin(req, ctx.cfg)) return send(res, 403, { error: 'Forbidden' });
       const floor = floorParam(ctx, url);
       if (!floor) return send(res, 404, { error: 'No such floor' });
       let body: Record<string, unknown>;
       try {
-        const value = JSON.parse(await readBody(req, 20_000));
+        const value = JSON.parse(await readBody(req, 2_000));
         if (!value || typeof value !== 'object' || Array.isArray(value)) return send(res, 400, { error: 'Bad request' });
         body = value as Record<string, unknown>;
       } catch {
         return send(res, 400, { error: 'Bad request' });
       }
-      const meetings = floor.teamMeetings;
-      const workers = floor.workers.list().filter((w) => w.kind === 'agent');
-      const name = session.account?.name ?? 'مدیرعامل';
-      let result: MeetingOutcome;
-      switch (body.action) {
-        case 'start': {
-          const ids = Array.isArray(body.members) ? body.members.filter((x): x is string => typeof x === 'string') : [];
-          const members = (body.members === 'all' ? workers : workers.filter((w) => ids.includes(w.id))).map((w) => ({ id: w.id, name: w.name }));
-          result = meetings.start(name, body.topic, members);
-          // They sit down at the meeting room's table, as many as it has chairs for.
-          if (result.ok) for (const m of members) floor.workers.visitMeeting(m.id);
-          break;
-        }
-        case 'say':
-          result = meetings.say({ name }, body.text);
-          if (result.ok) tell(floor, result.meeting.members.map((m) => ({ to: m.id, text: `در جلسه‌ی «${result.ok ? result.meeting.topic : ''}» ${name} گفت: ${str(body.text, 3000)}` })), name);
-          break;
-        case 'next':
-          result = meetings.nextRound();
-          break;
-        case 'summarise': {
-          const boss = floor.teamTasks.manager(workers);
-          result = meetings.summarise(boss && { id: boss.id, name: boss.name });
-          break;
-        }
-        case 'end': {
-          const members = meetings.current?.members ?? [];
-          result = meetings.end();
-          if (result.ok) for (const m of members) if (floor.workers.get(m.id)?.meetingOriginDesk) floor.workers.returnFromMeeting(m.id);
-          break;
-        }
-        default:
-          return send(res, 400, { error: 'action is start, say, next, summarise or end' });
-      }
-      if (!result.ok) return send(res, 400, { error: result.error });
-      tell(floor, result.notices, name);
-      return send(res, 200, { ok: true });
+      const error = floor.teamSchedule.set(body.id, body);
+      return error ? send(res, 400, { error }) : send(res, 200, { ok: true });
     },
   },
 } satisfies Record<string, Route>;

@@ -34,11 +34,11 @@ export interface TermTabsOptions {
 /** The tab bar (above the terminal) and where the pages show (beside it). */
 export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLElement; pages: HTMLElement; dispose(): void } {
   const tabsBar = h('div.term-tabs', { role: 'tablist', 'aria-label': 'Tabs' });
-  const tabName = h('input', { type: 'text', placeholder: 'Tab name (e.g. ChatGPT)', 'aria-label': 'Tab name', maxlength: '40', autocomplete: 'off' }) as HTMLInputElement;
+  const tabName = h('input', { type: 'text', placeholder: 'نام زبانه (مثلاً ChatGPT)', 'aria-label': 'Tab name', maxlength: '40', autocomplete: 'off' }) as HTMLInputElement;
   const tabUrl = h('input', { type: 'url', placeholder: 'https://…', 'aria-label': 'Web page address', autocomplete: 'off' }) as HTMLInputElement;
-  const cancelBtn = h('button.btn', { type: 'button' }, 'Cancel');
-  const form = h('form.term-tab-form.hidden', {}, tabName, tabUrl, h('button.btn.primary', { type: 'submit' }, 'Add'), cancelBtn);
-  const addBtn = h('button.term-tab-add', { type: 'button', title: 'Pin a web page open beside this terminal (a linked chat, docs, anything with an address)' }, '+ Web page');
+  const cancelBtn = h('button.btn', { type: 'button' }, 'انصراف');
+  const form = h('form.term-tab-form.hidden', {}, tabName, tabUrl, h('button.btn.primary', { type: 'submit' }, 'افزودن'), cancelBtn);
+  const addBtn = h('button.term-tab-add', { type: 'button', title: 'Pin a web page open beside this terminal (a linked chat, docs, anything with an address)' }, '+ صفحه‌ی وب');
   // Plenty of sites won't show inside another page (chatgpt.com doesn't): this opens the one showing in a tab of its own.
   const openOut = h('a.term-tab-out.hidden', { target: '_blank', rel: 'noopener noreferrer', title: "Open this page in a browser tab of its own (for a site that won't show here)" }, '↗ New tab') as HTMLAnchorElement;
   const bar = h('div.term-tabbar', {}, tabsBar, openOut, addBtn, form);
@@ -54,12 +54,12 @@ export function termTabs(workerId: string, opts: TermTabsOptions): { bar: HTMLEl
   let active = 'main';
 
   const render = () => {
-    const mainTab = h('div.term-tab', { class: active === 'main' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'main'), onclick: () => show('main') }, '💻 Terminal'));
-    const browserTab = h('div.term-tab', { class: active === 'browser' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'browser'), onclick: () => show('browser') }, '🌐 Browser'));
+    const mainTab = h('div.term-tab', { class: active === 'main' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'main'), onclick: () => show('main') }, '💻 ترمینال'));
+    const browserTab = h('div.term-tab', { class: active === 'browser' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'browser'), onclick: () => show('browser') }, '🌐 مرورگر'));
     tabsBar.replaceChildren(
       mainTab,
       browserTab,
-      ...(opts.chat ? [h('div.term-tab', { class: active === 'chat' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'chat'), onclick: () => show('chat') }, '💬 Chat'))] : []),
+      ...(opts.chat ? [h('div.term-tab', { class: active === 'chat' ? 'on' : '' }, h('button.term-tab-label', { type: 'button', role: 'tab', 'aria-selected': String(active === 'chat'), onclick: () => show('chat') }, '💬 گفت‌وگو'))] : []),
       ...tabs.map((t) =>
         h(
           'div.term-tab',

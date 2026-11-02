@@ -14,6 +14,8 @@ export interface BrowserRequest {
   key?: string;
   url: string;
   at: number;
+  /** Pays, deletes or moves money: it asks the person even when the browser is in 'auto'. */
+  risky?: boolean;
 }
 
 export interface BrowserView {
@@ -35,6 +37,9 @@ const SESSION_COOKIE_DAYS = 30;
 /** Buttons and links that send, confirm, pay or delete, in Persian and English. */
 const SENSITIVE = /(ارسال|ثبت|تایید|تأیید|پرداخت|حذف|انتشار|خرید|پیشنهاد|submit|send|publish|confirm|pay|delete|remove|buy|order|apply|post|bid|checkout)/i;
 
+/** Money and deletions: never left to the agent alone, whatever the mode (docs/team-policy.md). */
+const RISKY = /(پرداخت|حذف|خرید|برداشت|انتقال|واریز|payment|pay now|checkout|delete|withdraw|transfer|purchase)/i;
+
 interface Session {
   context: BrowserContext;
   page: Page;
@@ -50,6 +55,8 @@ export class WorkerBrowsers {
   private closing = false;
   private modes = new Map<string, BrowserMode>();
   private pending = new Map<string, BrowserRequest>();
+  /** Told when something starts waiting for the person (the manager's computer and the phone listen). */
+  onPending?: (workerId: string, request: BrowserRequest) => void;
   /** What the person approved ('allow') or turned down ('deny'), by worker, action and page, until it expires. */
   private decisions = new Map<string, { verdict: 'allow' | 'deny'; until: number }>();
 
@@ -132,7 +139,8 @@ export class WorkerBrowsers {
    * action on the same page goes through (for a couple of minutes).
    */
   private guard(workerId: string, s: Session, request: Omit<BrowserRequest, 'url' | 'at'>, sensitive: boolean) {
-    if (!sensitive || this.mode(workerId) === 'auto') return;
+    const risky = RISKY.test(request.label);
+    if (!sensitive || (this.mode(workerId) === 'auto' && !risky)) return;
     const url = s.page.url();
     const key = this.key(workerId, request.action, request.selector ?? request.key ?? '', url);
     const decision = this.decisions.get(key);
@@ -141,9 +149,16 @@ export class WorkerBrowsers {
       if (decision.verdict === 'allow') return;
       throw new Error(`The person said no to "${request.label}". Do not try again; ask them what to do instead.`);
     }
-    this.pending.set(workerId, { ...request, url, at: Date.now() });
+    const waiting: BrowserRequest = { ...request, url, at: Date.now(), ...(risky ? { risky } : {}) };
+    this.pending.set(workerId, waiting);
+    this.onPending?.(workerId, waiting);
     this.note(workerId, 'agent', 'waiting-for-approval', `${request.action}: ${request.label}`, url);
     throw new Error(`"${request.label}" sends or confirms something, so it needs the person's approval. It is waiting in the 🌐 Browser tab. Tell them, then try the very same action again once they say they approved it.`);
+  }
+
+  /** Everything waiting for the person, across the team's browsers. */
+  waiting(): { workerId: string; request: BrowserRequest }[] {
+    return [...this.pending].map(([workerId, request]) => ({ workerId, request }));
   }
 
   approve(workerId: string, verdict: 'allow' | 'deny') {

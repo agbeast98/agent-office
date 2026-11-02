@@ -1,9 +1,11 @@
 // A meeting of the people the team already has: the person at the manager's computer (or the manager) names a
 // subject and who is to come, each of them says what they think with `meeting_say`, and everything said is
-// kept in one place for all of them and for the window to show. No one is hired for it (see meetings.ts for
-// the office's own meetings, which hire a table of workers). A round is everyone saying their piece once;
-// the next round hands each of them what the others said first.
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+// kept in one place for all of them and for the meeting room's window to show. No one is hired for it (see
+// meetings.ts for the office's own meetings, which hire a table of workers). A round is everyone saying their
+// piece once; the next round hands each of them what the others said first. Besides what is said, the meeting
+// keeps an agenda, the decisions, the notes, the tasks made in it, and when it ends its minutes are written
+// down as a file of its own (`meetings/<id>.md`).
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Notice } from './team-tasks.js';
 
@@ -14,6 +16,10 @@ export interface MeetingSaid {
   /** The worker's id, or none for the person at the manager's computer. */
   id?: string;
   text: string;
+  /** A note the person kept for themselves: no one is told it, and it isn't in what the next round hears. */
+  note?: boolean;
+  /** Asked of one person: who. */
+  to?: { id: string; name: string };
 }
 
 export interface TeamMeeting {
@@ -26,31 +32,63 @@ export interface TeamMeeting {
   /** Who is to come: worker ids and the names they had. */
   members: { id: string; name: string }[];
   said: MeetingSaid[];
+  agenda: { text: string; done: boolean }[];
+  decisions: { at: number; by: string; text: string }[];
+  /** Ids of the tasks made in this meeting (see team-tasks.ts). */
+  tasks: string[];
+  /** Members who have been asked something directly and may answer once more this round. */
+  asked: string[];
   summary?: string;
+  /** Where the minutes were written, once it ended. */
+  minutes?: string;
 }
 
 const TOPIC_MAX = 400;
 const SAID_MAX = 3000;
+const ITEM_MAX = 300;
+const AGENDA_MAX = 12;
 const KEEP_PAST = 15;
 const MAX_SAID = 400;
+/** The meeting room has this many chairs. */
+export const CHAIRS = 5;
 
 const clip = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').trim().slice(0, max) : '');
 const fail = (error: string) => ({ ok: false as const, error });
 
 export type MeetingOutcome = { ok: true; meeting: TeamMeeting; notices: Notice[] } | { ok: false; error: string };
 
+const stamp = (at: number) => new Date(at).toLocaleString('fa-IR', { hour12: false });
+
+/** The meeting written out for reading later. */
+export function minutesOf(m: TeamMeeting, tasks: { id: string; title: string; status: string; assignee?: string }[] = []): string {
+  const lines = [`# ${m.topic}`, '', `- شروع: ${stamp(m.startedAt)}${m.endedAt ? ` · پایان: ${stamp(m.endedAt)}` : ''}`, `- برگزارکننده: ${m.calledBy}`, `- حاضران: ${m.members.map((x) => x.name).join('، ')}`];
+  if (m.agenda.length) lines.push('', '## دستور جلسه', ...m.agenda.map((a) => `- [${a.done ? 'x' : ' '}] ${a.text}`));
+  if (m.summary) lines.push('', '## جمع‌بندی مدیر', m.summary);
+  if (m.decisions.length) lines.push('', '## تصمیم‌ها', ...m.decisions.map((d, i) => `${i + 1}. ${d.text} (${d.by})`));
+  if (tasks.length) lines.push('', '## کارهای ساخته‌شده', ...tasks.map((t) => `- ${t.id} · ${t.title} · ${t.status}${t.assignee ? ` · ${t.assignee}` : ''}`));
+  lines.push('', '## گفتگو');
+  for (const r of [...new Set(m.said.filter((s) => !s.note).map((s) => s.round))].sort((a, b) => a - b)) {
+    lines.push('', `### دور ${r}`, ...m.said.filter((s) => s.round === r && !s.note).map((s) => `- **${s.by}${s.to ? ` ← ${s.to.name}` : ''}:** ${s.text.replace(/\n/g, ' ')}`));
+  }
+  const notes = m.said.filter((s) => s.note);
+  if (notes.length) lines.push('', '## یادداشت‌ها', ...notes.map((n) => `- ${n.text.replace(/\n/g, ' ')}`));
+  return `${lines.join('\n')}\n`;
+}
+
 export class TeamMeetings {
   current?: TeamMeeting;
   past: TeamMeeting[] = [];
   private file: string;
+  private dir: string;
 
   constructor(dataDir: string) {
     this.file = path.join(dataDir, 'team-meetings.json');
+    this.dir = path.join(dataDir, 'meetings');
     if (!existsSync(this.file)) return;
     try {
       const saved = JSON.parse(readFileSync(this.file, 'utf8')) as { current?: TeamMeeting; past?: TeamMeeting[] };
-      if (saved.current && typeof saved.current.id === 'string' && !saved.current.endedAt) this.current = saved.current;
-      if (Array.isArray(saved.past)) this.past = saved.past.slice(0, KEEP_PAST);
+      if (saved.current && typeof saved.current.id === 'string' && !saved.current.endedAt) this.current = fill(saved.current);
+      if (Array.isArray(saved.past)) this.past = saved.past.slice(0, KEEP_PAST).map(fill);
     } catch {
       // Started over rather than blocking the team.
     }
@@ -66,19 +104,40 @@ export class TeamMeetings {
     }
   }
 
+  find(id: string): TeamMeeting | undefined {
+    return this.current?.id === id ? this.current : this.past.find((m) => m.id === id);
+  }
+
+  /** The minutes file of a meeting that ended, or what would be written for one still on. */
+  minutesFile(id: string): string | undefined {
+    const m = this.past.find((x) => x.id === id);
+    if (!m?.minutes) return undefined;
+    try {
+      return readFileSync(m.minutes, 'utf8');
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Calls everyone in `members` to talk about `topic`. One meeting at a time. */
-  start(by: string, topic: unknown, members: { id: string; name: string }[]): MeetingOutcome {
+  start(by: string, topic: unknown, members: { id: string; name: string }[], agenda: unknown = ''): MeetingOutcome {
     if (this.current) return fail('A meeting is already on: end it first');
     const subject = clip(topic, TOPIC_MAX);
     if (!subject) return fail('Say what the meeting is about');
     if (members.length < 1) return fail('Say who is to come');
-    const meeting: TeamMeeting = { id: `M-${Date.now().toString(36)}`, topic: subject, calledBy: by, startedAt: Date.now(), round: 1, members, said: [] };
+    if (members.length > CHAIRS) return fail(`The meeting room has ${CHAIRS} chairs`);
+    const items = clip(agenda, AGENDA_MAX * ITEM_MAX).split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, AGENDA_MAX);
+    const meeting: TeamMeeting = {
+      id: `M-${Date.now().toString(36)}`, topic: subject, calledBy: by, startedAt: Date.now(), round: 1, members, said: [],
+      agenda: items.map((text) => ({ text: text.slice(0, ITEM_MAX), done: false })), decisions: [], tasks: [], asked: [],
+    };
     this.current = meeting;
     this.save();
     const names = members.map((m) => m.name).join('، ');
+    const points = items.length ? ` دستور جلسه: ${items.map((t, i) => `${i + 1}) ${t}`).join(' ')}.` : '';
     const notices = members.map((m) => ({
       to: m.id,
-      text: `جلسه‌ی تیمی (دور ۱). موضوع: «${subject}». شرکت‌کنندگان: ${names}. نظر و پیشنهادت را کوتاه و روشن (حداکثر ۱۰ خط) با ابزار meeting_say ثبت کن، یک بار. بقیه‌ی گفته‌ها را با meeting_read می‌بینی. در جلسه کاری انجام نده، فقط نظر بده.`,
+      text: `جلسه‌ی تیمی (دور ۱). موضوع: «${subject}».${points} شرکت‌کنندگان: ${names}. نظر و پیشنهادت را کوتاه و روشن (حداکثر ۱۰ خط) با ابزار meeting_say ثبت کن، یک بار. بقیه‌ی گفته‌ها را با meeting_read می‌بینی. در جلسه کاری انجام نده، فقط نظر بده.`,
     }));
     return { ok: true, meeting, notices };
   }
@@ -90,10 +149,39 @@ export class TeamMeetings {
     if (by.id && !m.members.some((x) => x.id === by.id)) return fail('You are not in this meeting');
     const said = clip(text, SAID_MAX);
     if (!said) return fail('Say something');
-    if (by.id && m.said.some((s) => s.id === by.id && s.round === m.round)) return fail('You have already spoken this round: wait for the next one');
-    m.said.push({ at: Date.now(), round: m.round, by: by.name, id: by.id, text: said });
+    const answering = !!by.id && m.asked.includes(by.id);
+    if (by.id && !answering && m.said.some((s) => s.id === by.id && s.round === m.round && !s.note)) return fail('You have already spoken this round: wait for the next one');
+    if (answering) m.asked = m.asked.filter((x) => x !== by.id);
+    this.push(m, { at: Date.now(), round: m.round, by: by.name, id: by.id, text: said });
+    return { ok: true, meeting: m, notices: [] };
+  }
+
+  private push(m: TeamMeeting, s: MeetingSaid) {
+    m.said.push(s);
     if (m.said.length > MAX_SAID) m.said.splice(0, m.said.length - MAX_SAID);
     this.save();
+  }
+
+  /** The person asks one member something directly; that member may answer even if they spoke this round. */
+  ask(by: string, to: string, text: unknown): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    const who = m.members.find((x) => x.id === to);
+    if (!who) return fail('They are not in this meeting');
+    const asked = clip(text, SAID_MAX);
+    if (!asked) return fail('Say what to ask');
+    if (!m.asked.includes(who.id)) m.asked.push(who.id);
+    this.push(m, { at: Date.now(), round: m.round, by, text: asked, to: who });
+    return { ok: true, meeting: m, notices: [{ to: who.id, text: `در جلسه‌ی «${m.topic}» ${by} مستقیم از تو پرسید: ${asked}\nکوتاه (حداکثر ۱۰ خط) با meeting_say جواب بده.` }] };
+  }
+
+  /** A note for the person's own record: nobody is told it. */
+  note(by: string, text: unknown): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    const t = clip(text, SAID_MAX);
+    if (!t) return fail('Write the note');
+    this.push(m, { at: Date.now(), round: m.round, by, text: t, note: true });
     return { ok: true, meeting: m, notices: [] };
   }
 
@@ -101,9 +189,10 @@ export class TeamMeetings {
   nextRound(): MeetingOutcome {
     const m = this.current;
     if (!m) return fail('No meeting is on');
-    const heard = m.said.filter((s) => s.round === m.round);
-    const digest = heard.map((s) => `• ${s.by}: ${s.text}`).join('\n');
+    const heard = m.said.filter((s) => s.round === m.round && !s.note);
+    const digest = heard.map((s) => `• ${s.by}${s.to ? ` ← ${s.to.name}` : ''}: ${s.text}`).join('\n');
     m.round++;
+    m.asked = [];
     this.save();
     const notices = m.members.map((x) => ({
       to: x.id,
@@ -112,13 +201,72 @@ export class TeamMeetings {
     return { ok: true, meeting: m, notices };
   }
 
+  /** Someone joins the meeting (a chair is free), and is told what it is about and what has been said. */
+  invite(member: { id: string; name: string }): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    if (m.members.some((x) => x.id === member.id)) return fail('They are already in the meeting');
+    if (m.members.length >= CHAIRS) return fail(`The meeting room has ${CHAIRS} chairs`);
+    m.members.push(member);
+    this.save();
+    const heard = m.said.filter((s) => !s.note).slice(-8).map((s) => `• ${s.by}: ${s.text}`).join('\n');
+    return { ok: true, meeting: m, notices: [{ to: member.id, text: `به جلسه‌ی تیمی دعوت شدی (دور ${m.round}). موضوع: «${m.topic}».${heard ? `\nتا الان گفته‌اند:\n${heard}` : ''}\nنظرت را کوتاه با meeting_say بگو.` }] };
+  }
+
+  /** Someone is let go from the meeting early. */
+  dismiss(id: string): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    if (!m.members.some((x) => x.id === id)) return fail('They are not in this meeting');
+    if (m.members.length < 2) return fail('End the meeting instead: no one else is in it');
+    m.members = m.members.filter((x) => x.id !== id);
+    m.asked = m.asked.filter((x) => x !== id);
+    this.save();
+    return { ok: true, meeting: m, notices: [] };
+  }
+
+  agendaItem(change: { add?: unknown; toggle?: unknown }): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    if (change.add !== undefined) {
+      const text = clip(change.add, ITEM_MAX);
+      if (!text) return fail('Write the point');
+      if (m.agenda.length >= AGENDA_MAX) return fail('The agenda is full');
+      m.agenda.push({ text, done: false });
+    } else if (typeof change.toggle === 'number' && m.agenda[change.toggle]) {
+      m.agenda[change.toggle].done = !m.agenda[change.toggle].done;
+    } else {
+      return fail('Nothing to change');
+    }
+    this.save();
+    return { ok: true, meeting: m, notices: [] };
+  }
+
+  decide(by: string, text: unknown): MeetingOutcome {
+    const m = this.current;
+    if (!m) return fail('No meeting is on');
+    const t = clip(text, ITEM_MAX * 2);
+    if (!t) return fail('Say what was decided');
+    m.decisions.push({ at: Date.now(), by, text: t });
+    this.save();
+    return { ok: true, meeting: m, notices: [] };
+  }
+
+  /** A task made in this meeting is kept with it. */
+  linkTask(id: string) {
+    const m = this.current;
+    if (!m || m.tasks.includes(id)) return;
+    m.tasks.push(id);
+    this.save();
+  }
+
   /** Asks the manager to write the outcome down; `summary` is then kept with the meeting. */
   summarise(manager?: { id: string; name: string }): MeetingOutcome {
     const m = this.current;
     if (!m) return fail('No meeting is on');
     if (!manager) return fail('There is no manager to write it up');
-    const all = m.said.map((s) => `• (دور ${s.round}) ${s.by}: ${s.text}`).join('\n');
-    return { ok: true, meeting: m, notices: [{ to: manager.id, text: `جلسه‌ی «${m.topic}» تمام شد. گفته‌ها:\n${all || '(چیزی گفته نشد)'}\nنتیجه را در چند خط تصمیم‌ها و کارهای بعدی بنویس و با meeting_summary ثبت کن؛ برای هر کار لازم با create_task کار بساز.` }] };
+    const all = m.said.filter((s) => !s.note).map((s) => `• (دور ${s.round}) ${s.by}: ${s.text}`).join('\n');
+    return { ok: true, meeting: m, notices: [{ to: manager.id, text: `جلسه‌ی «${m.topic}» تمام شد. گفته‌ها:\n${all || '(چیزی گفته نشد)'}\nهر تصمیم را جداگانه با meeting_decision ثبت کن، نتیجه را در چند خط با meeting_summary بنویس، و برای هر کار لازم با create_task کار بساز.` }] };
   }
 
   setSummary(text: unknown): MeetingOutcome {
@@ -131,14 +279,27 @@ export class TeamMeetings {
     return { ok: true, meeting: m, notices: [] };
   }
 
-  end(): MeetingOutcome {
+  /** Ends the meeting and writes its minutes; `tasks` are those it made, for the minutes. */
+  end(tasks: { id: string; title: string; status: string; assignee?: string }[] = []): MeetingOutcome {
     const m = this.current;
     if (!m) return fail('No meeting is on');
     m.endedAt = Date.now();
+    try {
+      mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+      m.minutes = path.join(this.dir, `${m.id}.md`);
+      writeFileSync(m.minutes, minutesOf(m, tasks), { mode: 0o600 });
+    } catch {
+      m.minutes = undefined;
+    }
     this.past.unshift(m);
     this.past.splice(KEEP_PAST);
     this.current = undefined;
     this.save();
     return { ok: true, meeting: m, notices: [] };
   }
+}
+
+/** A meeting saved before agendas, decisions and tasks existed gets them empty. */
+function fill(m: TeamMeeting): TeamMeeting {
+  return { ...m, agenda: m.agenda ?? [], decisions: m.decisions ?? [], tasks: m.tasks ?? [], asked: m.asked ?? [] };
 }

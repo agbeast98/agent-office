@@ -41,7 +41,7 @@ const WT_KEY = 'agent-office.worktree';
 
 export function openAsk(opts: AskOptions) {
   let to: string | null = opts.newDesk ? null : (opts.workers[0]?.id ?? null);
-  const ta = h('textarea', { rows: opts.initial ? 9 : 5, placeholder: opts.placeholder ?? 'What should the worker do?', 'aria-label': 'Prompt' }) as HTMLTextAreaElement;
+  const ta = h('textarea', { rows: opts.initial ? 9 : 5, placeholder: opts.placeholder ?? 'ایجنت چه کاری انجام دهد؟', 'aria-label': 'Prompt' }) as HTMLTextAreaElement;
   ta.value = opts.initial ?? '';
   const wtBox = h('input', { type: 'checkbox', id: 'ask-wt' }) as HTMLInputElement;
   try {
@@ -61,14 +61,14 @@ export function openAsk(opts: AskOptions) {
     wtRow.classList.toggle('hidden', !!id || !opts.worktreeOption);
     repos.element?.classList.toggle('hidden', !!id);
     provider?.element.classList.toggle('hidden', !!id);
-    submit.textContent = id ? 'Send ✨' : 'Hire & start';
+    submit.textContent = id ? 'ارسال ✨' : 'استخدام و شروع';
   };
-  if (opts.newDesk) choices.append(h('button.btn', { type: 'button', 'data-to': '', onclick: () => pick(null) }, `✨ New worker · ${opts.newDesk}`));
+  if (opts.newDesk) choices.append(h('button.btn', { type: 'button', 'data-to': '', onclick: () => pick(null) }, `✨ ایجنت تازه · ${opts.newDesk}`));
   for (const w of opts.workers) {
     choices.append(h('button.btn', { type: 'button', 'data-to': w.id, title: `Type it into ${w.name}'s prompt`, onclick: () => pick(w.id) }, h('span.dot', { style: `background:${w.color}` }), w.name, h('small', {}, STATUS_LABEL[w.status] ?? w.status)));
   }
 
-  const cancel = h('button.btn', { type: 'button' }, 'Cancel');
+  const cancel = h('button.btn', { type: 'button' }, 'انصراف');
   const form = h(
     'form.modal.ask',
     { role: 'dialog', 'aria-label': opts.title },
@@ -76,16 +76,16 @@ export function openAsk(opts: AskOptions) {
     h(
       'div.body',
       {},
-      h('label', {}, 'Send to'),
+      h('label', {}, 'ارسال به'),
       choices,
       opts.context ? h('details.ask-context', {}, h('summary', {}, 'The worker is told first…'), h('pre', {}, opts.context)) : null,
-      h('label', { style: 'margin-top:14px' }, 'Prompt'),
+      h('label', { style: 'margin-top:14px' }, 'دستور'),
       dictateField(ta),
       provider?.element ?? null,
       wtRow,
       repos.element,
     ),
-    h('footer', {}, h('span.grow', {}, 'Enter to send · Shift+Enter for a new line'), cancel, submit),
+    h('footer', {}, h('span.grow', {}, 'Enter برای ارسال · Shift+Enter برای خط تازه'), cancel, submit),
   ) as HTMLFormElement;
   form.noValidate = true;
   pick(to);

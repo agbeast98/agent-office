@@ -30,6 +30,8 @@ import { officePrompt, type PromptSource } from './prompts.js';
 import { WorkerBrowsers } from './worker-browser.js';
 import { TeamTasks } from './team-tasks.js';
 import { TeamMeetings } from './team-meeting.js';
+import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js';
+import { Notifier } from './notify.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -129,6 +131,9 @@ export class Floor {
   readonly teamTasks: TeamTasks;
   /** A meeting of the people it already has (see team-meeting.ts). */
   readonly teamMeetings: TeamMeetings;
+  readonly teamSchedule: TeamSchedule;
+  readonly notifier: Notifier;
+  private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
   /** The meeting room, where workers work through a question together (see meetings.ts). */
@@ -321,6 +326,11 @@ export class Floor {
     this.jukebox = new Jukebox(dataDir);
     this.teamTasks = new TeamTasks(dataDir);
     this.teamMeetings = new TeamMeetings(dataDir);
+    this.teamSchedule = new TeamSchedule(dataDir);
+    this.notifier = new Notifier(dataDir);
+    this.workerBrowsers.onPending = (workerId, request) => void this.notifier.send(`⏳ ${this.workers.get(workerId)?.name ?? 'یک ایجنت'} منتظر تأیید شماست: «${request.label}»${request.risky ? ' (پرداخت/حذف: فقط خودتان)' : ''}`);
+    this.scheduleTimer = setInterval(() => runSchedule(this), SCHEDULE_TICK_MS);
+    this.scheduleTimer.unref();
     this.whiteboard = new Whiteboard(dataDir);
     this.ready = this.workers.start();
 
@@ -428,6 +438,7 @@ export class Floor {
     // Profiles are removed only by the worker-removal callback for workers actually sent home.
     const browserShutdown = this.workerBrowsers.shutdown();
     clearInterval(this.timer);
+    clearInterval(this.scheduleTimer);
     clearTimeout(this.landedTimer);
     this.dog.stop();
     this.github.stop();

@@ -193,6 +193,13 @@ export class WorkerManager {
     return this.workers.get(id)?.info;
   }
 
+  /** Renames a worker or changes the role it is reminded of; empty leaves a field as it was. */
+  describe(id: string, name: string, role: string): boolean {
+    const w = this.workers.get(id);
+    if (w) Object.assign(w.info, name && { name }, role && { role }), this.persist(), this.emitUpdate(w);
+    return !!w;
+  }
+
   /** Reads the active worker conversation only through its provider adapter. */
   conversation(id: string, after = 0) {
     const w = this.workers.get(id);

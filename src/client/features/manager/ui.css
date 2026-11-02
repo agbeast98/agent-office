@@ -46,3 +46,13 @@
 .mt-round { font-size: 12px; font-weight: 800; color: var(--muted); padding-top: 4px; }
 .mg-note.you { background: #ffe9a8; }
 .mt-window > .mg-msg { padding: 0 14px 10px; }
+
+.mg-day { flex: none; }
+.mg-person[role=button] { cursor: pointer; } .mg-person[role=button]:hover { background: #fff3d6; }
+.mg-approvals { border-color: #e6a72d; background: #fff4d6; }
+.mg-approval { padding: 6px 8px; border-radius: 9px; background: #fff; display: flex; flex-direction: column; gap: 4px; }
+.mg-approval.risky { outline: 2px solid #d9534f; }
+.mg-sched { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px dashed var(--muted); }
+.mg-sched input[type=time] { width: auto; }
+.mg-day-pick { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; }
+.mg-box .mg-day-pick input, .mg-sched label input[type=checkbox] { width: auto; }
