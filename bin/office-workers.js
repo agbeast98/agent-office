@@ -392,6 +392,41 @@ async function browserCall(action, args, io) {
   return res.body;
 }
 
+const STATUS_NOTE = 'todo, doing, review, done, blocked or cancelled. A worker that says done sends it to review: the manager closes it.';
+
+/** The team's task tools: what each is called, and what it asks of the office's /office/tasks route. */
+const TASK_TOOLS = [
+  { name: 'list_tasks', title: 'List the team’s tasks', description: 'Lists the team’s open tasks: who each is with, its status and latest notes. mine: true shows only yours; all: true includes finished ones. Look here for your work, and before taking on anything new.', props: { mine: { type: 'boolean', description: 'Only the tasks that are yours.' }, all: { type: 'boolean', description: 'Finished and cancelled ones too.' }, status: { type: 'string', description: 'Only this status.' } }, required: [], readOnly: true },
+  { name: 'create_task', title: 'Hand out a task (manager)', description: 'The manager creates a task and gives it to a worker (assignee): they are told at once. Anyone else calling this makes a request to the manager, as ask_manager does.', props: { title: { type: 'string', description: 'What to do, in a line.' }, detail: { type: 'string', description: 'What it needs: where, how to check it, what to hand back.' }, assignee: { type: 'string', description: 'The worker, by name or id (manager only).' }, priority: { type: 'string', enum: ['low', 'normal', 'high'] }, due: { type: 'string', description: 'A day, YYYY-MM-DD.' } }, required: ['title'] },
+  { name: 'ask_manager', title: 'Ask the manager', description: 'Asks the manager for work, a decision or help, or reports a problem. It becomes a task the manager sees, and they are told. Everything between workers goes through the manager: use this rather than asking another worker directly.', props: { title: { type: 'string', description: 'The request, in a line.' }, detail: { type: 'string', description: 'What you need and why.' } }, required: ['title'], action: 'request' },
+  { name: 'update_task', title: 'Update a task', description: 'Moves a task along. status: ' + STATUS_NOTE + ' Only the manager changes the title, detail, priority, due day or who it is with (assignee; empty takes it off).', props: { id: { type: 'string', description: 'The task, like T-3.' }, status: { type: 'string', description: STATUS_NOTE }, title: { type: 'string' }, detail: { type: 'string' }, assignee: { type: 'string' }, priority: { type: 'string', enum: ['low', 'normal', 'high'] }, due: { type: 'string' } }, required: ['id'], action: 'update' },
+  { name: 'add_task_note', title: 'Note on a task', description: 'Adds a note to a task: a result, a question, a link. The manager and whoever the task is with are told.', props: { id: { type: 'string', description: 'The task, like T-3.' }, text: { type: 'string', description: 'The note.' } }, required: ['id', 'text'], action: 'note' },
+];
+for (const t of TASK_TOOLS) {
+  TOOLS.push({ name: t.name, title: t.title, description: t.description, inputSchema: { type: 'object', properties: t.props, ...(t.required.length ? { required: t.required } : {}), additionalProperties: false }, annotations: { readOnlyHint: !!t.readOnly, openWorldHint: false } });
+}
+
+/** One call to the team's tasks: a list (GET) or an action (POST). */
+async function taskCall(tool, args, io) {
+  const office = officeEnv(io.env);
+  const url = new URL(`${office.url}/office/tasks`);
+  url.searchParams.set('worker', office.worker);
+  const headers = { authorization: `Bearer ${office.token}` };
+  let req;
+  if (tool.name === 'list_tasks') {
+    if (args.mine === true) url.searchParams.set('mine', '1');
+    if (args.all === true) url.searchParams.set('all', '1');
+    if (typeof args.status === 'string') url.searchParams.set('status', args.status);
+    req = { method: 'GET', url: url.href, headers, timeout: 15_000 };
+  } else {
+    const action = tool.action ?? 'create';
+    req = { method: 'POST', url: url.href, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ ...args, action }), timeout: 30_000 };
+  }
+  const res = await send(req, io.fetch);
+  if (res.status < 200 || res.status >= 300) throw new Error(refusal(res.status, res.body));
+  return res.body;
+}
+
 const INSTRUCTIONS =
   "You work in Agent Office, where coding agents (the office's workers) sit at desks, each usually in its own git worktree and branch. These tools are the way to see and manage " +
   'the other agents: whenever you are asked about the agents or workers (who is working on what, whose pull request merged, hiring one, sending them home), use them, ' +
@@ -399,6 +434,7 @@ const INSTRUCTIONS =
   'puts a new agent to work, send_home sends agents home and deletes their worktrees and branches, tell_worker gives one a prompt, and link_pr says which pull request is a ' +
   "worker's when list_workers does not show it. Everyone in the office sees who did what. " +
   'The office-workers command on your PATH does the same from a shell. ' +
+  "The team has a manager, and its work goes through the manager as tasks: list_tasks shows yours, update_task moves one along (todo, doing, review, blocked), add_task_note records a result or a question, and ask_manager asks for work or help instead of asking another worker. " +
   "The browser_* tools drive this worker's own browser, shown live in the 🌐 Browser tab of its terminal: open sites with browser_open rather than a browser of your own, so the person can see the page. Use browser_snapshot to find what to click. Anything that sends, confirms, pays or deletes needs the person's approval (you are told when it is waiting); never type passwords, the person does.";
 
 /** Runs a tool; resolves to its text, and whether nothing it was asked came off, or throws with why it failed. */
@@ -420,6 +456,8 @@ async function runTool(name, args, io) {
     return { text: `Told ${answer.worker?.name ?? a.worker}.` };
   }
   if (name === 'link_pr') return { text: formatLinked(await call('pr', a, io)) };
+  const task = TASK_TOOLS.find((t) => t.name === name);
+  if (task) return { text: JSON.stringify(await taskCall(task, a, io), null, 1) };
   const browser = BROWSER_TOOLS.find((t) => t.name === name);
   if (browser) {
     const answer = await browserCall(browser.action, a, io);

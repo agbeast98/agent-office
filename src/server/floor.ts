@@ -28,6 +28,7 @@ import type { Ledger } from './usage.js';
 import type { Capacity } from './machine.js';
 import { officePrompt, type PromptSource } from './prompts.js';
 import { WorkerBrowsers } from './worker-browser.js';
+import { TeamTasks } from './team-tasks.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -123,6 +124,8 @@ export class Floor {
   /** The signs over its desks, and how far its back office is built out. */
   readonly plan: FloorPlanStore;
   readonly jukebox: Jukebox;
+  /** The team's tasks, handed out by its manager (see team-tasks.ts). */
+  readonly teamTasks: TeamTasks;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
   /** The meeting room, where workers work through a question together (see meetings.ts). */
@@ -313,6 +316,7 @@ export class Floor {
 
     this.decor = new Decor(dataDir);
     this.jukebox = new Jukebox(dataDir);
+    this.teamTasks = new TeamTasks(dataDir);
     this.whiteboard = new Whiteboard(dataDir);
     this.ready = this.workers.start();
 
