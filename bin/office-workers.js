@@ -360,13 +360,41 @@ export const TOOLS = [
   },
 ];
 
+/** What each browser tool asks of the office's /office/browser route, and what it is for. */
+const BROWSER_TOOLS = [
+  { name: 'browser_open', action: 'open', title: 'Open a web page', description: "Opens an http or https page in this worker's own browser, which the person sees live in the 🌐 Browser tab of your terminal. Use it, not a browser of your own, whenever you are asked to open or look at a site.", props: { url: { type: 'string', description: 'The page address, http:// or https://.' } }, required: ['url'] },
+  { name: 'browser_read_page', action: 'text', title: 'Read the page', description: 'Returns the visible text of the page open in your browser.', props: {}, required: [] },
+  { name: 'browser_screenshot', action: 'screenshot', title: 'Screenshot the page', description: 'Returns an image of the page open in your browser.', props: {}, required: [] },
+  { name: 'browser_status', action: 'view', title: 'What is open', description: 'Says which page is open in your browser (address, title) and who has control.', props: {}, required: [] },
+  { name: 'browser_click', action: 'click', title: 'Click an element', description: 'Clicks the element a CSS selector names on the open page.', props: { selector: { type: 'string', description: 'A CSS selector.' } }, required: ['selector'] },
+  { name: 'browser_type', action: 'type', title: 'Type into an element', description: 'Types text into the element a CSS selector names on the open page.', props: { selector: { type: 'string', description: 'A CSS selector.' }, text: { type: 'string', description: 'What to type.' } }, required: ['selector', 'text'] },
+  { name: 'browser_back', action: 'back', title: 'Go back', description: 'Goes back one page in your browser.', props: {}, required: [] },
+  { name: 'browser_forward', action: 'forward', title: 'Go forward', description: 'Goes forward one page in your browser.', props: {}, required: [] },
+  { name: 'browser_reload', action: 'reload', title: 'Reload the page', description: 'Reloads the open page.', props: {}, required: [] },
+];
+for (const t of BROWSER_TOOLS) {
+  TOOLS.push({ name: t.name, title: t.title, description: t.description, inputSchema: { type: 'object', properties: t.props, ...(t.required.length ? { required: t.required } : {}), additionalProperties: false }, annotations: { readOnlyHint: ['browser_read_page', 'browser_screenshot', 'browser_status'].includes(t.name), openWorldHint: true } });
+}
+
+/** One browser action, asked of the office; resolves to what it answered, or throws with why it said no. */
+async function browserCall(action, args, io) {
+  const office = officeEnv(io.env);
+  const url = new URL(`${office.url}/office/browser`);
+  url.searchParams.set('worker', office.worker);
+  const req = { method: 'POST', url: url.href, headers: { authorization: `Bearer ${office.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ ...args, action }), timeout: 60_000 };
+  const res = await send(req, io.fetch);
+  if (res.status < 200 || res.status >= 300) throw new Error(refusal(res.status, res.body));
+  return res.body;
+}
+
 const INSTRUCTIONS =
   "You work in Agent Office, where coding agents (the office's workers) sit at desks, each usually in its own git worktree and branch. These tools are the way to see and manage " +
   'the other agents: whenever you are asked about the agents or workers (who is working on what, whose pull request merged, hiring one, sending them home), use them, ' +
   "rather than looking for the agents with git, ps or HTTP calls. list_workers says where each one's pull request stands (merged: true means it merged), hire_worker " +
   'puts a new agent to work, send_home sends agents home and deletes their worktrees and branches, tell_worker gives one a prompt, and link_pr says which pull request is a ' +
   "worker's when list_workers does not show it. Everyone in the office sees who did what. " +
-  'The office-workers command on your PATH does the same from a shell.';
+  'The office-workers command on your PATH does the same from a shell. ' +
+  "The browser_* tools drive this worker's own browser, shown live in the 🌐 Browser tab of its terminal: open sites with browser_open rather than a browser of your own, so the person can see the page.";
 
 /** Runs a tool; resolves to its text, and whether nothing it was asked came off, or throws with why it failed. */
 async function runTool(name, args, io) {
@@ -387,6 +415,13 @@ async function runTool(name, args, io) {
     return { text: `Told ${answer.worker?.name ?? a.worker}.` };
   }
   if (name === 'link_pr') return { text: formatLinked(await call('pr', a, io)) };
+  const browser = BROWSER_TOOLS.find((t) => t.name === name);
+  if (browser) {
+    const answer = await browserCall(browser.action, a, io);
+    if (browser.action === 'screenshot') return { text: 'Screenshot of the open page.', image: answer.data };
+    if (browser.action === 'text') return { text: String(answer.text ?? '') };
+    return { text: JSON.stringify(answer, null, 1) };
+  }
   throw new Error(`Unknown tool: ${name}`);
 }
 
@@ -419,8 +454,8 @@ export async function handleMcp(msg, io) {
       const name = msg.params?.name;
       if (!TOOLS.some((t) => t.name === name)) return { jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: `Unknown tool: ${name}` } };
       try {
-        const { text, isError } = await runTool(name, msg.params?.arguments, io);
-        return ok({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
+        const { text, isError, image } = await runTool(name, msg.params?.arguments, io);
+        return ok({ content: [{ type: 'text', text }, ...(image ? [{ type: 'image', data: image, mimeType: 'image/jpeg' }] : [])], ...(isError ? { isError: true } : {}) });
       } catch (e) {
         return ok({ content: [{ type: 'text', text: e.message }], isError: true });
       }
