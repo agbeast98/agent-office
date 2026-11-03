@@ -4,6 +4,7 @@
 import { tell } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
 import { GUARD_MAX } from '../../security.js';
+import { syncGuards } from '../../security-glue.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
@@ -48,7 +49,10 @@ export const securityRoutes = {
       }
       const sec = floor.security;
       const known = (id: unknown) => floor.workers.list().find((w) => w.kind === 'agent' && w.id === id);
-      const mirror = () => sec.writeMirror((id) => floor.workers.get(id)?.name ?? id);
+      const mirror = () => {
+        sec.writeMirror((id) => floor.workers.get(id)?.name ?? id);
+        syncGuards(floor);
+      };
       switch (body.action) {
         case 'guardian': {
           const w = known(body.worker);

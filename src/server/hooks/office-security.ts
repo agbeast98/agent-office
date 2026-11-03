@@ -2,7 +2,7 @@ import type http from 'node:http';
 import type { Floor } from '../floor.js';
 import type { Ctx } from '../office/context.js';
 import { readBody, send } from '../http/util.js';
-import { announce, refusal, toolCheck } from '../security-glue.js';
+import { announce, refusal, syncGuards, toolCheck } from '../security-glue.js';
 import { tell } from './office-tasks.js';
 
 function authenticate(ctx: Ctx, req: http.IncomingMessage, url: URL) {
@@ -48,6 +48,7 @@ export async function officeSecurity(ctx: Ctx, req: http.IncomingMessage, res: h
   tell(floor, out.notices, me.name);
   if (verdict === 'ask') void floor.notifier.send(`🛡 ${me.name} از شما می‌پرسد: ${hold.agent.name} ← ${hold.kind} «${hold.target}»`);
   floor.security.writeMirror((x) => floor.workers.get(x)?.name ?? x);
+  syncGuards(floor);
   return send(res, 200, { ok: true, status: out.hold.status });
 }
 

@@ -33,7 +33,7 @@ import { TeamMeetings } from './team-meeting.js';
 import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js';
 import { Notifier } from './notify.js';
 import { Security } from './security.js';
-import { browserGate } from './security-glue.js';
+import { browserGate, syncGuards } from './security-glue.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -338,6 +338,7 @@ export class Floor {
     this.scheduleTimer.unref();
     this.whiteboard = new Whiteboard(dataDir);
     this.ready = this.workers.start();
+    void this.ready.then(() => syncGuards(this));
 
     void this.github.refresh();
     // A floor with people on it, or work under way, keeps its boards fresh; the others check in now and then.

@@ -96,7 +96,7 @@ export const teamRoutes = {
         }
         case 'person': {
           const worker = typeof body.worker === 'string' ? body.worker : '';
-          if (!floor.workers.describe(worker, str(body.name, 60).trim(), str(body.role, 300).trim())) return send(res, 400, { error: 'No such person' });
+          if (!floor.workers.describe(worker, { name: str(body.name, 60).trim(), role: str(body.role, 300).trim() })) return send(res, 400, { error: 'No such person' });
           return send(res, 200, { ok: true });
         }
         case 'lock':

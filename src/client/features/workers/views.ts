@@ -27,6 +27,7 @@ import { renderLimits } from '../../ui/limits';
 import { modelBadge, providerLabel } from '../../ui/provider';
 import { renderUsage } from '../../ui/usage';
 import { Worker } from '../../world/character';
+import { Patrol } from '../../world/patrol';
 import { Drifters } from './adrift';
 import { Jail } from './jail';
 import { Laptop } from './laptop';
@@ -95,6 +96,8 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
     jail,
     adrift,
   );
+  // Security agents don't sit at a desk: they walk about the floor, and stand beside the one they are with.
+  const patrol = new Patrol(scene, () => ctx.world().nav, groundHere, (x, y, z) => sound.stepAt(x, z, y));
   // Workers called to a meeting, walking in from the elevator (or the doors) to the meeting table.
   const arrivals = new Arrivals(
     scene,
@@ -147,6 +150,8 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
         workerViews.set(w.id, v);
       }
       // Called to the meeting table, or sent back to its desk (the office moved it): it goes there, walking in when it is the table.
+      const guarding = w.kind === 'agent' && !!w.guard;
+      if (v.deskId !== w.deskId && guarding) v.deskId = w.deskId;
       if (v.deskId !== w.deskId) {
         arrivals.forget(v.model);
         court?.release(w.id);
@@ -163,6 +168,26 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
         desk.chair.rotation.y = 0;
         noOutline(desk.group);
         v.deskId = w.deskId;
+      }
+      // A security agent gets up from its desk and walks about, going to stand by whoever it is with; one that isn't any more sits back down.
+      if (guarding && !patrol.has(w.id)) {
+        arrivals.forget(v.model);
+        court?.release(w.id);
+        const at = v.model.root.getWorldPosition(new THREE.Vector3());
+        patrol.add(w.id, v.model, ctx.world().nav.nearestWalkable([at.x, at.z]));
+      } else if (!guarding && patrol.has(w.id)) {
+        patrol.remove(w.id);
+        desk.seatAnchor.add(v.model.root);
+        v.model.root.position.set(0, 0, 0);
+        v.model.root.rotation.set(0, 0, 0);
+        v.model.root.scale.setScalar(1);
+      }
+      if (guarding) {
+        const target = w.guard?.target ? store.workers.get(w.guard.target) : undefined;
+        patrol.setPost(w.id, target ? plan().byId.get(target.deskId) : undefined, () => {
+          const m = target && workerViews.get(target.id)?.model.root.getWorldPosition(new THREE.Vector3());
+          return m ? [m.x, m.z] : undefined;
+        });
       }
       if (v.status !== w.status || v.acked !== w.acked) {
         // It just finished or started waiting on you (not already so when this page first saw it): ding (one that needs you has an alarm of its own, see features/needsyou), and notify if you're away.
@@ -198,7 +223,8 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
       arrivals.forget(v.model);
       const desk = world.desks.get(v.deskId);
       // Up and about in the castle: it sets off from where it's standing.
-      const up = court?.release(id);
+      const up = court?.release(id) ?? patrol.where(id);
+      patrol.remove(id);
       // Sent home: it packs up and walks out, and the seat shows as free once it's up (see departures), or
       // on a map with its own way of seeing workers off, that (the castle's dungeon, for one it locks up).
       const send = plan().sendHome;
@@ -336,6 +362,7 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
       adrift.update(dt, t, camera.position);
     }
     arrivals.update(dt);
+    patrol.update(dt);
     parts.worlds.court()?.update(dt);
   });
 

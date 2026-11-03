@@ -12,9 +12,26 @@ export function refusal(c: Exclude<Check, { verdict: 'allow' }>): string {
   return c.verdict === 'deny' ? c.reason : wait(c.hold);
 }
 
+/**
+ * Tells each security agent's 3D model whom it guards and which of them it is with now (the one with the oldest
+ * open hold), so it walks over to stand beside that agent's desk and goes back to wandering when it's decided.
+ */
+export function syncGuards(floor: Floor) {
+  const open = floor.security.holds.filter((h) => h.status === 'pending' || h.status === 'asked');
+  const guardians = Object.keys(floor.security.guards);
+  for (const w of floor.workers.list()) {
+    if (w.kind !== 'agent') continue;
+    const guarding = floor.security.guards[w.id];
+    const next = guarding ? { guarding, target: [...open].reverse().find((h) => guarding.includes(h.agent.id))?.agent.id } : undefined;
+    if (JSON.stringify(next) !== JSON.stringify(w.guard)) floor.workers.describe(w.id, { guard: next ?? null });
+  }
+  return guardians;
+}
+
 /** A hold that has just appeared: the security agent is woken to decide it, and the person hears of it on their phone. */
 export function announce(floor: Floor, c: Check) {
   if (c.verdict !== 'hold' || !c.fresh) return;
+  syncGuards(floor);
   const h = c.hold;
   const guardian = floor.security.guardOf(h.agent.id);
   if (guardian) {

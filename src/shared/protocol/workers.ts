@@ -96,6 +96,8 @@ export interface WorkerInfo {
   meeting?: string;
   /** An existing employee temporarily sitting at the meeting table; original desk stays reserved. */
   meetingOriginDesk?: string;
+  /** Set on a security agent: who it guards, and the one it is with right now (see server/security.ts). It doesn't sit at its desk but walks about the floor. */
+  guard?: { guarding: string[]; target?: string };
   /**
    * How long it has spent working (ms), over the stretches that have ended, and when the one it's in
    * now started (while it's working): on the castle map, the longer it has worked, the more worn out it looks.

@@ -35,3 +35,5 @@ A **security agent** (tick **نگهبان امنیت** on one of the team in �
 - The rules are also written to `freelance-team/security-rules.md` in the floor's repository, so git keeps them.
 
 Not covered yet: Codex agents (their hooks differ), and an agent already running keeps the hooks it started with until it is resumed.
+
+A security agent has no desk to sit at: in the 3D office it walks about the floor on its own, and when something it guards is held it walks over and stands beside that agent's desk, facing it, until it is decided, then goes back to wandering. (Its desk stays its own, empty.)
