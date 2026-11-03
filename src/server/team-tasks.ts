@@ -79,6 +79,8 @@ const fail = (error: string): Outcome => ({ ok: false, error });
 export class TeamTasks {
   /** Says why a worker can't be given work (a new hire still in its interview), or nothing. */
   blocked?: (workerId: string) => string | undefined;
+  /** Whether a worker manages a team of its own (see team-teams.ts): it hands out work as the manager does. */
+  isManager?: (workerId: string) => boolean;
   private tasks: TeamTask[] = [];
   private managerId?: string;
   private next = 1;
@@ -135,7 +137,7 @@ export class TeamTasks {
 
   /** Whether `worker` is the manager, so it may hand out and change anything. */
   actorOf(worker: WorkerInfo, workers: WorkerInfo[]): Actor {
-    return { id: worker.id, name: worker.name, boss: this.manager(workers)?.id === worker.id };
+    return { id: worker.id, name: worker.name, boss: this.manager(workers)?.id === worker.id || !!this.isManager?.(worker.id) };
   }
 
   list(filter: { assignee?: string; status?: string; mine?: string; open?: boolean } = {}): TeamTask[] {

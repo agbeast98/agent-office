@@ -9,6 +9,9 @@ import type { Ctx } from '../office/context.js';
 import { str } from '../office/input.js';
 import { readBody, send } from '../http/util.js';
 
+/** Whether a worker may hire another by itself (hire_worker): off, hiring is the person's, with a name, a post and an interview. */
+const AGENTS_MAY_HIRE = false as boolean;
+
 /**
  * Pull request `n` on a floor, for a worker to have as its own: one that's open, or merged and still
  * on the floor's list. A string says why it can't be.
@@ -142,6 +145,8 @@ export async function officeWorkers(ctx: Ctx, req: http.IncomingMessage, res: ht
     return send(res, 200, { ok: true, worker: row(w.id) });
   }
 
+  // Only the person hires: a team's manager proposes (propose_hire), anyone else asks the manager.
+  if (!AGENTS_MAY_HIRE) return send(res, 403, { error: 'استخدام فقط با مدیرعامل است و از راه پنجره‌ی «🧑‍💼 استخدام» (نام، سمت، مصاحبه) انجام می‌شود. اگر مدیر یک تیم هستی نیروی لازم را با propose_hire پیشنهاد بده؛ وگرنه از مدیر بخواه (ask_manager).' });
   const ask = readHireRequest(body, floor.project.agentProviders);
   if (typeof ask === 'string') return send(res, 400, { error: ask });
   const desk = ask.desk ?? nextFreeSeat((id) => floor.workers.deskOccupied(id), floor.plan.wing)?.id;

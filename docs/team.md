@@ -64,3 +64,16 @@ The new agent does not start working. It has its first interview with you, as a 
 4. It writes its own profile, kept in the floor's repository so git carries it to your other computers: `freelance-team/people/<name>/skill.md` (the job, refined from what you wrote) and `memory.md` (what it learned about you and the work). It is told to read both at the start of every task and to add to `memory.md` after each.
 
 You then press **✓ استخدام**, **✕ رد** (it goes home and its profile is deleted), or **⏭ رد شدن از مصاحبه** to hire it without the interview being finished. Until it is hired, tasks and scenarios cannot be given to it. The agent speaks through the `interview_say` and `interview_finish` tools. Not here yet: the agent walking up to the boss's loft for the interview and down to its desk afterwards (it is seated at its desk from the start).
+
+## 👥 Teams and their managers
+
+There are two ways to hire (the **نوع استخدام** in the form): **🧍 مستقل** (the agent works for itself, in no team) and **👥 عضو یک تیم**. A team is made by hiring its first person as **🧭 مدیر یک تیم تازه** (the form asks for the team's name); that manager's interview is about coordination, and after it you hire the rest into the team, with the manager's say. Agents who work alone can be taken into a team later (**افزودن به تیم** in the **👥 تیم‌ها** tab, or on a manager's proposal).
+
+A team's manager never hires. It tells you, honestly, what the team has and lacks:
+
+- **💬 مشاوره با مدیر** (in the team's card): ask "is what we have enough?" or what the team needs; the manager answers with `team_advise` and, for each person it thinks is missing, `propose_hire` (post, a draft of the skill, why): a card with **✓ استخدام با این مشخصات**, which fills the hire form in. It may as well say the team is enough, or that one more of something is not needed. `propose_adopt` proposes taking in someone who works alone.
+- **In an interview** the manager is not part of every message. It comments when the candidate finishes, and when you press **🧭 نظر مدیر**: the comment is shown in the same chat with its name, and the candidate does not see it. The manager's own interview has no one to judge it.
+- **`freelance-team/people/ROSTER.md`**, made by the office after every change, says who is in which team, each one's post and the access they say they have and need. Managers read it (or `team_roster`) at the start of work.
+- Anyone who manages a team may hand out tasks like the floor's manager. Agents can no longer hire each other (`hire_worker` is refused with a note to ask the manager or propose).
+
+Kept in `.agent-office/team-teams.json`. Not here yet: more than one manager receiving the "needs review" notices (they go to the first), and walking up to the loft for the interview.

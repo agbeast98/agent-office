@@ -10,7 +10,9 @@ import type { Notice } from './team-tasks.js';
 export type InterviewStatus = 'talking' | 'review' | 'hired' | 'rejected' | 'skipped';
 
 export interface Talk {
-  by: 'agent' | 'boss';
+  by: 'agent' | 'boss' | 'manager';
+  /** For the manager: its name. */
+  who?: string;
   text: string;
   at: number;
 }
@@ -27,6 +29,9 @@ export interface Interview {
   status: InterviewStatus;
   /** What the person wrote the job is. */
   skill: string;
+  /** The team it is hired into (see team-teams.ts), and whether as its manager. */
+  team?: string;
+  isManager?: boolean;
   messages: Talk[];
   summary?: string;
   access?: string;
@@ -122,13 +127,13 @@ export class Interviews {
   }
 
   /** A hired worker's interview begins: its profile gets what the person wrote. */
-  start(input: { worker: string; name: string; role: string; desk: string; skill: string }): Interview {
+  start(input: { worker: string; name: string; role: string; desk: string; skill: string; team?: string; isManager?: boolean }): Interview {
     const name = text(input.name, 60);
     const role = text(input.role, 120);
     const skill = text(input.skill, 3000);
     const slug = slugOf(name, (s) => this.list.some((i) => i.slug === s));
     const now = Date.now();
-    const i: Interview = { id: `I-${this.next++}`, worker: input.worker, name, role, desk: input.desk, slug, status: 'talking', skill, messages: [], startedAt: now, updatedAt: now };
+    const i: Interview = { id: `I-${this.next++}`, worker: input.worker, name, role, desk: input.desk, slug, status: 'talking', skill, messages: [], startedAt: now, updatedAt: now, ...(input.team ? { team: input.team } : {}), ...(input.isManager ? { isManager: true } : {}) };
     this.list.push(i);
     this.write(slug, 'skill.md', `# ${name} — ${role}\n\n## شرح کار و مهارت (به قلم مدیرعامل)\n\n${skill || '(هنوز نوشته نشده)'}`);
     this.write(slug, 'memory.md', `# حافظه‌ی ${name}\n\n(هنوز چیزی ثبت نشده؛ بعد از مصاحبه و هر کار تکمیل می‌شود.)`);
@@ -157,6 +162,16 @@ export class Interviews {
     if (!said) return fail('چیزی بنویس');
     this.push(i, 'agent', said);
     return { ok: true, interview: i, notices: [] };
+  }
+
+  /** What the team's manager says about the interview or the candidate: seen in the chat, not sent to the candidate. */
+  managerSay(id: string, who: string, body: unknown): Result<{ interview: Interview }> {
+    const i = this.get(id);
+    if (!i || (i.status !== 'talking' && i.status !== 'review')) return fail('این مصاحبه باز نیست');
+    const said = text(body, TEXT_MAX);
+    if (!said) return fail('چیزی بنویس');
+    this.push(i, 'manager', said, who);
+    return { ok: true, interview: i };
   }
 
   /** What the person says. */
@@ -198,8 +213,8 @@ export class Interviews {
     return { ok: true, interview: i };
   }
 
-  private push(i: Interview, by: Talk['by'], body: string) {
-    i.messages.push({ by, text: body, at: Date.now() });
+  private push(i: Interview, by: Talk['by'], body: string, who?: string) {
+    i.messages.push({ by, text: body, at: Date.now(), ...(who ? { who } : {}) });
     if (i.messages.length > MAX_MESSAGES) i.messages.splice(0, i.messages.length - MAX_MESSAGES);
     i.updatedAt = Date.now();
     this.save();
@@ -207,8 +222,19 @@ export class Interviews {
 }
 
 /** The first message of the new agent: who it is, and how its interview goes. */
-export function interviewPrompt(name: string, role: string, skill: string, folder: string): string {
+export function interviewPrompt(name: string, role: string, skill: string, folder: string, team?: { name: string; manager?: string; isManager: boolean }): string {
+  const about = !team ? 'تو مستقل کار می‌کنی و عضو هیچ تیمی نیستی.'
+    : team.isManager ? `تو مدیر و هماهنگ‌کننده‌ی تیم «${team.name}» هستی؛ اولین نفر این تیمی و بعد از تو نیروها را مدیرعامل استخدام می‌کند.`
+    : `تو عضو تیم «${team.name}» هستی و مدیرت ${team.manager ?? 'مدیر تیم'} است. او هم نظرش را درباره‌ی مصاحبه‌ات می‌دهد.`;
+  const manager = team?.isManager
+    ? [
+      'چون مدیر تیمی، در سؤال‌هایت این‌ها را هم بپرس: هدف تیم، مشتری‌ها و خروجی‌هایی که انتظار دارد، ترتیب کارها و مرحله‌ها، چه چیزی را باید خودش تأیید کند و چه چیزی را خودت. در نظرت هم بگو: برای این تیم به چه نیروهایی نیاز داریم و هر نفر دقیقاً چه کاری می‌کند.',
+      'قاعده‌ی مدیر: نیرو استخدام نمی‌کنی؛ فقط با propose_hire پیشنهاد می‌دهی و مدیرعامل تصمیم می‌گیرد. درباره‌ی تیم همیشه واقع‌گرایانه بگو: اگر نیروهای فعلی کافی‌اند صریح بگو کافی است، اگر نه بگو چه چیزی کم است و چرا (با team_advise).',
+    ].join('\n')
+    : '';
   return [
+    about,
+    manager,
     `تو «${name}» هستی، با سمت «${role}» در تیم فریلنسری مدیرعامل (Mohammad / Khat Web). این مصاحبه‌ی اولیه‌ی توست؛ هنوز کار واقعی نداری و تا استخدام نشده‌ای هیچ کاری نکن و به هیچ سایتی نرو.`,
     skill ? `شرحی که مدیرعامل برای کار تو نوشته:\n${skill}` : '',
     'قواعد مصاحبه: فقط با ابزار interview_say با مدیرعامل حرف بزن (حرف زدن در ترمینال به او نمی‌رسد). جواب‌های او با پیامی که با «پاسخ مدیرعامل در مصاحبه» شروع می‌شود می‌رسد.',

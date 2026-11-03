@@ -35,6 +35,7 @@ import { Notifier } from './notify.js';
 import { Security } from './security.js';
 import { Flows } from './team-flows.js';
 import { Interviews } from './team-interviews.js';
+import { Teams } from './team-teams.js';
 import { tell as tellWorkers } from './hooks/office-tasks.js';
 import { browserGate, syncGuards } from './security-glue.js';
 
@@ -141,6 +142,7 @@ export class Floor {
   readonly security: Security;
   readonly flows: Flows;
   readonly interviews: Interviews;
+  readonly teams: Teams;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -338,6 +340,8 @@ export class Floor {
     this.notifier = new Notifier(dataDir);
     this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
     this.teamTasks.blocked = (id) => this.interviews.blocking(id);
+    this.teams = new Teams(dataDir);
+    this.teamTasks.isManager = (id) => this.teams.isManager(id);
     this.flows = new Flows(dataDir, { blocked: (id) => this.interviews.blocking(id), tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));
     this.teamTasks.onChange = () => this.flows.sync();
     this.security = new Security(dataDir, path.join(def.dir, 'freelance-team', 'security-rules.md'));

@@ -1,36 +1,37 @@
 import './hiring.css';
 import { h, openModal, toast } from '../../ui/dom';
+import { teamsTab } from './hiring-teams';
+import type { Desk, Draft, Interview, Proposal, State } from './hiring-types';
 
-// The استخدام window: the map of the floor's desks (who sits where, which are free), hiring at a free desk with a
-// name, a post and a description of the job, and the new agent's first interview as a chat until the person hires
-// or rejects it. Read from, and sent to, the server (see server/http/routes/hiring.ts and server/team-interviews.ts).
-
-interface Desk { id: string; label: string; x: number; z: number; rotY: number; worker?: { id: string; name: string; role?: string; status: string }; interview?: string }
-interface Talk { by: 'agent' | 'boss'; text: string; at: number }
-interface Interview { id: string; worker: string; name: string; role: string; desk: string; slug: string; status: 'talking' | 'review'; skill: string; messages: Talk[]; summary?: string; access?: string; skillFile?: string; memoryFile?: string }
-interface State { paused: string | null; desks: Desk[]; interviews: Interview[] }
+// The استخدام window: the map of the floor's desks (who sits where, which are free), hiring at a free desk (alone,
+// into a team, or as the manager of a new team) with a name, a post and a description of the job, and the new
+// agent's first interview as a chat (with the team manager's comments) until the person hires or rejects it; and
+// the تیم‌ها tab. Read from, and sent to, the server (see server/http/routes/hiring.ts, team-interviews.ts).
 
 const POLL_MS = 2500;
 const DESK_W = 2.2;
 const DESK_D = 1.1;
+type Tab = 'hire' | 'teams';
 let opened = false;
 
 export function openHiring(floor: string, desk?: string) {
   if (opened) return;
   opened = true;
   const qs = new URLSearchParams({ floor }).toString();
-  let state: State = { paused: null, desks: [], interviews: [] };
+  let state: State = { paused: null, desks: [], interviews: [], teams: [], alone: [] };
+  let tab: Tab = 'hire';
   let selected: string | undefined = desk;
   let timer: ReturnType<typeof setInterval> | undefined;
   let seen = '';
-  /** What is typed in the hire form stays while the window redraws. */
-  const draft = { name: '', role: '', skill: '' };
+  const draft: Draft = { mode: 'newteam', team: '', teamName: '', name: '', role: '', skill: '' };
 
+  const nav = h('nav.sec-nav', { role: 'tablist' });
   const mapBox = h('div.hr-map');
   const panel = h('div.hr-panel');
+  const body = h('div.hr-body', {}, panel, mapBox);
+  const teamsBox = h('div.hr-teams');
   const msg = h('div.mg-msg', { role: 'status' });
-  const el = h('div.modal.secwin.hirewin', { role: 'dialog', 'aria-label': 'استخدام', lang: 'fa', dir: 'rtl' },
-    h('header', {}, h('h2', {}, '🧑‍💼 استخدام')), h('div.hr-body', {}, panel, mapBox), msg);
+  const el = h('div.modal.secwin.hirewin', { role: 'dialog', 'aria-label': 'استخدام', lang: 'fa', dir: 'rtl' }, h('header', {}, h('h2', {}, '🧑‍💼 استخدام')), nav, body, teamsBox, msg);
   openModal(el, { doing: 'در بخش استخدام', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
   const call = async (action: string, extra: Record<string, unknown> = {}) => {
@@ -65,9 +66,8 @@ export function openHiring(floor: string, desk?: string) {
     svg.setAttribute('aria-label', 'نقشه‌ی میزها');
     for (const d of ds) {
       const iv = interviewAt(d);
-      const cls = d.worker ? (iv ? 'talk' : 'busy') : 'free';
       const g = document.createElementNS(ns, 'g');
-      g.setAttribute('class', `hr-desk ${cls}${selected === d.id ? ' sel' : ''}`);
+      g.setAttribute('class', `hr-desk ${d.worker ? (iv ? 'talk' : 'busy') : 'free'}${selected === d.id ? ' sel' : ''}`);
       g.setAttribute('transform', `translate(${d.x} ${d.z})`);
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
@@ -93,20 +93,50 @@ export function openHiring(floor: string, desk?: string) {
 
   // ---- The hire form ----
 
+  /** A proposal of a manager: the form filled in with it (as a member of that team). */
+  const useProposal = (p: Proposal) => {
+    Object.assign(draft, { mode: 'team', team: p.team, role: p.role, skill: p.skill, name: '', proposal: p.id });
+    tab = 'hire';
+    selected = state.desks.find((d) => !d.worker)?.id;
+    render();
+  };
+
   const hireForm = (d: Desk) => {
+    if (!state.teams.some((t) => t.id === draft.team)) draft.team = state.teams[0]?.id ?? '';
+    if (draft.mode === 'team' && !state.teams.length) draft.mode = 'newteam';
     const name = h('input', { value: draft.name, maxlength: '40', placeholder: 'مثلاً سارا', dir: 'auto' }) as HTMLInputElement;
-    const role = h('input', { value: draft.role, maxlength: '100', placeholder: 'مثلاً ایده‌یاب سئو', dir: 'auto' }) as HTMLInputElement;
-    const skill = h('textarea', { rows: '7', maxlength: '3000', placeholder: 'دقیقاً چه کاری می‌کند؟ ورودی و خروجی هر کارش چیست؟ چه کارهایی نباید بکند؟', dir: 'auto' }) as HTMLTextAreaElement;
+    const role = h('input', { value: draft.role, maxlength: '100', placeholder: draft.mode === 'newteam' ? 'مثلاً مدیر تیم سئو' : 'مثلاً ایده‌یاب سئو', dir: 'auto' }) as HTMLInputElement;
+    const skill = h('textarea', { rows: '6', maxlength: '3000', placeholder: 'دقیقاً چه کاری می‌کند؟ ورودی و خروجی هر کارش چیست؟ چه کارهایی نباید بکند؟', dir: 'auto' }) as HTMLTextAreaElement;
     skill.value = draft.skill;
     name.addEventListener('input', () => (draft.name = name.value));
     role.addEventListener('input', () => (draft.role = role.value));
     skill.addEventListener('input', () => (draft.skill = skill.value));
+    const radio = (mode: Draft['mode'], label: string, hint: string, disabled = false) => {
+      const r = h('input', { type: 'radio', name: 'hire-mode', checked: draft.mode === mode, disabled }) as HTMLInputElement;
+      r.addEventListener('change', () => { draft.mode = mode; render(); });
+      return h('label.hr-mode', { class: draft.mode === mode ? 'on' : '' }, r, h('span', {}, h('b', {}, label), h('small', {}, hint)));
+    };
+    const teamSel = h('select', { 'aria-label': 'تیم' }, ...state.teams.map((t) => h('option', { value: t.id }, `تیم ${t.name}${t.manager?.interview ? ' (مدیرش هنوز در مصاحبه است)' : ''}`))) as HTMLSelectElement;
+    teamSel.value = draft.team;
+    teamSel.addEventListener('change', () => (draft.team = teamSel.value));
+    const teamName = h('input', { value: draft.teamName, maxlength: '50', placeholder: 'نام تیم، مثلاً سئو', dir: 'auto' }) as HTMLInputElement;
+    teamName.addEventListener('input', () => (draft.teamName = teamName.value));
     const go = h('button.btn.primary', { type: 'button', disabled: !!state.paused, onclick: async () => {
-      if (await call('hire', { desk: d.id, name: draft.name, role: draft.role, skill: draft.skill })) { draft.name = draft.role = draft.skill = ''; toast('ایجنت آمد و مصاحبه شروع شد'); }
+      if (await call('hire', { desk: d.id, mode: draft.mode, team: draft.team, teamName: draft.teamName, name: draft.name, role: draft.role, skill: draft.skill, proposal: draft.proposal })) {
+        Object.assign(draft, { name: '', role: '', skill: '', teamName: '', proposal: undefined });
+        toast('ایجنت آمد و مصاحبه شروع شد');
+      }
     } }, '🎤 استخدام و شروع مصاحبه');
     return h('div.hr-card', {},
       h('h3', {}, `استخدام روی ${d.label}`),
       state.paused ? h('div.hr-warn', {}, `استخدام الان ممکن نیست: ${state.paused}`) : null,
+      draft.proposal ? h('div.hr-warn.ok', {}, 'این فرم از پیشنهاد مدیر پر شده است؛ فقط نام را بنویسید.') : null,
+      h('div.hr-modes', {},
+        radio('newteam', '🧭 مدیر یک تیم تازه', 'اول مدیر را استخدام کنید؛ بعد با مشورت او نیروها را اضافه کنید.'),
+        radio('team', '👥 عضو یک تیم', 'مدیر تیم درباره‌ی او نظر می‌دهد و فهرست تیم را می‌شناسد.', !state.teams.length),
+        radio('solo', '🧍 مستقل', 'برای خودش کار می‌کند و عضو هیچ تیمی نیست.')),
+      draft.mode === 'team' ? h('label.sec-field', {}, h('span', {}, 'تیم'), teamSel) : null,
+      draft.mode === 'newteam' ? h('label.sec-field', {}, h('span', {}, 'نام تیم'), teamName) : null,
       h('label.sec-field', {}, h('span', {}, 'نام'), name),
       h('label.sec-field', {}, h('span', {}, 'سمت'), role),
       h('label.sec-field', {}, h('span', {}, 'شرح کار و مهارت (همان چیزی که از او می‌خواهید)'), skill),
@@ -116,15 +146,15 @@ export function openHiring(floor: string, desk?: string) {
 
   // ---- The interview ----
 
-  /** The chat and the reply box last drawn, so a redraw while someone types only touches the messages. */
-  let chat: { id: string; list: HTMLElement; status: HTMLElement; input: HTMLTextAreaElement } | undefined;
+  /** The chat last drawn, so a redraw while someone types only touches the messages. */
+  let chat: { id: string; list: HTMLElement; status: HTMLElement } | undefined;
 
   const bubbles = (iv: Interview) => iv.messages.length
-    ? iv.messages.map((m) => h('div.hr-msg', { class: m.by }, h('b', {}, m.by === 'agent' ? iv.name : 'شما'), h('div', { dir: 'auto' }, m.text)))
+    ? iv.messages.map((m) => h('div.hr-msg', { class: m.by }, h('b', {}, m.by === 'agent' ? iv.name : m.by === 'manager' ? `🧭 مدیر ${m.who ?? ''}` : 'شما'), h('div', { dir: 'auto' }, m.text)))
     : [h('div.mg-empty', {}, `⏳ ${iv.name} در حال آماده‌شدن است و به‌زودی خودش را معرفی می‌کند…`)];
 
   const statusLine = (iv: Interview) => {
-    const last = iv.messages[iv.messages.length - 1];
+    const last = [...iv.messages].reverse().find((m) => m.by !== 'manager');
     if (iv.status === 'review') return '✅ مصاحبه تمام شد؛ نتیجه را ببینید و تصمیم بگیرید.';
     if (!last || last.by === 'boss') return `⏳ منتظر ${last ? 'پاسخ' : 'معرفی'} ${iv.name}…`;
     return '💬 منتظر پاسخ شما';
@@ -139,12 +169,13 @@ export function openHiring(floor: string, desk?: string) {
   };
 
   const interviewPanel = (iv: Interview) => {
+    const team = state.teams.find((t) => t.id === iv.team);
     const list = h('div.hr-chat', { role: 'log', 'aria-live': 'polite' });
     const status = h('div.hr-status');
     const input = h('textarea', { rows: '2', placeholder: 'پاسخ یا حرف شما…', dir: 'auto', maxlength: '2000' }) as HTMLTextAreaElement;
     const send = async () => { const t = input.value.trim(); if (!t) return; input.value = ''; if (!(await call('say', { id: iv.id, text: t }))) input.value = t; };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } });
-    chat = { id: iv.id, list, status, input };
+    chat = { id: iv.id, list, status };
     updateChat(iv);
     list.scrollTop = list.scrollHeight;
     const files = iv.status === 'review'
@@ -155,8 +186,9 @@ export function openHiring(floor: string, desk?: string) {
         iv.memoryFile ? h('details', {}, h('summary', {}, '🧠 memory.md (حافظه)'), h('pre', { dir: 'auto' }, iv.memoryFile)) : null)
       : null;
     return h('div.hr-card.interview', {},
-      h('div.sec-hh', {}, h('h3', {}, `🎤 مصاحبه با ${iv.name}`), h('span.mr-chip', {}, iv.role), h('small', {}, `پوشه: freelance-team/people/${iv.slug}`)),
+      h('div.sec-hh', {}, h('h3', {}, `🎤 مصاحبه با ${iv.name}`), h('span.mr-chip', {}, iv.role), iv.team && team ? h('span.mr-chip', {}, iv.isManager ? `مدیر تیم ${team.name}` : `تیم ${team.name}`) : h('span.mr-chip', {}, 'مستقل'), h('small', {}, `پوشه: freelance-team/people/${iv.slug}`)),
       list, status, h('div.hr-reply', {}, input, h('button.btn.primary', { type: 'button', onclick: () => void send() }, 'ارسال')),
+      iv.team && !iv.isManager ? h('button.btn', { type: 'button', title: 'مدیر تیم گفتگو را می‌خواند و نظر واقع‌گرایانه‌اش را همین‌جا می‌نویسد', onclick: () => void call('askManager', { id: iv.id }) }, '🧭 نظر مدیر') : null,
       files,
       h('div.mg-row', {},
         h('button.btn.primary', { type: 'button', disabled: iv.status !== 'review', title: iv.status === 'review' ? '' : 'بعد از پایان مصاحبه فعال می‌شود', onclick: () => void call('hired', { id: iv.id }) }, '✓ استخدام (برو سر میزت)'),
@@ -166,21 +198,27 @@ export function openHiring(floor: string, desk?: string) {
 
   // ---- Putting it together ----
 
-  /** Someone is typing in the panel: leave it be and only bring the chat up to date. */
+  /** Someone is typing here: leave it be and only bring the chat up to date. */
   const typing = () => {
     const a = document.activeElement as HTMLElement | null;
-    return !!a && panel.contains(a) && ['INPUT', 'TEXTAREA'].includes(a.tagName) && !!(a as HTMLInputElement).value;
+    return !!a && el.contains(a) && ['INPUT', 'TEXTAREA'].includes(a.tagName) && !!(a as HTMLInputElement).value;
   };
 
   const render = () => {
+    const waiting = state.teams.reduce((n, t) => n + t.proposals.length, 0);
+    const tabs: [Tab, string][] = [['hire', '🎤 استخدام و مصاحبه'], ['teams', `👥 تیم‌ها${waiting ? ` (${waiting} پیشنهاد)` : ''}`]];
+    nav.replaceChildren(...tabs.map(([id, label]) => h('button.mr-tab', { type: 'button', role: 'tab', class: id === tab ? 'on' : '', onclick: () => { tab = id; render(); } }, label)));
+    body.hidden = tab !== 'hire';
+    teamsBox.hidden = tab !== 'teams';
+    chat = undefined;
+    if (tab === 'teams') return teamsBox.replaceChildren(...teamsTab(state, call, useProposal));
     const d = state.desks.find((x) => x.id === selected);
     const iv = d ? interviewAt(d) : undefined;
     drawMap();
-    chat = undefined;
     panel.replaceChildren(...(iv ? [interviewPanel(iv)]
       : d && !d.worker ? [hireForm(d)]
-      : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, d.worker.role ?? 'بدون سمت'), h('div.mg-empty', {}, `${d.label} · استخدام‌شده`))]
-      : [h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, 'یک میز خالی را روی نقشه انتخاب کنید.')),
+      : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, (d.worker.role ?? 'بدون سمت').split(':')[0]), h('div.mg-empty', {}, `${d.label} · استخدام‌شده`))]
+      : [h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, state.teams.length ? 'یک میز خالی را روی نقشه انتخاب کنید.' : 'یک میز خالی را روی نقشه انتخاب کنید و اولین نفر را «مدیر یک تیم تازه» استخدام کنید.')),
         ...state.interviews.map((x) => h('button.mr-tab', { type: 'button', onclick: () => { selected = x.desk; render(); } }, `🎤 ${x.name} · ${x.status === 'review' ? 'منتظر تصمیم شما' : 'در مصاحبه'}`))]));
   };
 
@@ -189,7 +227,7 @@ export function openHiring(floor: string, desk?: string) {
       const res = await fetch(`/api/hiring?${qs}`, { cache: 'no-store' });
       if (!res.ok) throw new Error();
       state = (await res.json()) as State;
-      const sig = JSON.stringify(state) + (selected ?? '');
+      const sig = JSON.stringify(state) + (selected ?? '') + tab;
       if (!force && sig === seen) return;
       seen = sig;
       if (!force && typing()) {
