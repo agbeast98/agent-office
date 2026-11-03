@@ -48,6 +48,8 @@ export function openManager(floor: string) {
   let selected = '';
   let timer: ReturnType<typeof setInterval> | undefined;
   let drafting = false;
+  let page = 'overview';
+  const selectedPeople = new Set<string>();
   /** What the side shows besides a task: the timetable, or one person being edited. */
   let panel: { kind: 'schedule' } | { kind: 'person'; id: string } | undefined;
 
@@ -61,9 +63,12 @@ export function openManager(floor: string) {
   const meetBtn = h('button.btn', { type: 'button', title: 'جلسه‌ با همین افراد، بدون استخدام' }, '🤝 جلسه‌ی تیمی');
   const lockBtn = h('button.btn', { type: 'button', title: 'وقتی قفل است هیچ ایجنتی استخدام نمی‌شود' }, '🔒 استخدام');
   const schedBtn = h('button.btn', { type: 'button', title: 'مصاحبه‌ی هفتگی، بازبینی روزانه و شروع روز، خودکار' }, '⏰ زمان‌بندی');
-  const el = h('div.modal.manager-window', { role: 'dialog', 'aria-label': 'کامپیوتر مدیر', lang: 'fa', dir: 'rtl' },
-    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, schedBtn, lockBtn),
-    h('div.mg-body', {}, h('div.mg-main', {}, dayBar((a, x) => call(a, x)), people, board, msg), side));
+  const nav = h('nav.mg-nav', { 'aria-label': 'بخش‌های مدیریت تیم' });
+  const content = h('main.mg-content');
+  const el = h('div.modal.manager-window', { role: 'dialog', 'aria-label': 'مدیریت تیم', lang: 'fa', dir: 'rtl' },
+    h('aside.mg-rail', {}, h('div.mg-brand', {}, h('span.mg-brand-mark', {}, 'م'), h('span', {}, 'میز مدیریت'), h('small', {}, 'فضای کاری تیم')), nav,
+      h('div.mg-rail-footer', {}, h('span', {}, 'مدیر تیم'), mgr, lockBtn)),
+    h('section.mg-workspace', {}, h('header.mg-topbar', {}, h('div', {}, h('span.mg-eyebrow', {}, 'پنل مدیریت تیم'), title), h('div.mg-actions', {}, meetBtn, schedBtn, newBtn)), content, msg));
   const modal = openModal(el, { doing: 'در کامپیوتر مدیر', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
   const call = async (action: string, extra: Record<string, unknown>) => {
@@ -164,7 +169,27 @@ export function openManager(floor: string) {
     const back = () => { panel = undefined; render(); };
     const person = panel?.kind === 'person' ? team.people.find((x) => x.id === (panel as { id: string }).id) : undefined;
     const extra = panel?.kind === 'schedule' ? scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, back) : person ? personBox(person, call, back) : null;
-    side.replaceChildren(...(approvalsBox(team.approvals ?? [], call) ? [approvalsBox(team.approvals ?? [], call) as HTMLElement] : []), commandBox(), ...(extra ? [extra] : drafting ? [newTaskBox()] : t ? [detailBox(t)] : [h('div.mg-box', {}, h('div.mg-empty', {}, 'روی یک کار بزنید تا جزئیاتش را ببینید، یا «کار تازه» را بزنید.'))]));
+    const labels = [['overview', 'نمای کلی', '⌂'], ['tasks', 'کارها', '▤'], ['people', 'اعضای تیم', '♙'], ['meetings', 'جلسه‌ها', '◷'], ['schedule', 'زمان‌بندی', '◷'], ['settings', 'تنظیمات تیم', '⚙']];
+    nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)));
+    const heading = labels.find(([id]) => id === page)?.[1] ?? 'نمای کلی';
+    const overview = page === 'overview';
+    const taskPage = page === 'tasks';
+    const peoplePage = page === 'people';
+    const settingsPage = page === 'settings';
+    const metrics = h('section.mg-metrics', {},
+      ...[['در حال انجام', team.tasks.filter(x => x.status === 'doing').length, 'فعال در تیم'], ['آمادهٔ بازبینی', team.tasks.filter(x => x.status === 'review').length, 'نیازمند بررسی'], ['منتظر تصمیم', team.tasks.filter(x => x.status === 'blocked' || x.request).length, 'نیازمند پیگیری']].map(([label, value, hint]) => h('article.mg-metric', {}, h('span', {}, String(label)), h('strong', {}, String(value)), h('small', {}, String(hint)))));
+    const followup = team.tasks.filter(x => x.status === 'blocked' || x.request || x.status === 'review').slice(0, 8);
+    const overviewList = h('section.mg-panel', {}, h('div.mg-panel-head', {}, h('div', {}, h('h3', {}, 'نیازمند پیگیری'), h('p', {}, 'مواردی که برای ادامه به توجه مدیر نیاز دارند')), h('button.btn', { type: 'button', onclick: () => { page = 'tasks'; render(); } }, 'همهٔ کارها')),
+      ...(followup.length ? followup.map(t => h('button.mg-followup', { type: 'button', onclick: () => { selected = t.id; page = 'tasks'; drafting = false; render(); } }, h('span', {}, h('b', {}, t.title), h('small', {}, `${t.id} · ${t.assignee || 'بدون مسئول'}`)), h('span.mg-status', {}, STATUS_FA[t.status] ?? t.status))) : [h('p.mg-empty', {}, 'موردی در انتظار پیگیری نیست.') ]));
+    const today = h('section.mg-panel.mg-agenda', {}, h('h3', {}, 'ترکیب تیم'), h('p', {}, `${team.people.length} عضو در این تیم`), ...team.people.slice(0, 6).map(p => h('div.mg-agenda-person', {}, h('i', { class: p.status }), h('span', {}, p.name), h('small', {}, p.role?.split(':')[0] ?? p.activity ?? 'عضو تیم'))));
+    const panelBody = taskPage ? h('div.mg-task-layout', {}, board, ...(t ? [detailBox(t)] : drafting ? [newTaskBox()] : [h('section.mg-panel.mg-empty', {}, 'برای دیدن جزئیات، یک کار را انتخاب کنید.')]))
+      : peoplePage ? h('section.mg-panel.mg-people-page', {}, h('div.mg-panel-head', {}, h('div', {}, h('h3', {}, 'اعضای تیم'), h('p', {}, 'برای دیدن جزئیات روی نام کلیک کنید.')), h('button.btn.primary', { type: 'button', onclick: () => { page = 'meetings'; render(); } }, `دعوت به جلسه (${selectedPeople.size})`)), ...team.people.map(p => h('label.mg-person-row', {}, h('input', { type: 'checkbox', checked: selectedPeople.has(p.id), onchange: (e: Event) => { const checkbox = e.target as HTMLInputElement; checkbox.checked ? selectedPeople.add(p.id) : selectedPeople.delete(p.id); } }), h('i', { class: p.status }), h('button.mg-member-name', { type: 'button', onclick: () => { panel = { kind: 'person', id: p.id }; render(); } }, h('b', {}, p.name), h('small', {}, p.role ?? p.activity ?? 'بدون نقش ثبت‌شده')), h('span.muted', {}, p.id === team.manager?.id ? 'مدیر تیم' : 'عضو'))))
+      : settingsPage ? h('section.mg-panel', {}, h('h3', {}, 'تنظیمات تیم'), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'مدیر تیم'), h('small', {}, 'مسئول هماهنگی و پیگیری اعضا')), mgr), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'استخدام'), h('small', {}, team.hiringLocked ? 'استخدام برای این تیم قفل است' : 'استخدام برای این تیم باز است')), lockBtn))
+      : page === 'meetings' ? h('section.mg-panel', {}, h('h3', {}, 'جلسهٔ تیم'), h('p', {}, selectedPeople.size ? `${selectedPeople.size} عضو برای دعوت انتخاب شده‌اند.` : 'همین حالا جلسهٔ تیمی را باز کنید.'), h('button.btn.primary', { type: 'button', onclick: () => openTeamMeeting(floor) }, 'باز کردن جلسهٔ تیمی'))
+      : extra ? h('section.mg-panel', {}, extra) : overview ? h('div.mg-overview-layout', {}, overviewList, today) : h('section.mg-panel', {}, scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, () => { page = 'overview'; render(); }));
+    const approvals = approvalsBox(team.approvals ?? [], call);
+    content.replaceChildren(h('div.mg-page-title', {}, h('div', {}, h('span.mg-eyebrow', {}, `تیم · ${floor}`), h('h2', {}, heading)), ...(overview ? [h('span.mg-live', {}, h('i'), 'اطلاعات زنده')] : [])), ...(overview ? [metrics] : []), panelBody,
+      ...(settingsPage || peoplePage ? [commandBox()] : []), ...(approvals ? [approvals] : []));
   };
 
   /** Draws only when something changed, so a half-typed note isn't wiped by the refresh. */
@@ -179,7 +204,7 @@ export function openManager(floor: string) {
       if (sig === seen) return;
       seen = sig;
       const active = document.activeElement;
-      if (active && side.contains(active) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) {
+      if (active && el.contains(active) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) {
         renderPeople();
         renderBoard();
         return;
@@ -191,8 +216,8 @@ export function openManager(floor: string) {
   };
 
   mgr.addEventListener('change', () => void call('manager', { worker: mgr.value }));
-  newBtn.addEventListener('click', () => { drafting = true; panel = undefined; render(); });
-  schedBtn.addEventListener('click', () => { panel = panel?.kind === 'schedule' ? undefined : { kind: 'schedule' }; drafting = false; render(); });
+  newBtn.addEventListener('click', () => { drafting = true; selected = ''; page = 'tasks'; panel = undefined; render(); });
+  schedBtn.addEventListener('click', () => { page = 'schedule'; panel = { kind: 'schedule' }; drafting = false; render(); });
   meetBtn.addEventListener('click', () => openTeamMeeting(floor));
   lockBtn.addEventListener('click', () => void call('lock', { on: !team.hiringLocked }));
   void load().then(() => render());
