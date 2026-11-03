@@ -1,5 +1,6 @@
 import './meeting.css';
 import { h, openModal, toast } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import { composer, feed, modeBar, people, roundStrip } from './meeting-chat';
 import { CHAIRS, MODES, MODE_FA, type Full, type Mode, type State } from './meeting-model';
 import { agenda, detail, history, notes, results } from './meeting-work';
@@ -45,11 +46,18 @@ export function openTeamMeeting(floor: string, special?: () => void) {
       const res = await fetch(`/api/team/meeting?${qs}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
       const out = (await res.json()) as { error?: string; notSeated?: { name: string; why: string }[] };
       if (!res.ok) throw new Error(out.error || 'انجام نشد');
-      msg.textContent = out.notSeated?.length ? `این‌ها سر میز نشستند ولی جایشان نشد: ${out.notSeated.map((x) => `${x.name} (${x.why})`).join('، ')}` : '';
+      msg.replaceChildren(...(out.notSeated?.length ? [
+        'این‌ها سر میز نشستند ولی جایشان نشد: ',
+        ...out.notSeated.flatMap((x, i) => [
+          ...(i ? ['، '] : []),
+          h('bdi', { dir: 'auto' }, x.name),
+          ` (${fa(x.why)})`,
+        ]),
+      ] : []));
       await load(true);
       return true;
     } catch (e) {
-      msg.textContent = e instanceof Error ? e.message : 'انجام نشد';
+      msg.textContent = fa(e instanceof Error ? e.message : 'انجام نشد');
       return false;
     }
   }

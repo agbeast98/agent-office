@@ -44,8 +44,8 @@ export function openIssue(first: GhIssue, net: Net, actions: BoardActions) {
   const meta = h('div.gh-meta');
   const el = h(
     'div.modal.gh-window.issue',
-    { role: 'dialog', 'aria-label': `Issue #${it.number}` },
-    h('header', {}, pill, h('h2', { title: it.title }, `#${it.number} ${it.title}`), close),
+    { role: 'dialog', 'aria-label': `مشکل شمارهٔ ${it.number}` },
+    h('header', {}, pill, h('h2', { title: it.title }, `#${it.number} `, h('bdi', { dir: 'auto' }, it.title)), close),
     meta,
     h('div.gh-body', {}, conv),
     h(
@@ -74,7 +74,7 @@ export function openIssue(first: GhIssue, net: Net, actions: BoardActions) {
       ),
     );
     pill.className = `pill ${isOpen ? 'done' : 'offline'}`;
-    pill.textContent = isOpen ? 'open' : 'closed';
+    pill.textContent = isOpen ? 'باز' : 'بسته‌شده';
     const task = store.taskForIssue(it.number);
     const onQueue = !!task && task.status !== 'done';
     closeIssue.classList.toggle('hidden', !isOpen);
@@ -82,8 +82,10 @@ export function openIssue(first: GhIssue, net: Net, actions: BoardActions) {
     queueProvider.element.classList.toggle('hidden', !isOpen || onQueue);
     queue.classList.toggle('hidden', !isOpen);
     queue.disabled = onQueue;
-    queue.title = onQueue ? '' : 'A worker picks it up by itself when a desk is free and there is room under the worker limit';
-    queue.textContent = onQueue ? (task!.status === 'running' ? `🤖 ${task!.workerName ?? 'A worker'} is on it` : '📋 On the queue') : '📋 Add to queue';
+    queue.title = onQueue ? '' : 'وقتی میزی خالی شود و محدودیت ایجنت‌ها اجازه دهد، یک ایجنت خودکار آن را برمی‌دارد';
+    queue.replaceChildren(...(onQueue
+      ? task!.status === 'running' ? ['🤖 ', h('bdi', { dir: 'auto' }, task!.workerName ?? 'یک ایجنت'), ' مشغول انجام آن است'] : ['📋 در صف']
+      : ['📋 افزودن به صف']));
   };
   const render = () => {
     thread.replaceChildren(commentCard({ id: 'body', author: it.author, body: detail?.body ?? it.body, createdAt: it.createdAt, url: it.url }, itemUrl, 'opened this'));
@@ -118,7 +120,7 @@ export function openIssue(first: GhIssue, net: Net, actions: BoardActions) {
     store.on('queue', renderFrame),
   ];
   const modal = openModal(el, {
-    doing: `📋 reading issue #${it.number}`,
+    doing: `📋 مطالعهٔ مشکل شمارهٔ ${it.number}`,
     onClose: () => {
       comment.dispose();
       unsubs.forEach((u) => u());

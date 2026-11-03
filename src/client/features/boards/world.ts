@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import type { GhIssue, GhPull, GhState, QueueState, QueueTask, ServiceInfo, WorkerInfo } from '../../../shared/protocol';
 import { store, workerForPull } from '../../state';
 
-export const NOTE_COLORS = ['#fff7b0', '#ffd6e0', '#caffbf', '#bde0fe', '#ffe5b4'];
-export const PINS = ['#ef476f', '#118ab2', '#06d6a0', '#ffd166'];
+export const NOTE_COLORS = ['#e3e9db', '#ece0cd', '#d9e6e0', '#dce5e9', '#eee8dc'];
+export const PINS = ['#ae785d', '#537b73', '#6b8971', '#b79b68'];
 
 export function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
   const words = text.split(/\s+/);
@@ -85,9 +85,10 @@ export class BoardTexture {
     this.last = [state, workers];
     this.notes = [];
     const g = this.ctx;
+    g.direction = 'rtl';
     const W = this.canvas.width;
     const H = this.canvas.height;
-    g.fillStyle = '#d8a86a';
+    g.fillStyle = '#b6a38b';
     g.fillRect(0, 0, W, H);
     // cork speckles
     let seed = 7;
@@ -98,8 +99,8 @@ export class BoardTexture {
     }
     const open = (state.items as (GhIssue | GhPull)[]).filter((i) => i.state === 'OPEN');
     if (!open.length) {
-      const note = state.error ? `⚠️ ${state.error}` : state.loading && !state.fetchedAt ? 'Loading…' : this.kind === 'issues' ? 'No open issues 🎉' : 'No open PRs';
-      g.font = '800 40px Nunito, ui-rounded, system-ui, sans-serif';
+      const note = state.error ? 'دریافت اطلاعات از GitHub انجام نشد؛ برای جزئیات تخته را باز کنید.' : state.loading && !state.fetchedAt ? 'در حال بارگذاری…' : this.kind === 'issues' ? 'مشکلی با وضعیت «باز» وجود ندارد' : 'درخواست ادغامی با وضعیت «باز» وجود ندارد';
+      g.font = '800 40px Tahoma, Arial, sans-serif';
       const lines = wrap(g, note.replace(/`/g, ''), 760, 4);
       const boxH = 60 + lines.length * 50;
       g.fillStyle = '#fffaf3';
@@ -149,10 +150,17 @@ export class BoardTexture {
       const fs = Math.round(22 * Math.min(scale, nh / 164));
       const w = this.kind === 'pulls' && workers ? workerForPull(workers.values(), it as GhPull) : undefined;
       const footer = w ? fs * 1.3 : 0;
-      g.font = `900 ${Math.round(fs * 1.35)}px Nunito, ui-rounded, system-ui, sans-serif`;
+      g.font = `900 ${Math.round(fs * 1.35)}px Tahoma, Arial, sans-serif`;
+      g.direction = 'ltr';
+      g.textAlign = 'left';
       g.fillText(`#${it.number}`, -nw / 2 + 14, -nh / 2 + fs * 2);
-      g.font = `700 ${fs}px Nunito, ui-rounded, system-ui, sans-serif`;
-      wrap(g, it.title, nw - 28, Math.max(2, Math.floor((nh - fs * 3 - footer) / (fs * 1.1)))).forEach((line, li) => g.fillText(line, -nw / 2 + 14, -nh / 2 + fs * 3.4 + li * fs * 1.1));
+      g.font = `700 ${fs}px Tahoma, Arial, sans-serif`;
+      const rtl = /[\u0600-\u06ff]/.test(it.title);
+      g.direction = rtl ? 'rtl' : 'ltr';
+      g.textAlign = rtl ? 'right' : 'left';
+      wrap(g, it.title, nw - 28, Math.max(2, Math.floor((nh - fs * 3 - footer) / (fs * 1.35)))).forEach((line, li) => g.fillText(line, rtl ? nw / 2 - 14 : -nw / 2 + 14, -nh / 2 + fs * 3.4 + li * fs * 1.35));
+      g.textAlign = 'left';
+      g.direction = 'ltr';
       if (w) {
         // A dot in the worker's color and its desk, so you can tell whose PR it is from across the room.
         const r = fs * 0.3;
@@ -165,8 +173,8 @@ export class BoardTexture {
         g.strokeStyle = '#2b2d42';
         g.stroke();
         g.fillStyle = '#5c5f73';
-        g.font = `800 ${Math.round(fs * 0.78)}px Nunito, ui-rounded, system-ui, sans-serif`;
-        g.fillText(clip(g, `${w.name} · ${store.plan().byId.get(w.deskId)?.label ?? 'desk'}`, nw - 28 - r * 2 - 8), -nw / 2 + 14 + r * 2 + 8, y + fs * 0.28);
+        g.font = `800 ${Math.round(fs * 0.78)}px Tahoma, Arial, sans-serif`;
+        g.fillText(clip(g, `${w.name} · ${store.plan().byId.get(w.deskId)?.label ?? 'میز'}`, nw - 28 - r * 2 - 8), -nw / 2 + 14 + r * 2 + 8, y + fs * 0.28);
       }
       g.beginPath();
       g.arc(0, -nh / 2 + 10, 11, 0, Math.PI * 2);
@@ -179,9 +187,10 @@ export class BoardTexture {
     });
     if (open.length > cols * rows) {
       g.fillStyle = '#2b2d42';
-      g.font = '800 26px Nunito, ui-rounded, system-ui, sans-serif';
+      g.font = '800 26px Tahoma, Arial, sans-serif';
       g.textAlign = 'right';
-      g.fillText(`+${open.length - cols * rows} more`, W - 20, H - 16);
+      g.direction = 'rtl';
+      g.fillText(`+${open.length - cols * rows} مورد دیگر`, W - 20, H - 16);
       g.textAlign = 'left';
     }
     this.texture.needsUpdate = true;
@@ -207,16 +216,17 @@ export class ServicesBoardTexture {
   render(items: ServiceInfo[], workers: Map<string, WorkerInfo>) {
     const rows = items.map((s) => {
       const w = workers.get(s.workerId);
-      return { port: s.port, title: s.title || s.command, who: [w?.name ?? 'A worker', w?.worktree?.branch].filter(Boolean).join(' · '), color: w?.color ?? '#8d99ae' };
+      return { port: s.port, title: s.title || s.command, who: [w?.name ?? 'ایجنت', w?.worktree?.branch].filter(Boolean).join(' · '), color: w?.color ?? '#8d99ae' };
     });
     // Worker updates stream in constantly; only redraw when what's shown changes.
     const key = JSON.stringify(rows);
     if (key === this.drawn) return;
     this.drawn = key;
     const g = this.ctx;
+    g.direction = 'rtl';
     const W = this.canvas.width;
     const H = this.canvas.height;
-    g.fillStyle = '#23303b';
+    g.fillStyle = '#253b36';
     g.fillRect(0, 0, W, H);
     // chalk smudges
     g.fillStyle = 'rgba(255,255,255,.025)';
@@ -224,11 +234,11 @@ export class ServicesBoardTexture {
     if (!rows.length) {
       g.textAlign = 'center';
       g.fillStyle = '#e9ecef';
-      g.font = '900 52px Nunito, ui-rounded, system-ui, sans-serif';
-      g.fillText('No web servers running', W / 2, H / 2 - 20);
-      g.fillStyle = 'rgba(233,236,239,.6)';
-      g.font = '700 32px Nunito, ui-rounded, system-ui, sans-serif';
-      g.fillText('When a worker starts one, it shows up here', W / 2, H / 2 + 36);
+      g.font = '900 52px Tahoma, Arial, sans-serif';
+      g.fillText('هنوز سرویسی اجرا نشده است', W / 2, H / 2 - 20);
+      g.fillStyle = '#c8d7cf';
+      g.font = '700 28px Tahoma, Arial, sans-serif';
+      g.fillText('با اجرای سرویس توسط ایجنت، اطلاعات آن اینجا نمایش داده می‌شود', W / 2, H / 2 + 36);
       g.textAlign = 'left';
       this.texture.needsUpdate = true;
       return;
@@ -250,21 +260,25 @@ export class ServicesBoardTexture {
       g.fillStyle = '#ffd166';
       g.font = `900 ${fs}px ui-monospace, Menlo, monospace`;
       g.textAlign = 'right';
+      g.direction = 'ltr';
       g.fillText(`:${r.port}`, W - 50, y + rowH / 2 + fs * 0.35);
       g.textAlign = 'left';
       const textW = W - 120 - 50 - g.measureText(`:${r.port}`).width - 30;
       g.fillStyle = '#f8f9fa';
-      g.font = `800 ${fs}px Nunito, ui-rounded, system-ui, sans-serif`;
+      g.font = `800 ${fs}px Tahoma, Arial, sans-serif`;
+      g.direction = /[\u0600-\u06ff]/.test(r.title) ? 'rtl' : 'ltr';
       g.fillText(clip(g, r.title, textW), 110, y + rowH / 2 - fs * 0.08);
       g.fillStyle = 'rgba(233,236,239,.65)';
-      g.font = `700 ${Math.round(fs * 0.62)}px Nunito, ui-rounded, system-ui, sans-serif`;
+      g.font = `700 ${Math.round(fs * 0.62)}px Tahoma, Arial, sans-serif`;
+      g.direction = /[\u0600-\u06ff]/.test(r.who) ? 'rtl' : 'ltr';
       g.fillText(clip(g, r.who, textW), 110, y + rowH / 2 + fs * 0.72);
     });
     if (rows.length > shown.length) {
       g.fillStyle = '#e9ecef';
-      g.font = '800 26px Nunito, ui-rounded, system-ui, sans-serif';
+      g.font = '800 26px Tahoma, Arial, sans-serif';
       g.textAlign = 'right';
-      g.fillText(`+${rows.length - shown.length} more`, W - 24, H - 10);
+      g.direction = 'rtl';
+      g.fillText(`+${rows.length - shown.length} مورد دیگر`, W - 24, H - 10);
       g.textAlign = 'left';
     }
     this.texture.needsUpdate = true;
@@ -295,25 +309,26 @@ export class QueueBoardTexture {
     const rows = [
       ...running.map((t) => {
         const w = t.workerId ? workers.get(t.workerId) : undefined;
-        const st = { starting: 'starting', idle: 'ready', working: 'working', needs_input: 'needs input ✋', done: 'done', exited: 'stopped', offline: 'asleep' }[w?.status ?? 'working'];
-        return { icon: '🤖', text: name(t), side: `${t.workerName ?? 'a worker'} · ${st}`, color: '#1e8f4e' };
+        const st = { starting: 'در حال آماده‌سازی', idle: 'آماده', working: 'در حال کار', needs_input: 'نیازمند پاسخ ✋', done: 'تمام‌شده', exited: 'متوقف', offline: 'خواب' }[w?.status ?? 'working'];
+        return { icon: '🤖', text: name(t), side: `${t.workerName ?? 'ایجنت'} · ${st}`, color: '#1e8f4e' };
       }),
-      ...queued.map((t, i) => ({ icon: '⏳', text: name(t), side: i === 0 ? 'up next' : `${i + 1}${['th', 'st', 'nd', 'rd'][i + 1 <= 3 ? i + 1 : 0]} in line`, color: '#2b2d42' })),
+      ...queued.map((t, i) => ({ icon: '⏳', text: name(t), side: i === 0 ? 'نفر بعدی صف' : `جایگاه ${(i + 1).toLocaleString('fa-IR')} در صف`, color: '#2b2d42' })),
       ...done.map((t) => ({
         icon: t.outcome === 'done' ? '✅' : '⚠️',
         text: name(t),
-        side: t.pr ? `PR #${t.pr.number}${t.pr.state === 'MERGED' ? ' · merged' : ''}` : t.outcome === 'done' ? 'done' : t.outcome === 'failed' ? "didn't start" : t.outcome === 'killed' ? 'sent home' : 'stopped',
+        side: t.pr ? `PR #${t.pr.number}${t.pr.state === 'MERGED' ? ' · ادغام‌شده' : ''}` : t.outcome === 'done' ? 'تمام‌شده' : t.outcome === 'failed' ? 'شروع نشد' : t.outcome === 'killed' ? 'مرخص‌شده' : 'متوقف',
         color: '#8a8f98',
       })),
     ];
-    const summary = state.maxWorkers === 0 ? 'paused' : `${running.length} working · ${queued.length} waiting · up to ${state.maxWorkers} at once`;
+    const summary = state.maxWorkers === 0 ? 'صف متوقف است' : `${running.length.toLocaleString('fa-IR')} در حال کار · ${queued.length.toLocaleString('fa-IR')} در صف · سقف هم‌زمان: ${state.maxWorkers.toLocaleString('fa-IR')}`;
     const key = JSON.stringify([rows, summary]);
     if (key === this.drawn) return;
     this.drawn = key;
     const g = this.ctx;
+    g.direction = 'rtl';
     const W = this.canvas.width;
     const H = this.canvas.height;
-    g.fillStyle = '#f7f9fb';
+    g.fillStyle = '#f4f1e9';
     g.fillRect(0, 0, W, H);
     // A faint sheen and the marker tray along the bottom edge.
     const sheen = g.createLinearGradient(0, 0, W, H);
@@ -323,18 +338,19 @@ export class QueueBoardTexture {
     g.fillRect(0, 0, W, H);
     g.fillStyle = '#c9d1d9';
     g.fillRect(0, H - 22, W, 22);
-    ['#e63946', '#1f5fbf', '#1e8f4e', '#2b2d42'].forEach((c, i) => {
+    ['#e63946', '#426c5d', '#1e8f4e', '#2b2d42'].forEach((c, i) => {
       g.fillStyle = c;
       g.fillRect(W - 300 + i * 62, H - 30, 48, 14);
     });
-    const font = 'Nunito, ui-rounded, system-ui, sans-serif';
+    const font = 'Tahoma, Arial, sans-serif';
     g.textBaseline = 'alphabetic';
     g.textAlign = 'left';
-    g.fillStyle = '#1f5fbf';
+    g.fillStyle = '#426c5d';
     g.font = `900 52px ${font}`;
-    g.fillText('Task queue', 40, 76);
+    g.direction = 'rtl';
+    g.fillText('صف تسک‌ها', 40, 76);
     // A hand-drawn underline.
-    g.strokeStyle = '#1f5fbf';
+    g.strokeStyle = '#426c5d';
     g.lineWidth = 5;
     g.lineCap = 'round';
     g.beginPath();
@@ -350,10 +366,10 @@ export class QueueBoardTexture {
       g.textAlign = 'center';
       g.fillStyle = '#2b2d42';
       g.font = `900 50px ${font}`;
-      g.fillText('Nothing queued', W / 2, H / 2 - 10);
+      g.fillText('صف تسک‌ها خالی است', W / 2, H / 2 - 10);
       g.fillStyle = '#6b7280';
       g.font = `700 30px ${font}`;
-      g.fillText('Add issues from the 📌 Issues board, or press E here', W / 2, H / 2 + 44);
+      g.fillText('از تختهٔ مشکلات تسک اضافه کنید یا اینجا کلید E را بزنید', W / 2, H / 2 + 44);
       g.textAlign = 'left';
       this.texture.needsUpdate = true;
       return;
@@ -368,10 +384,12 @@ export class QueueBoardTexture {
       g.fillText(r.icon, 44, y);
       g.textAlign = 'right';
       g.font = `700 ${Math.round(fs * 0.78)}px ${font}`;
+      g.direction = 'rtl';
       const sideW = g.measureText(r.side).width;
       g.fillText(r.side, W - 44, y);
       g.textAlign = 'left';
       g.font = `800 ${fs}px ${font}`;
+      g.direction = /[\u0600-\u06ff]/.test(r.text) ? 'rtl' : 'ltr';
       g.fillText(clip(g, r.text, W - 44 - sideW - 30 - 110), 110, y);
       if (r.color === '#8a8f98') {
         g.strokeStyle = 'rgba(138,143,152,.7)';
@@ -386,7 +404,8 @@ export class QueueBoardTexture {
       g.fillStyle = '#6b7280';
       g.font = `800 24px ${font}`;
       g.textAlign = 'right';
-      g.fillText(`+${rows.length - shown.length} more`, W - 44, H - 34);
+      g.direction = 'rtl';
+      g.fillText(`+${rows.length - shown.length} مورد دیگر`, W - 44, H - 34);
       g.textAlign = 'left';
     }
     this.texture.needsUpdate = true;

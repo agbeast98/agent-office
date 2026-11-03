@@ -1,3 +1,5 @@
+import { fa } from './ui/fa-locale';
+
 // One-time password reveal: /claim?t=<token>. The server forgets the plaintext as soon as it answers.
 const $ = (id: string) => document.getElementById(id)!;
 const token = new URLSearchParams(location.search).get('t') ?? '';
@@ -6,7 +8,7 @@ history.replaceState(null, '', '/claim');
 
 function fail(msg: string) {
   $('sub').textContent = '';
-  $('error').textContent = msg;
+  $('error').textContent = fa(msg);
   $('login').hidden = false;
 }
 
@@ -16,7 +18,7 @@ async function claim() {
     const res = await fetch('/api/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return fail(body.error ?? 'Could not unlock the office.');
-    $('sub').textContent = 'One last thing before you walk in:';
+    $('sub').textContent = fa('One last thing before you walk in:');
     $('pw').textContent = body.password;
     $('reveal').hidden = false;
   } catch {
@@ -27,7 +29,7 @@ async function claim() {
 $('copy').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText($('pw').textContent ?? '');
-    $('copy').textContent = 'Copied ✓';
+    $('copy').textContent = fa('Copied ✓');
   } catch {
     getSelection()?.selectAllChildren($('pw'));
   }

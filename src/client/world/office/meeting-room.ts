@@ -23,7 +23,7 @@ function buildMeetingSeat(def: DeskDef, index: number): DeskView {
   seatAnchor.rotation.y = Math.PI;
   seatAnchor.scale.setScalar(0.82);
   group.add(seatAnchor);
-  const ch = chair(['#2b2d42', '#ef476f', '#118ab2', '#06d6a0', '#ffd166'][index % 5]);
+  const ch = chair(['#465d54', '#789082', '#637b7b', '#8e9583', '#a28e70'][index % 5]);
   ch.position.set(0, 0, 0.85);
   group.add(ch);
   // A merge's dance party: up on its chair rather than the table, where the laptops are close together.
@@ -45,7 +45,7 @@ export function buildMeetingRoom(group: THREE.Group, colliders: Collider[], inte
   const R = MEETING_ROOM;
   const H = R.height;
   const T = 0.1;
-  const frameMat = toon('#ffffff');
+  const frameMat = toon('#45524d');
   const walls = new THREE.Group();
   const bar = (w: number, h: number, d: number, x: number, y: number, z: number) => walls.add(mesh(box(w, h, d), frameMat, x, y, z, false));
   /** A run of glass along x (north wall) or z (west wall), from a to b, in panes about `pane` wide. */
@@ -83,7 +83,7 @@ export function buildMeetingRoom(group: THREE.Group, colliders: Collider[], inte
   // The door: two glass leaves that slide apart over the glass on either side when someone comes up.
   const dx = (R.door.x0 + R.door.x1) / 2;
   const half = (R.door.x1 - R.door.x0) / 2;
-  const alu = toon('#aab4be');
+  const alu = toon('#56615b');
   const leaves: [THREE.Group, number][] = [];
   for (const side of [-1, 1]) {
     const leaf = new THREE.Group();
@@ -109,7 +109,7 @@ export function buildMeetingRoom(group: THREE.Group, colliders: Collider[], inte
       for (const [leaf, x0] of leaves) leaf.position.x = x0 + Math.sign(x0 - dx) * e * (half - 0.06);
     },
   });
-  const label = textPlane('🤝 Meeting room', { bg: '#2b2d42', color: '#fffaf3', size: 56, border: '#fffaf3' });
+  const label = textPlane('اتاق جلسه', { bg: '#2b2d42', color: '#fffaf3', size: 56, border: '#fffaf3' });
   label.scale.multiplyScalar(0.62);
   // In front of the glass wall's frame (out to R.minZ - 0.08) and the sliding leaves (to R.minZ - 0.11),
   // which it runs across once its text is wider than the door.
@@ -120,11 +120,14 @@ export function buildMeetingRoom(group: THREE.Group, colliders: Collider[], inte
   // The table, on two pedestals, and its chairs.
   const table = new THREE.Group();
   const top = MEETING_TABLE;
-  table.add(mesh(roundedBox(top.width, 0.08, top.depth, 0.1), toon(PALETTE.wood), 0, top.height - 0.04, 0));
+  table.add(mesh(roundedBox(top.width, 0.08, top.depth, 0.1), toon(PALETTE.desk), 0, top.height - 0.04, 0));
   for (const sx of [-1, 1]) {
     table.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, top.height - 0.08, 10), toon(PALETTE.deskLeg), sx * (top.width / 2 - 0.7), (top.height - 0.08) / 2, 0));
     table.add(mesh(roundedBox(0.9, 0.05, 0.8, 0.05), toon(PALETTE.deskLeg), sx * (top.width / 2 - 0.7), 0.025, 0));
   }
+  // Felt runner and flush cable covers stay clear of the existing laptop anchors.
+  table.add(mesh(roundedBox(top.width - 0.6, 0.008, 0.26, 0.07), toon('#667e70'), 0, top.height + 0.005, 0));
+  for (const x of [-top.width * 0.25, top.width * 0.25]) table.add(mesh(roundedBox(0.23, 0.013, 0.12, 0.02), toon(PALETTE.deskLeg), x, top.height + 0.01, 0));
   table.position.set(top.x, 0, top.z);
   group.add(table);
   colliders.push({ minX: top.x - top.width / 2, maxX: top.x + top.width / 2, minZ: top.z - top.depth / 2, maxZ: top.z + top.depth / 2, top: top.height });

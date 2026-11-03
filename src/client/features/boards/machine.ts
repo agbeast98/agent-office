@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import type { MachineState } from '../../../shared/protocol';
 import { officeFull } from '../../../shared/machine';
 
-const FONT = 'Nunito, ui-rounded, system-ui, sans-serif';
-const INK = '#1b1d2e';
-const MUTED = '#9aa0b8';
+const FONT = 'Tahoma, Arial, sans-serif';
+const INK = '#20342e';
+const MUTED = '#b5c8bd';
 
 /** Green while there's room, amber when it's getting full, red from where hiring gets a warning. */
 export function loadColor(pct: number): string {
@@ -46,14 +46,15 @@ export class MachineTexture {
     g.fillStyle = INK;
     g.fillRect(0, 0, W, H);
     g.textBaseline = 'alphabetic';
+    g.direction = 'rtl';
 
     // Header: what this is, and whether there's room for another worker.
     g.textAlign = 'left';
     g.fillStyle = '#ffffff';
     g.font = `900 40px ${FONT}`;
-    g.fillText('🖥️ This machine', 30, 62);
+    g.fillText('وضعیت رایانه', 30, 62);
     const full = officeFull(s);
-    const status = !s.memTotal ? ['…', MUTED] : s.pressure ? ['⚠️ Under pressure', '#ef476f'] : full ? ['🚫 Office full', '#ffd166'] : ['✅ Room to hire', '#06d6a0'];
+    const status = !s.memTotal ? ['…', MUTED] : s.pressure ? ['فشار بالا', '#ef476f'] : full ? ['ظرفیت تکمیل', '#ffd166'] : ['ظرفیت آزاد', '#06d6a0'];
     g.font = `800 30px ${FONT}`;
     const tw = g.measureText(status[0]).width;
     g.fillStyle = status[1];
@@ -64,15 +65,16 @@ export class MachineTexture {
     g.fillText(status[0], W - 30 - (tw + 32) / 2, 60);
 
     const memPct = s.memTotal ? Math.round((s.memUsed / s.memTotal) * 100) : 0;
-    this.panel(30, 100, 415, 'CPU', s.cpu, s.cores ? `${s.cores} core${s.cores === 1 ? '' : 's'}` : '', s.history.map(([c]) => c));
-    this.panel(475, 100, 415, 'Memory', memPct, s.memTotal ? `${fmtGb(s.memUsed)} of ${fmtGb(s.memTotal)}` : '', s.history.map(([, m]) => m));
+    this.panel(30, 100, 415, 'CPU', s.cpu, s.cores ? `${s.cores.toLocaleString('fa-IR')} هسته` : '', s.history.map(([c]) => c));
+    this.panel(475, 100, 415, 'حافظه', memPct, s.memTotal ? `${fmtGb(s.memUsed)} / ${fmtGb(s.memTotal)}` : '', s.history.map(([, m]) => m));
 
     // Footer: the workers, one pip each, against the limit.
     const y = 440;
     g.textAlign = 'left';
     g.font = `800 32px ${FONT}`;
     g.fillStyle = '#ffffff';
-    const label = s.limit === undefined ? `👷 ${s.workers} worker${s.workers === 1 ? '' : 's'} · no limit` : `👷 ${s.workers} of ${s.limit} workers`;
+    const label = s.limit === undefined ? `${s.workers.toLocaleString('fa-IR')} ایجنت · بدون سقف` : `${s.workers.toLocaleString('fa-IR')} ایجنت از سقف ${s.limit.toLocaleString('fa-IR')}`;
+    g.direction = 'rtl';
     g.fillText(label, 30, y + 12);
     if (s.limit !== undefined) {
       const x0 = 30 + g.measureText(label).width + 28;
@@ -91,18 +93,21 @@ export class MachineTexture {
   private panel(x: number, y: number, w: number, name: string, pct: number, sub: string, history: number[]) {
     const g = this.ctx;
     const color = loadColor(pct);
-    g.fillStyle = '#25283d';
+    g.fillStyle = '#2b443b';
     roundRect(g, x, y, w, 300, 18);
     g.fill();
     g.textAlign = 'left';
     g.fillStyle = MUTED;
     g.font = `800 28px ${FONT}`;
+    g.direction = /[\u0600-\u06ff]/.test(name) ? 'rtl' : 'ltr';
     g.fillText(name, x + 20, y + 42);
     g.fillStyle = color;
     g.font = `900 84px ${FONT}`;
+    g.direction = 'ltr';
     g.fillText(`${pct}%`, x + 20, y + 124);
     g.fillStyle = MUTED;
     g.font = `700 24px ${FONT}`;
+    g.direction = /[\u0600-\u06ff]/.test(sub) ? 'rtl' : 'ltr';
     g.fillText(sub, x + 20, y + 160);
     // The graph: 0-100%, the newest reading on the right.
     const gx = x + 20;

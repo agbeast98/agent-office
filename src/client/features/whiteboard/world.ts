@@ -13,7 +13,7 @@ const INK = '#2b2d42';
 const PX = 512;
 /** Clear space around a drawing on the face, in pixels. */
 const PAD = 40;
-const FONT = 'Nunito, ui-rounded, system-ui, sans-serif';
+const FONT = 'Tahoma, Arial, sans-serif';
 
 export interface WhiteboardStand {
   group: THREE.Group;
@@ -79,7 +79,7 @@ export function buildWhiteboard(): WhiteboardStand {
   const eraserFelt = mesh(new THREE.BoxGeometry(0.19, 0.015, 0.075), toon('#6c757d'), 0.62, trayY + 0.015, 0.09, false);
   group.add(eraserFelt);
 
-  const plaque = textPlane('📝 Whiteboard', { bg: '#fffaf3', size: 48 });
+  const plaque = textPlane('📝 تختهٔ مشترک', { bg: '#fffaf3', size: 48 });
   plaque.scale.multiplyScalar(0.55);
   plaque.position.set(0, bottom + height + 0.2, 0.05);
   group.add(plaque);
@@ -105,13 +105,16 @@ export function buildWhiteboard(): WhiteboardStand {
       const h = drawing.height * s;
       g.drawImage(drawing, (W - w) / 2, (H - h) / 2, w, h);
     } else {
-      g.fillStyle = '#b8c0c8';
+      g.save();
+      g.fillStyle = '#6a7b72';
+      g.direction = 'rtl';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.font = `900 120px ${FONT}`;
-      g.fillText('Draw together ✏️', W / 2, H / 2 - 70);
-      g.font = `700 64px ${FONT}`;
-      g.fillText('Walk up and press E — everyone on this floor sees it live', W / 2, H / 2 + 70);
+      g.font = `900 100px ${FONT}`;
+      g.fillText('با هم طراحی کنید ✏️', W / 2, H / 2 - 70, W - PAD * 2);
+      g.font = `700 50px ${FONT}`;
+      g.fillText('نزدیک شوید و E را بزنید؛ همهٔ اعضای تیم زنده می‌بینند', W / 2, H / 2 + 70, W - PAD * 2);
+      g.restore();
     }
     texture.needsUpdate = true;
   };

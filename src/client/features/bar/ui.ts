@@ -1,5 +1,6 @@
 import { DRINKS, type Drink } from '../../../shared/rooftop';
 import { h, openModal } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 
 export interface BarOptions {
   /** Had enough: nothing stronger than water or a mocktail. */
@@ -28,11 +29,11 @@ export function openBar(opts: BarOptions) {
           tabindex: refused ? -1 : 0,
           role: 'button',
           'aria-disabled': String(refused),
-          title: refused ? "The bartender won't pour you another" : `Order a ${d.name.toLowerCase()}`,
+          title: refused ? fa("The bartender won't pour you another") : `سفارش ${fa(d.name)}`,
           style: refused ? 'opacity:.45;cursor:not-allowed' : '',
         },
         h('span.jb-icon', { style: 'font-size:26px' }, d.emoji),
-        h('div.svc-main', {}, h('div.svc-title', {}, d.name), h('div.svc-meta', {}, `${d.blurb} · ${kick(d)}`)),
+        h('div.svc-main', {}, h('div.svc-title', {}, d.name), h('div.svc-meta', {}, `${fa(d.blurb)} · ${fa(kick(d))}`)),
       );
       const pick = () => {
         if (refused) return;

@@ -1,6 +1,7 @@
 import type { GhComment } from '../../../shared/protocol';
 import type { Net } from '../../net';
 import { h } from '../dom';
+import { fa } from '../fa-locale';
 import { markdown } from '../markdown';
 import { commentWaiters } from './api';
 import { DRAFT_KEY, pref, savePref } from './prefs';
@@ -45,7 +46,7 @@ export function commentBox(kind: 'issue' | 'pull', number: number, itemUrl: stri
   const sync = () => {
     post.disabled = busy || !ta.value.trim();
     ta.readOnly = busy;
-    post.textContent = busy ? 'Posting…' : '💬 Comment';
+    post.textContent = fa(busy ? 'Posting…' : '💬 Comment');
   };
   const saveDraft = () => {
     if (ta.value) savePref(draftKey, ta.value);
@@ -65,7 +66,7 @@ export function commentBox(kind: 'issue' | 'pull', number: number, itemUrl: stri
     else ta.focus();
   };
   const fail = (text: string) => {
-    result.textContent = text;
+    result.textContent = fa(text);
     result.classList.remove('hidden');
   };
   const settle = () => {
@@ -112,7 +113,7 @@ export function commentBox(kind: 'issue' | 'pull', number: number, itemUrl: stri
   return {
     el,
     setViewer(login) {
-      if (login) who.textContent = `Posts to GitHub as @${login}`;
+      if (login) who.replaceChildren('ارسال در GitHub با حساب @', h('bdi', { dir: 'ltr' }, login));
     },
     dispose: settle,
   };

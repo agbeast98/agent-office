@@ -6,6 +6,7 @@ import type { Net } from '../net';
 import { store } from '../state';
 import { TERM_THEME } from './termtheme';
 import { h, openModal, STATUS_LABEL, timeAgo, toast, type Modal } from './dom';
+import { fa } from './fa-locale';
 import { usageLabel, usageTitle } from './usage';
 import type { ServerMsg, WorkerInfo } from '../../shared/protocol';
 import { isAsleep } from '../../shared/status';
@@ -30,9 +31,9 @@ const TYPING_SHOWS_MS = 2500;
 
 /** "Sam is typing…", "Sam and Ada are typing…", "Sam and 2 others are typing…". */
 function typingLine(names: string[]): string {
-  if (names.length === 1) return `${names[0]} is typing…`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
-  return `${names[0]} and ${names.length - 1} others are typing…`;
+  if (names.length === 1) return `${names[0]} در حال نوشتن…`;
+  if (names.length === 2) return `${names[0]} و ${names[1]} در حال نوشتن…`;
+  return `${names[0]} و ${names.length - 1} نفر دیگر در حال نوشتن…`;
 }
 
 /**
@@ -206,12 +207,12 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
       ...people.map((v) =>
         h(
           'span.avatar',
-          { class: v.typing ? 'typing' : '', style: `background:${v.color}`, title: `${v.name}${v.you ? ' (you)' : ''}${v.typing ? ' · typing' : ''}` },
+          { class: v.typing ? 'typing' : '', style: `background:${v.color}`, title: `${v.name}${v.you ? ' (شما)' : ''}${v.typing ? ' · در حال نوشتن' : ''}` },
           initials(v.name),
         ),
       ),
     );
-    viewers.title = people.length ? `In this terminal: ${people.map((v) => (v.you ? `${v.name} (you)` : v.name)).join(', ')}` : '';
+    viewers.title = people.length ? `در این ترمینال: ${people.map((v) => (v.you ? `${v.name} (شما)` : v.name)).join('، ')}` : '';
     const typists = people.filter((v) => v.typing && !v.you).map((v) => v.name);
     typed.classList.toggle('now', typists.length > 0);
     if (typists.length) {
@@ -219,7 +220,7 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
       typed.title = '';
     } else {
       typed.textContent = w.lastInput ? `⌨️ ${w.lastInput.by}` : '';
-      typed.title = w.lastInput ? `${w.lastInput.by} typed here last, ${timeAgo(w.lastInput.at)}` : '';
+      typed.title = w.lastInput ? `${w.lastInput.by} آخرین بار اینجا نوشت · ${timeAgo(w.lastInput.at)}` : '';
     }
   };
   /** Everyone in the terminal, one face per person however many windows they have it open in, you first. */
@@ -261,8 +262,8 @@ export function openTerminal(net: Net, workerId: string, onChanges?: () => void,
     const workerProvider = w.kind === 'agent' ? resolvedProvider(w.provider, store.project) : undefined;
     const usageState = w.kind === 'agent' ? providerUsageState(w.provider, store.project, w.usage) : undefined;
     const waiting = usageState === 'waiting' ? providerWaitingLabel(workerProvider, store.project) : '';
-    cost.textContent = w.kind !== 'agent' ? '' : usageState === 'tracked' && w.usage ? usageLabel(w.usage, workerProvider) : waiting ? waiting : usageState === 'untracked' ? 'usage untracked' : '';
-    cost.title = w.kind === 'agent' && w.usage ? usageTitle(w.usage, workerProvider) : w.kind === 'agent' ? providerUsageNote(workerProvider!) : '';
+    cost.textContent = w.kind !== 'agent' ? '' : usageState === 'tracked' && w.usage ? usageLabel(w.usage, workerProvider) : waiting ? fa(waiting) : usageState === 'untracked' ? fa('usage untracked') : '';
+    cost.title = w.kind === 'agent' && w.usage ? usageTitle(w.usage, workerProvider) : w.kind === 'agent' ? fa(providerUsageNote(workerProvider!)) : '';
     renderPresence(w);
     const openCode = w.kind === 'agent' && resolvedProvider(w.provider, store.project) === 'opencode';
     modelsBtn.classList.toggle('hidden', !openCode);

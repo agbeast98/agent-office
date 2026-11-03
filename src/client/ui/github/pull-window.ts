@@ -58,7 +58,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
   const footBtns = h('span.gh-foot');
   const el = h(
     'div.modal.gh-window',
-    { role: 'dialog', 'aria-label': `Pull request #${it.number}`, tabindex: -1 },
+    { role: 'dialog', 'aria-label': `درخواست ادغام شمارهٔ ${it.number}`, tabindex: -1 },
     h('header', {}, pill, title, reload, close),
     meta,
     h('nav.gh-tabs', { role: 'tablist' }, tabConv, tabFiles),
@@ -76,26 +76,26 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
     const [word, cls] = stateOf(it);
     pill.className = `pill ${cls}`;
     pill.textContent = word;
-    title.textContent = `#${it.number} ${it.title}`;
+    title.replaceChildren(`#${it.number} `, h('bdi', { dir: 'auto' }, it.title));
     title.title = it.title;
-    const commits = detail ? `${detail.commits} commit${detail.commits === 1 ? '' : 's'}` : 'its commits';
+    const commits = detail ? `${detail.commits.toLocaleString('fa-IR')} commit` : 'commitهای آن';
     meta.replaceChildren(
       ...nodes(
       avatar(it.author),
       h('b', {}, it.author),
-      h('span', {}, it.state === 'MERGED' ? `merged ${commits} into` : `wants to merge ${commits} into`),
+      h('span', {}, it.state === 'MERGED' ? `${commits} را با شاخهٔ` : `می‌خواهد ${commits} را با شاخهٔ`),
       h('code', {}, it.baseRefName),
-      h('span', {}, 'from'),
+      h('span', {}, 'از'),
       h('code', {}, it.headRefName),
       h('span.gh-pm', {}, h('span.add', {}, `+${it.additions}`), ' ', h('span.del', {}, `−${it.deletions}`)),
       ...it.labels.map(labelChip),
       labelButton('pull', () => it, net, (labels) => ((it = { ...it, labels }), renderFrame())),
-      it.reviewDecision ? h('span.gh-badge', { class: REVIEW_BADGE[it.reviewDecision]?.[1] ?? '' }, it.reviewDecision === 'REVIEW_REQUIRED' ? 'review required' : (REVIEW_BADGE[it.reviewDecision]?.[0] ?? it.reviewDecision.toLowerCase())) : null,
+      it.reviewDecision ? h('span.gh-badge', { class: REVIEW_BADGE[it.reviewDecision]?.[1] ?? '' }, it.reviewDecision === 'REVIEW_REQUIRED' ? 'بازبینی لازم است' : (REVIEW_BADGE[it.reviewDecision]?.[0] ?? it.reviewDecision.toLowerCase())) : null,
       ),
     );
     const done = files ? files.filter((f) => reviewed.mark(f) === 'reviewed').length : 0;
-    tabConv.replaceChildren(...nodes('💬 Conversation', detail ? h('span.gh-count', {}, String(detail.comments.length + detail.reviews.length + detail.reviewComments.filter((c) => !c.replyTo).length)) : null));
-    tabFiles.replaceChildren(...nodes('📄 Files changed', files ? h('span.gh-count', {}, String(files.length)) : null, files?.length ? h('span.gh-progress', { class: done === files.length ? 'all' : '' }, `✓ ${done}/${files.length}`) : null));
+    tabConv.replaceChildren(...nodes('💬 گفت‌وگو', detail ? h('span.gh-count', {}, String(detail.comments.length + detail.reviews.length + detail.reviewComments.filter((c) => !c.replyTo).length)) : null));
+    tabFiles.replaceChildren(...nodes('📄 فایل‌های تغییرکرده', files ? h('span.gh-count', {}, String(files.length)) : null, files?.length ? h('span.gh-progress', { class: done === files.length ? 'all' : '' }, `✓ ${done.toLocaleString('fa-IR')}/${files.length.toLocaleString('fa-IR')}`) : null));
     tabConv.classList.toggle('on', tab === 'conversation');
     tabFiles.classList.toggle('on', tab === 'files');
     tabConv.setAttribute('aria-selected', String(tab === 'conversation'));
@@ -110,7 +110,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
     const w = workerForPull(store.workers.values(), it);
     footBtns.replaceChildren(
       ...nodes(
-      w ? h('button.btn', { type: 'button', onclick: () => actions.goToDesk(w.deskId) }, `🪑 Go to ${w.name}'s desk`) : null,
+      w ? h('button.btn', { type: 'button', onclick: () => actions.goToDesk(w.deskId) }, '🪑 رفتن به میز ', h('bdi', { dir: 'auto' }, w.name)) : null,
       h('button.btn', { type: 'button', title: 'Send a worker your own prompt about this PR', onclick: () => actions.ask(pullContext(it), `Ask about PR #${it.number}`) }, '✍️ Ask a worker…'),
       isOpen ? h('button.btn', { type: 'button', onclick: () => actions.assign(reviewPrompt(it), `Review PR #${it.number}`) }, '🔍 Review') : null,
       isOpen
@@ -154,9 +154,9 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
               {},
               h('span', {}, '💬'),
               h('code', { title: c.path }, `${c.path}${c.line ? `:${c.line}` : ''}`),
-              c.line == null ? h('span.gh-badge.muted', {}, 'outdated') : null,
+              c.line == null ? h('span.gh-badge.muted', {}, 'قدیمی') : null,
               h('span.grow'),
-              c.line != null ? h('button.btn', { type: 'button', onclick: () => showInDiff(c) }, 'Show in diff') : null,
+              c.line != null ? h('button.btn', { type: 'button', onclick: () => showInDiff(c) }, 'نمایش در تفاوت‌ها') : null,
             ),
             renderThread(c, replies, itemUrl),
           ),
@@ -205,7 +205,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
     // Big files and lock files wait for a click, so a huge PR doesn't lock up the window.
     if (s.big && !open.get(f.path)) {
       s.body.replaceChildren(
-        h('div.pd-big', {}, looksGenerated(f.path) ? 'Generated or lock file — not shown by default.' : `Large diff (${f.lines.length} lines) — not shown by default.`, h('button.btn', { type: 'button', onclick: () => (open.set(f.path, true), buildBody(f)) }, 'Show diff')),
+        h('div.pd-big', {}, looksGenerated(f.path) ? 'فایل تولیدشده یا قفل است و به‌طور پیش‌فرض نمایش داده نمی‌شود.' : `تفاوت بزرگ (${f.lines.length.toLocaleString('fa-IR')} خط)؛ به‌طور پیش‌فرض نمایش داده نمی‌شود.`, h('button.btn', { type: 'button', onclick: () => (open.set(f.path, true), buildBody(f)) }, 'نمایش تفاوت‌ها')),
       );
       return;
     }
@@ -306,7 +306,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
       h('span.pd-st', { class: f.status, title: STATUS_WORD[f.status] }, f.status),
       // The name first and its folder after, so a narrow sidebar cuts the folder, not the name.
       h('span.pd-path', {}, f.path.slice(slash + 1), mode === 'list' && slash >= 0 ? h('span.dir', {}, ` ${f.path.slice(0, slash)}`) : null),
-      n ? h('span.pd-c', { title: `${n} comment${n > 1 ? 's' : ''}` }, `💬${n}`) : null,
+      n ? h('span.pd-c', { title: `${n.toLocaleString('fa-IR')} دیدگاه` }, `💬${n.toLocaleString('fa-IR')}`) : null,
       h('span.gh-pm', {}, f.binary ? h('span.bin', {}, 'bin') : h('span', {}, h('span.add', {}, `+${f.additions}`), ' ', h('span.del', {}, `−${f.deletions}`))),
     );
   };
@@ -347,13 +347,13 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
     const rows: HTMLElement[] = [];
     if (mode === 'tree') dirRows(buildTree(files), 0, new Set(order), rows);
     else rows.push(...order.map((f) => fileRow(f, 0)));
-    if (!rows.length) rows.push(h('li.pd-none', {}, filter ? 'No files match.' : 'No files changed.'));
+    if (!rows.length) rows.push(h('li.pd-none', {}, filter ? 'فایلی با این عبارت پیدا نشد.' : 'فایلی تغییر نکرده است.'));
     fileList.replaceChildren(...rows);
     const done = files.filter((f) => reviewed.mark(f) === 'reviewed').length;
     const bar = side.querySelector<HTMLElement>('.pd-bar i');
     if (bar) bar.style.width = `${files.length ? (100 * done) / files.length : 0}%`;
     const txt = side.querySelector<HTMLElement>('.pd-done-txt');
-    if (txt) txt.textContent = `${done} of ${files.length} file${files.length === 1 ? '' : 's'} reviewed`;
+    if (txt) txt.textContent = `${done.toLocaleString('fa-IR')} از ${files.length.toLocaleString('fa-IR')} فایل بازبینی شده است`;
   };
 
   const renderFiles = () => {
@@ -362,7 +362,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
     const main = filesPane.querySelector<HTMLElement>('.pd-main');
     if (!main || !files) return;
     main.replaceChildren(...order.map((f) => sections.get(f.path)!.sec));
-    if (!order.length) main.append(h('div.pd-note', {}, 'No files match the filter.'));
+    if (!order.length) main.append(h('div.pd-note', {}, 'فایلی با این فیلتر پیدا نشد.'));
   };
 
   const setupFiles = () => {
@@ -390,7 +390,7 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
       h('div.pd-side-head', {}, h('div.seg.pd-mode', {}, modeBtn('tree', '🌲 Tree'), modeBtn('list', '☰ List')), h('div.pd-bar', {}, h('i')), h('div.pd-done-txt')),
       filterInput,
       fileList,
-      h('div.pd-keys', {}, h('span.key', {}, 'J'), h('span.key', {}, 'K'), 'next / previous file · ', h('span.key', {}, 'V'), 'reviewed'),
+      h('div.pd-keys', {}, h('span.key', {}, 'J'), h('span.key', {}, 'K'), 'فایل بعدی / قبلی · ', h('span.key', {}, 'V'), 'علامت‌گذاری بازبینی'),
     );
     const main = h('div.pd-main', { tabindex: -1 });
     budget = 0;
@@ -412,8 +412,8 @@ export function openPull(first: GhPull, net: Net, actions: BoardActions) {
           h('span.pd-fpath', { title: f.path }, f.status === 'R' && f.oldPath ? `${f.oldPath} → ${f.path}` : f.path),
           h('span.gh-pm', {}, f.binary ? h('span.bin', {}, 'binary') : h('span', {}, h('span.add', {}, `+${f.additions}`), ' ', h('span.del', {}, `−${f.deletions}`))),
           n ? h('span.pd-c', {}, `💬 ${n}`) : null,
-          h('span.pd-stale.hidden', { title: 'The file changed after you marked it reviewed' }, 'changed since review'),
-          h('label.pd-viewed', { title: 'Mark as reviewed (V)' }, box, 'Reviewed'),
+          h('span.pd-stale.hidden', { title: 'فایل پس از علامت‌گذاری شما تغییر کرده است' }, 'پس از بازبینی تغییر کرده'),
+          h('label.pd-viewed', { title: 'علامت‌گذاری به‌عنوان بازبینی‌شده (V)' }, box, 'بازبینی شد'),
         ),
         body,
       );

@@ -3,6 +3,7 @@ import { FRAMES, checkImageUrl, type Decoration } from '../../../shared/decor';
 import { store } from '../../state';
 import { holdPicture, loadPicture, type Picture } from './world';
 import { h, openModal, timeAgo } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import { confirmDialog } from '../../ui/prompt';
 
 export interface HangChoice {
@@ -80,7 +81,14 @@ export function openHangDialog(opts: { initial?: Decoration; onDone(choice: Hang
 
   const setStatus = (text: string, kind: '' | 'loading' | 'error' = '') => {
     status.className = `hang-status ${kind}`;
-    status.replaceChildren(kind === 'loading' ? h('span.spinner') : '', text);
+    // The validator returns fixed English messages; network errors remain intact for diagnosis.
+    const validationMessages: Record<string, string> = {
+      'Paste a link to an image': 'پیوند تصویر را وارد کنید',
+      'That link is too long': 'پیوند تصویر بیش از حد طولانی است',
+      "That isn't a web link. Paste an address that starts with https://": 'این نشانی وب معتبر نیست؛ پیوندی را وارد کنید که با https:// آغاز شود',
+      'Only http and https links can hang on the wall': 'فقط پیوندهای http و https را می‌توان روی دیوار نصب کرد',
+    };
+    status.replaceChildren(kind === 'loading' ? h('span.spinner') : '', validationMessages[text] ?? fa(text));
   };
 
   const load = async () => {
@@ -180,7 +188,7 @@ export function openPicture(d: Decoration, actions: { move(): void; edit(): void
     'div.modal.picture',
     { role: 'dialog', 'aria-label': d.title || 'Picture' },
     h('header', {}, h('h2', {}, `🖼️ ${d.title || 'A picture'}`), close),
-    h('div.body', {}, stage, h('p.picture-meta', {}, `Hung by ${d.by} · ${timeAgo(d.at)} · `, link)),
+    h('div.body', {}, stage, h('p.picture-meta', {}, `${fa('Hung by')} `, h('bdi', { dir: 'auto' }, d.by), ` · ${timeAgo(d.at)} · `, link)),
     h('footer', {}, takeDown, h('span.grow'), edit, move),
   );
   // Someone else took it down while you were looking.

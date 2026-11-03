@@ -139,9 +139,9 @@ export class Minesweeper {
       g.fillRect(0, 150, W, 230);
       g.fillStyle = '#f1ede4';
       g.font = `900 92px ${FONT}`;
-      g.fillText('MINESWEEPER', W / 2, 240);
+      g.fillText('مین‌یاب', W / 2, 240);
       g.font = `800 28px ${FONT}`;
-      g.fillText('Sit in the boss’s chair and press E to play', W / 2, 318);
+      g.fillText('روی صندلی مدیر بنشینید و E را بزنید', W / 2, 318);
     } else if (this.over) {
       const won = this.state === 'won';
       g.fillStyle = won ? 'rgba(42, 157, 75, 0.92)' : 'rgba(230, 57, 70, 0.92)';
@@ -149,9 +149,9 @@ export class Minesweeper {
       g.fill();
       g.fillStyle = '#ffffff';
       g.font = `900 40px ${FONT}`;
-      g.fillText(won ? `Cleared in ${Math.floor(this.ms / 1000)}s!` : 'Boom!', W / 2, H / 2 - 8);
+      g.fillText(won ? `در ${Math.floor(this.ms / 1000).toLocaleString('fa-IR')} ثانیه پاک‌سازی شد!` : 'بمب!', W / 2, H / 2 - 8);
       g.font = `800 20px ${FONT}`;
-      g.fillText(idle ? 'Sit down and press E to play again' : 'Click the face for a new game', W / 2, H / 2 + 26);
+      g.fillText(idle ? 'برای بازی دوباره بنشینید و E را بزنید' : 'برای شروع بازی تازه روی شکلک بزنید', W / 2, H / 2 + 26);
     }
   }
 

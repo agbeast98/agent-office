@@ -5,8 +5,9 @@ import type { NightParts } from '../outside';
 import { mesh, roundedBox, textPlane, toon, toonUnique } from '../toon';
 import type { Collider, Interactable } from '../types';
 import type { Fixture } from './fixture';
+import { studioPendant } from './studio';
 import { PALETTE } from './materials';
-import { coffeeTable, floorPlant, loungeCouch, pendant, plant, pouf, wallBoard } from './props';
+import { coffeeTable, floorPlant, loungeCouch, plant, pouf, wallBoard } from './props';
 import { seatable } from './seats';
 
 // The room itself, past its walls and its seats: the rugs, what the sky lights and darkens, the boards
@@ -64,13 +65,14 @@ export const boards: Fixture<'boardMeshes'> = (site) => {
     const nx = Math.sin(b.rotY);
     const nz = Math.cos(b.rotY);
     // The queue is a whiteboard in an aluminium frame; the others hang in wood.
-    const { group: bg, face } = wallBoard(b.width, b.height, key === 'queue' ? '#aab4be' : PALETTE.wood);
+    const { group: bg, face } = wallBoard(b.width, b.height, '#43514b');
     bg.position.set(b.x + nx * 0.08, b.y, b.z + nz * 0.08);
     bg.rotation.y = b.rotY;
     site.group.add(bg);
     boardMeshes[key] = face;
-    const label = textPlane(b.label, { bg: '#fffaf3', size: 64 });
-    label.scale.multiplyScalar(1.3);
+    const headings: Record<keyof typeof BOARDS, string> = { issues: 'مسائل و کارها', queue: 'صف کارها', pulls: 'درخواست‌های ادغام', services: 'سرویس‌های فعال' };
+    const label = textPlane(headings[key], { color: '#43554b', size: 56 });
+    label.scale.multiplyScalar(1.2);
     label.position.set(b.x + nx * 0.04, b.y + b.height / 2 + 0.5, b.z + nz * 0.04);
     label.rotation.y = b.rotY;
     site.group.add(label);
@@ -134,14 +136,14 @@ export const lounge: Fixture = (site) => {
   table.position.set(13, 0, 0);
   site.group.add(table);
   site.colliders.push({ minX: 12.2, maxX: 13.8, minZ: -0.8, maxZ: 0.8, top: 0.46 });
-  const rug = mesh(roundedBox(7, 0.02, 7, 1.2), toon('#ffc6ff'), 13.4, 0.011, 0, false);
+  const rug = mesh(roundedBox(7, 0.02, 7, 1.2), toon('#bdc3b2'), 13.4, 0.011, 0, false);
   site.group.add(rug);
 
   // A pouf either side of the lounge (the seats still called beanbags), turned to the TV like whoever sits on it.
   for (const [i, [color, x, z]] of (
     [
-      ['#06d6a0', 12.5, 3.5],
-      ['#ffd166', 14.5, -3.4],
+      ['#658477', 12.5, 3.5],
+      ['#bb9f77', 14.5, -3.4],
     ] as const
   ).entries()) {
     const id = `lounge-beanbag-${i + 1}`;
@@ -176,7 +178,7 @@ export const plants: Fixture<'plants'> = (site) => {
 /** Ceiling lamps (cartoon pendants), hung on long cords down from the high ceiling. */
 export const lamps: Fixture = (site) => {
   const night = site.get('night');
-  const lampY = 4.05;
+  const lampY = 6.1;
   for (const [x, z] of [
     [-10.5, -4],
     [-1.5, -4],
@@ -184,7 +186,7 @@ export const lamps: Fixture = (site) => {
     [-1.5, 4],
     [13, 0],
   ]) {
-    const lamp = pendant(WALL_HEIGHT - lampY);
+    const lamp = studioPendant(WALL_HEIGHT - lampY, x === 13);
     lamp.position.set(x, lampY, z);
     site.group.add(lamp);
     night.halos.push({ at: new THREE.Vector3(x, lampY - 0.12, z), size: 1.3, color: '#ffe08a' });

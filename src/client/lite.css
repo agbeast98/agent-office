@@ -1,4 +1,5 @@
 @import './styles/base.css';
+@import './styles/rtl.css';
 
 /* The 2D view (lite.html): a page that scrolls, made for a phone, rather than a HUD over the 3D office. */
 html, body { height: auto; min-height: 100%; overflow: auto; }
@@ -75,4 +76,10 @@ body.lite { min-height: 100dvh; background: var(--paper); -webkit-tap-highlight-
   body.lite .modal.board .body { padding: 10px; overflow-x: auto; }
   .modal.board .column { min-width: 78vw; }
   .modal.board header .board-status { display: none; }
+}
+
+@media (max-width: 360px) {
+  .lite-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[dir="rtl"] .lite-nav .btn { overflow-wrap: normal; word-break: normal; font-size: 13px; min-height: 48px; }
+  .lite-main { padding-bottom: calc(144px + env(safe-area-inset-bottom)); }
 }

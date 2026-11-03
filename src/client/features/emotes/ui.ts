@@ -1,6 +1,7 @@
 import './ui.css';
 import { EMOTES, type EmoteId } from '../../../shared/emotes';
 import { h } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 
 /** How far (px) the mouse has to go from the middle of the wheel before it points at an emote. */
 const DEAD_ZONE = 26;
@@ -36,7 +37,7 @@ export class EmoteWheel {
       const a = i * SLICE - Math.PI / 2;
       return h(
         'button.emote',
-        { type: 'button', title: `${e.label} (${i + 1})`, 'aria-label': e.label, style: `--x:${Math.cos(a) * RADIUS}px;--y:${Math.sin(a) * RADIUS}px`, onpointermove: () => this.point(i) },
+        { type: 'button', title: `${fa(e.label)} (${(i + 1).toLocaleString('fa-IR')})`, 'aria-label': e.label, style: `--x:${Math.cos(a) * RADIUS}px;--y:${Math.sin(a) * RADIUS}px`, onpointermove: () => this.point(i) },
         e.emoji,
         h('span.num', {}, i + 1),
       );

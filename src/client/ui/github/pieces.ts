@@ -17,10 +17,10 @@ export function when(iso: string, url?: string) {
 }
 
 export const REVIEW_BADGE: Record<string, [string, string]> = {
-  APPROVED: ['✅ approved', 'ok'],
-  CHANGES_REQUESTED: ['🛠 requested changes', 'bad'],
-  COMMENTED: ['💬 reviewed', ''],
-  DISMISSED: ['review dismissed', 'muted'],
+  APPROVED: ['✅ تأیید شد', 'ok'],
+  CHANGES_REQUESTED: ['🛠 تغییر درخواست شد', 'bad'],
+  COMMENTED: ['💬 بازبینی شد', ''],
+  DISMISSED: ['بازبینی لغو شد', 'muted'],
 };
 
 export function commentCard(c: GhComment, itemUrl: string, verb: string, badge?: [string, string]) {
@@ -42,11 +42,11 @@ export function spinnerRow(text: string) {
 }
 
 export function errorBox(text: string, retry?: () => void) {
-  return h('div.gh-error', {}, `Couldn't load from GitHub: ${text}`, retry ? h('button.btn', { type: 'button', onclick: retry }, 'Try again') : null);
+  return h('div.gh-error', {}, `بارگیری از GitHub انجام نشد: ${text}`, retry ? h('button.btn', { type: 'button', onclick: retry }, 'Try again') : null);
 }
 
 export function stateOf(it: { state: string; isDraft?: boolean }): [string, string] {
-  if (it.state === 'MERGED') return ['merged', 'merged'];
-  if (it.state === 'CLOSED') return ['closed', 'offline'];
-  return it.isDraft ? ['draft', 'idle'] : ['open', 'working'];
+  if (it.state === 'MERGED') return ['ادغام‌شده', 'merged'];
+  if (it.state === 'CLOSED') return ['بسته‌شده', 'offline'];
+  return it.isDraft ? ['پیش‌نویس', 'idle'] : ['باز', 'working'];
 }

@@ -4,6 +4,7 @@ import type { WorkerInfo } from '../../../shared/protocol';
 import type { Net } from '../../net';
 import { store } from '../../state';
 import { h, openModal, toast, type Modal } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import { ScreenZoom } from '../arcade/ui';
 import { Blocks, H, W, paintScreen, type ScreenView } from './blocks';
 
@@ -188,8 +189,8 @@ export class Cabinet {
     this.mode = mode;
     this.watching = mode === 'watch' ? (store.cabinet.player?.name ?? '') : '';
     const board = h('canvas', { 'aria-label': mode === 'play' ? GAME : `${this.watching} playing ${GAME}` });
-    const stop = h('button.btn', { type: 'button' }, mode === 'play' ? '✕ Stop playing' : '✕ Stop watching');
-    const tip = mode === 'play' ? '← → move · ↑ turn · ↓ faster · Space drop · C hold · P pause' : `👀 Watching ${this.watching}`;
+    const stop = h('button.btn', { type: 'button' }, mode === 'play' ? fa('✕ Stop playing') : fa('✕ Stop watching'));
+    const tip = mode === 'play' ? fa('← → move · ↑ turn · ↓ faster · Space drop · C hold · P pause') : `${fa('👀 Watching')} ${this.watching}`;
     const call = h('div.cabinet-call.hidden', { role: 'status' });
     const box = h(
       'div.arcade.cabinet',
@@ -338,14 +339,14 @@ export class Cabinet {
     const w = this.waiting;
     el.classList.toggle('hidden', !w);
     if (!w) return el.replaceChildren();
-    const go = h('button.btn.primary', { type: 'button' }, '💬 Open its terminal');
-    const back = h('button.btn', { type: 'button' }, '▶ Carry on');
+    const go = h('button.btn.primary', { type: 'button' }, fa('💬 Open its terminal'));
+    const back = h('button.btn', { type: 'button' }, fa('▶ Carry on'));
     go.addEventListener('click', () => {
       this.modal?.close();
       this.opts.openTerminal(w.id);
     });
     back.addEventListener('click', () => this.resume());
-    el.replaceChildren(h('span', {}, `🙋 ${w.name} needs input${deskOf(w)}`), go, back);
+    el.replaceChildren(h('span', {}, '🙋 ', h('bdi', { dir: 'auto' }, w.name), ` ${fa('needs input')}${deskOf(w)}`), go, back);
   }
 
   /** Nobody's game on the screen, just the high scores. */
@@ -365,16 +366,16 @@ export class Cabinet {
         player: store.profile.name,
         scores: c.scores,
         mine: g.id,
-        note: this.waiting ? `${this.waiting.name} needs you${deskOf(this.waiting)}` : 'P to carry on',
-        prompt: rank ? `🏆 #${rank} on the table! Enter: again` : 'Enter to play again',
+        note: this.waiting ? `${this.waiting.name} ${fa('needs input')}${deskOf(this.waiting)}` : fa('P to carry on'),
+        prompt: rank ? `🏆 رکورد شمارهٔ ${rank} ثبت شد! برای بازی دوباره Enter را بزنید` : 'برای بازی دوباره Enter را بزنید',
         t,
       };
     }
     if (c.player && c.player.id !== store.you) {
-      return { frame: store.cabinetFrame, player: c.player.name, scores: c.scores, mine: c.player.game, note: 'Back in a moment', prompt: store.cabinetFrame ? undefined : `▶ ${c.player.name.toUpperCase()}`, t };
+      return { frame: store.cabinetFrame, player: c.player.name, scores: c.scores, mine: c.player.game, note: fa('Back in a moment'), prompt: store.cabinetFrame ? undefined : `▶ ${c.player.name}`, t };
     }
     const left = this.leftAt !== null;
-    return { frame: null, scores: c.scores, mine: g?.id, prompt: left ? 'PRESS E TO CARRY ON' : 'PRESS E TO PLAY', t };
+    return { frame: null, scores: c.scores, mine: g?.id, prompt: fa(left ? 'PRESS E TO CARRY ON' : 'PRESS E TO PLAY'), t };
   }
 
   /** Draws the screen up close while you play or watch, and on the cabinet otherwise (the close one covers it). */

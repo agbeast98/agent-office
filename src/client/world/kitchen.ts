@@ -17,15 +17,15 @@ export interface Kitchen {
 
 /** Every material in kitchen.glb by name: the old code-built kitchen's colors, and the office's wood for the top. */
 const COLORS: Record<string, string> = {
-  Cabinet: '#8ecae6',
-  Wood: '#c98b5a',
-  Chrome: '#adb5bd',
-  Dark: '#343a40',
-  White: '#ffffff',
-  Fridge: '#f8f9fa',
-  Note: '#ffd166',
-  Memo: '#bde0fe',
-  Red: '#ef476f',
+  Cabinet: '#788b77',
+  Wood: '#b99266',
+  Chrome: '#8b9992',
+  Dark: '#303c3b',
+  White: '#ebe7dc',
+  Fridge: '#d7d9cc',
+  Note: '#d6c4a0',
+  Memo: '#acbcb0',
+  Red: '#b27e5e',
 };
 
 export function buildKitchen(): Kitchen {
@@ -35,7 +35,7 @@ export function buildKitchen(): Kitchen {
   if (kitchen) {
     const paint = palette(COLORS);
     // The machine's little light glows, as the old one did.
-    paintModel(kitchen.scene, (name) => (name === 'Glow' ? toon('#ef476f', { emissive: '#ef476f' }) : paint(name)));
+    paintModel(kitchen.scene, (name) => (name === 'Glow' ? toon('#b4d3ae', { emissive: '#547348' }) : paint(name)));
     group.add(kitchen.scene);
     // Only the machine pours a coffee: a look at the counter or the fridge doesn't.
     const machine = kitchen.scene.getObjectByName('coffee_machine');

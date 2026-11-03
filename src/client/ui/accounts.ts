@@ -3,6 +3,7 @@ import type { AccountInvite, AccountRole, ServerMsg } from '../../shared/protoco
 import type { Net } from '../net';
 import { store } from '../state';
 import { h, openModal, timeAgo } from './dom';
+import { fa } from './fa-locale';
 import { confirmDialog } from './prompt';
 import { copyButton } from './team';
 
@@ -10,7 +11,7 @@ export const inviteLink = (v: AccountInvite) => `${location.origin}/join#${v.tok
 
 function expiresIn(t: number): string {
   const d = Math.round((t - Date.now()) / 86_400_000);
-  return d >= 1 ? `expires in ${d} day${d === 1 ? '' : 's'}` : 'expires today';
+  return d >= 1 ? `${d} روز دیگر منقضی می‌شود` : 'امروز منقضی می‌شود';
 }
 
 let onInvited: ((msg: Extract<ServerMsg, { t: 'accounts.invited' }>) => void) | null = null;
@@ -48,7 +49,7 @@ export function openAccounts(net: Net) {
   const render = () => {
     const s = store.accounts;
     const me = store.me;
-    signedInAs.textContent = me.account ? `You're signed in as ${me.account.name} (${me.account.role}).` : "You're signed in with the shared office password.";
+    signedInAs.textContent = me.account ? `با حساب ${me.account.name} (${fa(me.account.role)}) وارد شده‌اید.` : fa("You're signed in with the shared office password.");
     const typing = document.activeElement === nameInput;
     body.replaceChildren();
     if (!s) return body.append(h('p.empty', {}, 'Loading…'));
@@ -68,15 +69,15 @@ export function openAccounts(net: Net) {
     const list = h('ul.team-list');
     for (const a of s.accounts) {
       const you = me.account?.name === a.name;
-      const seen = a.online ? 'in the office' : a.lastSeenAt ? `seen ${timeAgo(a.lastSeenAt)}` : 'never came in';
+      const seen = a.online ? fa('in the office') : a.lastSeenAt ? `${timeAgo(a.lastSeenAt)} وارد دفتر شده` : fa('never came in');
       const role = h('button.btn', { type: 'button', title: a.role === 'admin' ? 'Take away admin rights' : 'Let them manage accounts too' }, a.role === 'admin' ? 'Make member' : 'Make admin');
       role.addEventListener('click', () => net.send({ t: 'accounts.role', accountId: a.id, role: a.role === 'admin' ? 'member' : 'admin' }));
-      const revoke = h('button.btn.danger', { type: 'button', title: `Delete ${a.name}'s account` }, 'Revoke');
+      const revoke = h('button.btn.danger', { type: 'button', title: `حذف حساب ${a.name}` }, 'Revoke');
       revoke.addEventListener('click', () =>
         confirmDialog(
-          `Revoke ${a.name}?`,
-          `Their account is deleted and they're signed out everywhere right away. Terminals they typed in keep running. ${s.sharedPassword ? `If ${a.name} also knows the shared office password, they can still use that: switch it off below.` : ''}`,
-          'Revoke',
+          `دسترسی ${a.name} لغو شود؟`,
+          `حساب او حذف می‌شود و از همه‌جا خارج خواهد شد. ترمینال‌هایی که باز کرده همچنان کار می‌کنند. ${s.sharedPassword ? `اگر ${a.name} گذرواژهٔ مشترک دفتر را هم بداند، می‌تواند با آن وارد شود؛ برای بستن این راه، گذرواژهٔ مشترک را در پایین خاموش کنید.` : ''}`,
+          fa('Revoke'),
           () => net.send({ t: 'accounts.revoke', accountId: a.id }),
         ),
       );
@@ -86,8 +87,8 @@ export function openAccounts(net: Net) {
           {},
           h('span.dot', { class: a.online ? 'on' : '', title: seen }),
           h('span.name', {}, a.name, you ? h('span.you', {}, ' (you)') : null),
-          h('span.role', { class: a.role }, a.role),
-          h('span.keys', { title: `Invited by ${a.createdBy}` }, seen),
+          h('span.role', { class: a.role }, fa(a.role)),
+          h('span.keys', { title: `${fa('Invited by')} ${a.createdBy}` }, seen),
           you ? null : role,
           you ? null : revoke,
         ),
@@ -109,8 +110,8 @@ export function openAccounts(net: Net) {
             'li',
             {},
             h('span.name', {}, v.name ?? h('i', {}, 'they pick a name')),
-            h('span.role', { class: v.role }, v.role),
-            h('span.keys', { title: `Made by ${v.createdBy} ${timeAgo(v.createdAt)}` }, expiresIn(v.expiresAt)),
+            h('span.role', { class: v.role }, fa(v.role)),
+            h('span.keys', { title: `${fa('Made by')} ${v.createdBy} · ${timeAgo(v.createdAt)}` }, expiresIn(v.expiresAt)),
             copyButton('Copy link', () => inviteLink(v)),
             cancel,
           ),
@@ -154,7 +155,7 @@ export function openAccounts(net: Net) {
     }
     fresh = msg.invite;
     nameInput.value = '';
-    status = h('p.team-status.ok', {}, `✅ Send this link to ${msg.invite.name ?? 'them'}. It works once and expires after 7 days.`);
+    status = h('p.team-status.ok', {}, `✅ این پیوند را برای ${msg.invite.name ?? 'کاربر دعوت‌شده'} بفرستید. فقط یک‌بار قابل استفاده است و پس از ۷ روز منقضی می‌شود.`);
     render();
   };
   // No longer an admin (someone changed your role): the list isn't yours to see any more.

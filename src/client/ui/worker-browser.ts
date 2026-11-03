@@ -1,5 +1,6 @@
 import './worker-browser.css';
 import { h, toast } from './dom';
+import { fa } from './fa-locale';
 import { store } from '../state';
 
 interface BrowserState { open: boolean; url?: string; title?: string; control: 'agent' | 'person'; mode?: 'ask' | 'auto'; pending?: { action: 'click' | 'press'; label: string; url: string }; error?: string }
@@ -42,7 +43,7 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
       if (!response.ok) throw new Error(result.error || `Browser action failed (${response.status})`);
       state = result;
       address.value = result.url ?? address.value;
-      title.textContent = result.title || result.url || 'Private worker browser';
+      title.textContent = result.title || result.url || fa('Private worker browser');
       paintState();
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Browser action failed', 'warn');
@@ -59,7 +60,7 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
       if (!response.ok) throw new Error('The browser status could not be loaded.');
       state = await response.json() as BrowserState;
       address.value = state.url ?? address.value;
-      title.textContent = state.title || state.url || 'Private worker browser';
+      title.textContent = state.title || state.url || fa('Private worker browser');
       paintState();
       if (state.open) {
         const imageResponse = await fetch(endpoint('screenshot'), { cache: 'no-store' });
@@ -83,9 +84,9 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     empty.classList.toggle('hidden', isOpen);
     image.classList.toggle('hidden', !isOpen);
     panel.classList.toggle('person-control', state.control === 'person');
-    take.textContent = state.control === 'person' ? '✓ Human control · resume agent' : 'Take control';
+    take.textContent = state.control === 'person' ? `✓ ${fa('Human control · resume agent')}` : fa('Take control');
     take.setAttribute('aria-pressed', String(state.control === 'person'));
-    status.textContent = state.error ? state.error : isOpen ? state.control === 'person' ? 'The browser is under human control' : 'The agent is using this browser' : 'Browser is ready when you are';
+    status.textContent = state.error ? fa(state.error) : isOpen ? state.control === 'person' ? fa('The browser is under human control') : fa('The agent is using this browser') : fa('Browser is ready when you are');
     status.classList.toggle('error', !!state.error);
     mode.value = state.mode ?? 'ask';
     ask.classList.toggle('hidden', !state.pending);

@@ -89,3 +89,17 @@
 .meetroom [hidden] { display: none !important; }
 .mr-chip.ready i { background: #c9a227; animation: mr-pulse 1s infinite; } .mr-chip.come i { background: #ef8354; animation: mr-pulse .7s infinite; }
 .mr-msg.ghost { opacity: .7; } .mr-msg.ghost .mr-text { color: var(--muted); animation: mr-pulse 1.2s infinite; }
+
+
+.mr-body { grid-template-columns: 188px minmax(0, 1fr); }
+.mr-start { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.mr-cols { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.mr-people { grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.mr-start > *, .mr-cols > *, .mr-main, .mr-sec { min-width: 0; }
+.mr-sec, .mr-summary, .mr-person, .mr-msg { overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .mr-body { grid-template-columns: minmax(0, 1fr); }
+  .mr-picks, .mr-modes { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  .mr-topic, .mr-tab { white-space: normal; }
+  .meetroom > header h2 { max-width: none; }
+}

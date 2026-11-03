@@ -9,6 +9,8 @@
 
 # 🏢 Agent Office
 
+[راهنمای فارسی](README.fa.md) · [Persian interface, studio office and responsive controls](docs/features.md#persian-interface-and-studio-office)
+
 **A 3D office your team shares with its coding agents.**
 
 Sit **Claude Code**, **Codex**, **OpenCode**, **Grok**, **Muse**, **DeepSeek Harness** and **Cursor** workers at desks, watch each one's terminal on the laptop in front of it,

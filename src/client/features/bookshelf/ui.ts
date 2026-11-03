@@ -1,6 +1,7 @@
 import './ui.css';
 import { isDocPath, resolveDocLink, type DocFile, type DocList, type DocText } from '../../../shared/docs';
 import { clip, h, openModal, setDoing, timeAgo, toast } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import { markdownFile } from '../../ui/markdown';
 
 // The bookshelf: every Markdown file in the floor's project, to read without leaving the office.
@@ -164,7 +165,7 @@ export function openBookshelf(deps: ShelfDeps) {
   const soundBtn = h('button.btn.bs-sound', { type: 'button', 'aria-label': 'Page turn sound' });
   const paintSound = () => {
     soundBtn.textContent = pageSound ? '🔈' : '🔇';
-    soundBtn.title = pageSound ? 'Pages swish as they turn: click to turn that off' : 'Pages turn silently: click to hear them swish';
+    soundBtn.title = fa(pageSound ? 'Pages swish as they turn: click to turn that off' : 'Pages turn silently: click to hear them swish');
     soundBtn.setAttribute('aria-pressed', String(pageSound));
   };
   paintSound();
@@ -200,7 +201,9 @@ export function openBookshelf(deps: ShelfDeps) {
   const modal = openModal(el, { doing: '📚 at the bookshelf', reading: true });
 
   const renderList = () => {
-    count.textContent = !files.length ? '' : filter.value.trim() ? `${shown.length} of ${files.length} docs` : `${files.length} doc${files.length === 1 ? '' : 's'}`;
+    count.textContent = !files.length ? '' : filter.value.trim()
+      ? `${shown.length.toLocaleString('fa-IR')} از ${files.length.toLocaleString('fa-IR')} سند`
+      : `${files.length.toLocaleString('fa-IR')} سند`;
     list.replaceChildren(
       ...shown.map((hit, i) => {
         const { doc } = hit;
@@ -311,8 +314,8 @@ export function openBookshelf(deps: ShelfDeps) {
       doc = await getJson<DocText>(`/api/docs/file?${q({ path })}`);
     } catch (err) {
       if (mine !== opening) return;
-      toast(`📚 Couldn't open ${nameOf(path)}: ${(err as Error).message}`, 'warn');
-      if (!current) page.replaceChildren(h('div.bs-empty', {}, `Couldn't open ${path}.`));
+      toast(`${fa("📚 Couldn't open")} ${nameOf(path)}: ${(err as Error).message}`, 'warn');
+      if (!current) page.replaceChildren(h('div.bs-empty', {}, `${fa("Couldn't open")} `, h('bdi', { dir: 'ltr' }, path)));
       return;
     }
     if (mine !== opening || !el.isConnected) return;
@@ -323,17 +326,17 @@ export function openBookshelf(deps: ShelfDeps) {
     wire(body, path);
     page.replaceChildren(body);
     const dir = path.slice(0, path.length - nameOf(path).length);
-    crumbs.replaceChildren(dir ? h('span.dir', {}, dir) : '', nameOf(path));
+    crumbs.replaceChildren(dir ? h('bdi.dir', { dir: 'ltr' }, dir) : '', h('bdi', { dir: 'auto' }, nameOf(path)));
     crumbs.title = path;
     const words = doc.text.split(/\s+/).filter(Boolean).length;
     meta.replaceChildren(
-      [`${Math.max(1, Math.round(words / 220))} min read`, info ? size(info.size) : '', info ? `updated ${timeAgo(info.mtime)}` : ''].filter(Boolean).join(' · '),
+      [`${Math.max(1, Math.round(words / 220)).toLocaleString('fa-IR')} ${fa('min read')}`, info ? size(info.size) : '', info ? `${fa('updated')} ${timeAgo(info.mtime)}` : ''].filter(Boolean).join(' · '),
       repoUrl ? h('a', { href: `${repoUrl}/blob/HEAD/${path.split('/').map(encodeURIComponent).join('/')}`, target: '_blank', rel: 'noopener noreferrer', title: 'Open it on GitHub' }, 'GitHub ↗') : '',
     );
     turnedAt = 0;
     jump(hash);
     renderList();
-    setDoing(modal, `📚 reading ${info?.title ?? nameOf(path)}`);
+    setDoing(modal, `${fa('📚 reading')} ${info?.title ?? nameOf(path)}`);
     deps.onTurn();
   };
 
@@ -361,7 +364,7 @@ export function openBookshelf(deps: ShelfDeps) {
       if (!el.isConnected) return;
       files = r.files;
       refilter();
-      if (r.more) count.textContent += ` (the first ${files.length})`;
+      if (r.more) count.textContent += ` (نخستین ${files.length.toLocaleString('fa-IR')} مورد)`;
       const start = [lastRead(floor), ...shelfOrder(files).map((f) => f.path)].find((p) => p && files.some((f) => f.path === p));
       if (start) void openDoc(start);
       else page.replaceChildren(h('div.bs-empty', {}, '📭 Nothing to read here: this project has no Markdown files yet.'));

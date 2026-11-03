@@ -1,5 +1,6 @@
 type Attrs = Record<string, string | number | boolean | EventListener | undefined | null>;
 type Child = Node | string | number | null | undefined | false;
+import { fa } from './fa-locale';
 
 /** Tiny hyperscript helper: h('div.card', { onclick }, 'text', child) */
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K | `${K}.${string}`, attrs: Attrs = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
@@ -12,9 +13,9 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K | `${K}.${string
     else if (k === 'class') el.className = `${el.className} ${v}`.trim();
     else if (k === 'style') el.setAttribute('style', String(v));
     else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, String(v));
+    else el.setAttribute(k, ['title', 'aria-label', 'placeholder', 'alt'].includes(k) ? fa(String(v)) : String(v));
   }
-  for (const c of children) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : String(c));
+  for (const c of children) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : typeof c === 'string' ? fa(c) : String(c));
   return el;
 }
 
@@ -147,10 +148,10 @@ export function toast(text: string, level: 'info' | 'warn' | 'error' = 'info'): 
 export function timeAgo(iso: string | number): string {
   const t = typeof iso === 'number' ? iso : Date.parse(iso);
   const s = Math.max(0, (Date.now() - t) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return 'همین حالا';
+  if (s < 3600) return `${Math.floor(s / 60)} دقیقه پیش`;
+  if (s < 86400) return `${Math.floor(s / 3600)} ساعت پیش`;
+  return `${Math.floor(s / 86400)} روز پیش`;
 }
 
 /** `text` cut to at most `max` characters, with an ellipsis when it was longer. */
@@ -159,11 +160,11 @@ export function clip(text: string, max: number): string {
 }
 
 export const STATUS_LABEL: Record<string, string> = {
-  starting: 'starting',
-  idle: 'ready',
-  working: 'working',
-  needs_input: 'needs input',
-  done: 'done',
-  exited: 'exited',
-  offline: 'asleep',
+  starting: 'در حال شروع',
+  idle: 'آماده',
+  working: 'در حال کار',
+  needs_input: 'نیازمند پاسخ',
+  done: 'پایان‌یافته',
+  exited: 'متوقف',
+  offline: 'خواب',
 };
