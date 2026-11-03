@@ -30,7 +30,7 @@ export function openSecurity(floor: string) {
   const nav = h('nav.sec-nav', { role: 'tablist' });
   const main = h('div.sec-main');
   const msg = h('div.mg-msg', { role: 'status' });
-  const el = h('div.modal.manager-window.secwin', { role: 'dialog', 'aria-label': 'امنیت', lang: 'fa', dir: 'rtl' },
+  const el = h('div.modal.secwin', { role: 'dialog', 'aria-label': 'امنیت', lang: 'fa', dir: 'rtl' },
     h('header', {}, h('h2', {}, '🛡 امنیت')), nav, main, msg);
   openModal(el, { doing: 'در بخش امنیت', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 

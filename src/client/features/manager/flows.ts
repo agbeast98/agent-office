@@ -34,7 +34,7 @@ export function openFlows(floor: string) {
   const nav = h('nav.sec-nav', { role: 'tablist' });
   const main = h('div.sec-main');
   const msg = h('div.mg-msg', { role: 'status' });
-  const el = h('div.modal.manager-window.secwin.flowwin', { role: 'dialog', 'aria-label': 'روال‌ها', lang: 'fa', dir: 'rtl' }, h('header', {}, h('h2', {}, '🧭 روال‌ها')), nav, main, msg);
+  const el = h('div.modal.secwin.flowwin', { role: 'dialog', 'aria-label': 'روال‌ها', lang: 'fa', dir: 'rtl' }, h('header', {}, h('h2', {}, '🧭 روال‌ها')), nav, main, msg);
   openModal(el, { doing: 'در بخش روال‌ها', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
   const call = async (action: string, extra: Record<string, unknown> = {}) => {

@@ -17,3 +17,4 @@
 .fl-step { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 2px solid var(--muted); border-radius: 10px; background: #fff; }
 .fl-step.qa { border-color: #2457a6; background: #f2f7ff; }
 .fl-step .mg-row input { flex: 1 1 160px; }
+.mg-nav-item.alert { background: #fff0c4; font-weight: 800; }

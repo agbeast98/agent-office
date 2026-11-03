@@ -1,5 +1,6 @@
 /* The security window: tabs across the top, the section under them. */
-.secwin { width: min(940px, 96vw); height: min(720px, 92vh); }
+.secwin { width: min(940px, 96vw); height: min(720px, 92vh); display: flex; flex-direction: column; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
+.secwin h2 { margin: 0; font-size: 18px; }
 .sec-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px 0; }
 .sec-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
 .secwin > .mg-msg { padding: 0 14px 10px; }
@@ -23,3 +24,4 @@
 .sec-note { font-size: 12px; }
 .sec-hold .mg-row input { flex: 1 1 180px; font: inherit; padding: 5px 8px; border: 2px solid var(--ink); border-radius: 8px; }
 .secwin > header { display: flex; align-items: center; gap: 12px; direction: ltr; } .secwin > header > * { direction: rtl; } .secwin > header .close { margin-left: auto; }
+html[dir="rtl"] .secwin > header .close { margin-left: 0; margin-right: auto; }
