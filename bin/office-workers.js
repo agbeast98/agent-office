@@ -405,6 +405,8 @@ const TASK_TOOLS = [
   { name: 'meeting_vote', title: 'Vote in the team meeting', description: 'Casts your vote when the meeting is a vote: yes, no or abstain, with your reason in a line or two. You can change it until all have voted.', props: { choice: { type: 'string', enum: ['yes', 'no', 'abstain'] }, reason: { type: 'string', description: 'Why, in a line or two.' } }, required: ['choice'], action: 'meeting_vote' },
   { name: 'meeting_decision', title: 'Record a decision of the team meeting (manager)', description: 'The manager records one decision of the meeting that is on, in a line. Record each decision on its own; then write the whole up with meeting_summary.', props: { text: { type: 'string', description: 'The decision.' } }, required: ['text'], action: 'meeting_decision' },
   { name: 'meeting_summary', title: 'Write up the team meeting (manager)', description: 'The manager records what came of the meeting: the decisions and the next steps. Make a task (create_task) for each next step.', props: { text: { type: 'string', description: 'The outcome.' } }, required: ['text'], action: 'meeting_summary' },
+  { name: 'security_holds', title: 'What is held for the agents you guard (security agent)', description: 'Lists what the agents you guard tried to do that their rules did not allow and is waiting for your decision (open), with each one\'s rules and what Mohammad has taught the firewall. Only a security agent can call this.', props: {}, required: [], readOnly: true, route: '/office/security' },
+  { name: 'security_decide', title: 'Decide something held (security agent)', description: 'Decides a held action: allow (a permit for the same thing for `minutes`, 60 by default, at most 480), deny, or ask when you are not sure and Mohammad should decide. Give a short note why. You can only allow what the agent\'s rules and the person\'s instructions leave you room for; payments, deletions and anything outside the rules go to Mohammad with ask.', props: { id: { type: 'string', description: 'The hold, like H-3.' }, verdict: { type: 'string', enum: ['allow', 'deny', 'ask'] }, note: { type: 'string', description: 'Why, in a line or two.' }, minutes: { type: 'number', description: 'How long an allow lasts.' } }, required: ['id', 'verdict'], route: '/office/security' },
   { name: 'add_task_note', title: 'Note on a task', description: 'Adds a note to a task: a result, a question, a link. The manager and whoever the task is with are told.', props: { id: { type: 'string', description: 'The task, like T-3.' }, text: { type: 'string', description: 'The note.' } }, required: ['id', 'text'], action: 'note' },
 ];
 for (const t of TASK_TOOLS) {
@@ -414,11 +416,15 @@ for (const t of TASK_TOOLS) {
 /** One call to the team's tasks: a list (GET) or an action (POST). */
 async function taskCall(tool, args, io) {
   const office = officeEnv(io.env);
-  const url = new URL(`${office.url}/office/tasks`);
+  const url = new URL(`${office.url}${tool.route ?? '/office/tasks'}`);
   url.searchParams.set('worker', office.worker);
   const headers = { authorization: `Bearer ${office.token}` };
   let req;
-  if (tool.name === 'meeting_read') {
+  if (tool.route) {
+    req = tool.readOnly
+      ? { method: 'GET', url: url.href, headers, timeout: 15_000 }
+      : { method: 'POST', url: url.href, headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(args), timeout: 30_000 };
+  } else if (tool.name === 'meeting_read') {
     url.searchParams.set('meeting', '1');
     req = { method: 'GET', url: url.href, headers, timeout: 15_000 };
   } else if (tool.name === 'list_tasks') {

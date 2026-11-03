@@ -78,6 +78,31 @@ process.stdin.on('end', () => {
       `else ${shq(process.execPath)} ${shq(nodeHook)} ${event} >/dev/null 2>&1; fi; true`;
     hooks[event] = [{ ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command }] }];
   }
+  // Before every tool, the office is asked whether this agent's rules allow it (the security agent's firewall): a
+  // refusal comes back as the hook's own answer. If the office can't be reached, the tool goes ahead.
+  const guard = path.join(dataDir, 'guard.cjs');
+  writeFileSync(
+    guard,
+    `const http = require('http');
+let body = '';
+process.stdin.on('data', (c) => (body += c));
+process.stdin.on('end', () => {
+  if (!process.env.AGENT_OFFICE_HOOK_URL || !process.env.AGENT_OFFICE_WORKER_ID) process.exit(0);
+  const url = new URL(process.env.AGENT_OFFICE_HOOK_URL + '/office/guard');
+  url.searchParams.set('worker', process.env.AGENT_OFFICE_WORKER_ID);
+  const req = http.request(url, { method: 'POST', timeout: 12000, headers: { authorization: 'Bearer ' + process.env.AGENT_OFFICE_HOOK_TOKEN, 'content-type': 'application/json' } }, (res) => {
+    let out = '';
+    res.on('data', (c) => (out += c));
+    res.on('end', () => { if (res.statusCode === 200 && out.trim() && out.trim() !== '{}') process.stdout.write(out); process.exit(0); });
+  });
+  req.on('error', () => process.exit(0));
+  req.on('timeout', () => { req.destroy(); process.exit(0); });
+  req.end(body);
+});
+`,
+    { mode: 0o600 },
+  );
+  hooks.PreToolUse.push({ hooks: [{ type: 'command', command: `${shq(process.execPath)} ${shq(guard)}`, timeout: 15 }] });
   // Looking at the office's workers doesn't need anyone's say-so; hiring and sending home still asks.
   const permissions = { allow: MCP_READ_ONLY };
   writeFileSync(settingsPath, JSON.stringify({ hooks, permissions }, null, 2), { mode: 0o600 });

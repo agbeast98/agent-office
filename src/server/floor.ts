@@ -32,6 +32,8 @@ import { TeamTasks } from './team-tasks.js';
 import { TeamMeetings } from './team-meeting.js';
 import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js';
 import { Notifier } from './notify.js';
+import { Security } from './security.js';
+import { browserGate } from './security-glue.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
 
@@ -133,6 +135,7 @@ export class Floor {
   readonly teamMeetings: TeamMeetings;
   readonly teamSchedule: TeamSchedule;
   readonly notifier: Notifier;
+  readonly security: Security;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -328,6 +331,8 @@ export class Floor {
     this.teamMeetings = new TeamMeetings(dataDir);
     this.teamSchedule = new TeamSchedule(dataDir);
     this.notifier = new Notifier(dataDir);
+    this.security = new Security(dataDir, path.join(def.dir, 'freelance-team', 'security-rules.md'));
+    this.workerBrowsers.gate = (workerId, kind, address, detail) => browserGate(this, workerId, kind, address, detail);
     this.workerBrowsers.onPending = (workerId, request) => void this.notifier.send(`⏳ ${this.workers.get(workerId)?.name ?? 'یک ایجنت'} منتظر تأیید شماست: «${request.label}»${request.risky ? ' (پرداخت/حذف: فقط خودتان)' : ''}`);
     this.scheduleTimer = setInterval(() => runSchedule(this), SCHEDULE_TICK_MS);
     this.scheduleTimer.unref();

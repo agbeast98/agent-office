@@ -55,6 +55,8 @@ export class WorkerBrowsers {
   private closing = false;
   private modes = new Map<string, BrowserMode>();
   private pending = new Map<string, BrowserRequest>();
+  /** Asked before the agent opens or sends anything in a site: throws what to tell the agent when its rules don't allow it (see security.ts). */
+  gate?: (workerId: string, kind: 'open' | 'write', address: string, detail: string) => void;
   /** Told when something starts waiting for the person (the manager's computer and the phone listen). */
   onPending?: (workerId: string, request: BrowserRequest) => void;
   /** What the person approved ('allow') or turned down ('deny'), by worker, action and page, until it expires. */
@@ -139,6 +141,8 @@ export class WorkerBrowsers {
    * action on the same page goes through (for a couple of minutes).
    */
   private guard(workerId: string, s: Session, request: Omit<BrowserRequest, 'url' | 'at'>, sensitive: boolean) {
+    // Its rules (the security agent's firewall) come before the person's say-so: sending is only allowed where they say.
+    if (sensitive) this.gate?.(workerId, 'write', s.page.url(), request.label);
     const risky = RISKY.test(request.label);
     if (!sensitive || (this.mode(workerId) === 'auto' && !risky)) return;
     const url = s.page.url();
@@ -207,6 +211,7 @@ export class WorkerBrowsers {
 
   async navigate(workerId: string, address: unknown, actor: 'agent' | 'person' = 'agent') {
     const url = checkedUrl(address);
+    if (actor === 'agent') this.gate?.(workerId, 'open', url, url);
     const s = await this.session(workerId);
     if (s.control !== actor) throw new Error(`The browser is currently controlled by ${s.control === 'person' ? 'you' : 'the agent'}.`);
     // Answered is enough to show the page: a slow site gets a few more seconds to build it, not an error that leaves the browser blank.

@@ -148,3 +148,21 @@ test('a login that is only a session cookie survives the browser closing, and go
     try { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* Chrome may still be letting go of the folder */ }
   }
 });
+
+test('the firewall is asked before an agent opens a page, and what it throws is what the agent is told', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'wb-gate-'));
+  const browsers = new WorkerBrowsers(dir);
+  const asked: string[] = [];
+  browsers.gate = (worker, kind, address) => {
+    asked.push(`${worker}:${kind}:${address}`);
+    throw new Error('نگه داشته شد (H-1)');
+  };
+  try {
+    await assert.rejects(browsers.navigate('w9', 'https://example.org/a'), /نگه داشته شد/);
+    assert.deepEqual(asked, ['w9:open:https://example.org/a']);
+    assert.equal((await browsers.view('w9')).open, false, 'no browser was started for it');
+  } finally {
+    await browsers.shutdown();
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});

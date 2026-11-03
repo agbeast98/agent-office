@@ -23,3 +23,15 @@ Open it from **☰ → 👑 کامپیوتر مدیر** (the monitor in the boss
 ## The playground's rules
 
 The people's job descriptions and limits are ordinary files in the floor's repository (`CLAUDE.md`, `freelance-team/roles/*.md`, `freelance-team/policy.md`): edit them, and agents read the new version the next time they start a task.
+
+## 🛡 Security: a firewall for the agents you tick
+
+A **security agent** (tick **نگهبان امنیت** on one of the team in 🛡 امنیت) guards up to five other agents; more need another security agent. Agents nobody guards are not checked. For a guarded agent everything except talking (messages, tasks, the meeting) is checked against that agent's rules first, with no tokens spent:
+
+- **Browser:** reading sites is open or not as its rules say; sending, logging in or uploading is only allowed on the sites listed.
+- **Claude Code tools:** shell commands, fetching a page, web search and files outside its own folders go through a `PreToolUse` hook that asks the office before each one. A command is allowed if it starts with an allowed command, a file if it is in its folder or a listed one.
+- **Anything else is held**, the agent is told to wait, and the security agent wakes to decide it with `security_holds` and `security_decide`: allow for a while (60 minutes by default), deny, or ask you. It cannot go beyond the rules and `policy.md`; payments, deletions and accounts always go to you.
+- **It learns from your answers.** When you answer the same way twice about the same site or command, it becomes a rule: allowed without asking, or refused outright. **🧠 یادگرفته‌ها** lists them and can forget one.
+- The rules are also written to `freelance-team/security-rules.md` in the floor's repository, so git keeps them.
+
+Not covered yet: Codex agents (their hooks differ), and an agent already running keeps the hooks it started with until it is resumed.

@@ -8,6 +8,7 @@ import { readBody, send } from '../http/util.js';
 import { officeQueue } from './office-queue.js';
 import { officeWorkers } from './office-workers.js';
 import { officeTasks } from './office-tasks.js';
+import { officeGuard, officeSecurity } from './office-security.js';
 import { providerHook } from '../providers/index.js';
 import type { AgentProvider } from '../../shared/providers.js';
 
@@ -23,6 +24,8 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
     if (url.pathname === '/office/queue') return officeQueue(ctx, req, res, url);
     if (url.pathname === '/office/workers' || url.pathname.startsWith('/office/workers/')) return officeWorkers(ctx, req, res, url);
     if (url.pathname === '/office/tasks') return officeTasks(ctx, req, res, url);
+    if (url.pathname === '/office/security') return officeSecurity(ctx, req, res, url);
+    if (url.pathname === '/office/guard') return officeGuard(ctx, req, res, url);
     if (url.pathname === '/office/browser') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
       const workerId = url.searchParams.get('worker') ?? '';

@@ -10,6 +10,7 @@ import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
 import { teamRoutes } from './team.js';
 import { teamMeetingRoutes } from './team-meeting.js';
+import { securityRoutes } from './security.js';
 import { serviceRoutes } from './services.js';
 import { workerBrowserRoutes } from './worker-browser.js';
 import { workerChatRoutes } from './worker-chat.js';
@@ -39,6 +40,8 @@ export const routes: readonly Route[] = [
   teamRoutes.team,
   teamRoutes.action,
   teamRoutes.schedule,
+  securityRoutes.state,
+  securityRoutes.action,
   teamMeetingRoutes.meeting,
   teamMeetingRoutes.minutes,
   teamMeetingRoutes.action,
