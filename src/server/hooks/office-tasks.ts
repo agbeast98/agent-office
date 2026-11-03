@@ -78,6 +78,13 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
     case 'note':
       result = tasks.note(by, id, body.text, workers);
       break;
+    case 'interview_say':
+    case 'interview_finish': {
+      const r = body.action === 'interview_say' ? floor.interviews.say(me.id, body.text) : floor.interviews.finish(me.id, body);
+      if (!r.ok) return send(res, 400, { error: r.error });
+      if (body.action === 'interview_finish') void floor.notifier.send(`🎤 ${me.name} مصاحبه را تمام کرد؛ منتظر تصمیم شماست (🧑‍💼 استخدام)`);
+      return send(res, 200, { ok: true });
+    }
     case 'meeting_say':
     case 'meeting_vote':
     case 'meeting_decision':

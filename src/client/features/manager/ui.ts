@@ -3,6 +3,7 @@ import { h, openModal, toast } from '../../ui/dom';
 import { fa } from '../../ui/fa-locale';
 import { openTeamMeeting } from './meeting';
 import { openFlows } from './flows';
+import { openHiring } from './hiring';
 import { openSecurity } from './security';
 import { approvalsBox, dayBar, personBox, scheduleBox, type Approval, type ScheduleItem } from './extras';
 
@@ -65,6 +66,7 @@ export function openManager(floor: string) {
   const meetBtn = h('button.btn', { type: 'button', title: 'جلسه‌ با همین افراد، بدون استخدام' }, '🤝 جلسه‌ی تیمی');
   const lockBtn = h('button.btn', { type: 'button', title: 'وقتی قفل است هیچ ایجنتی استخدام نمی‌شود' }, '🔒 استخدام');
   const secBtn = h('button.mg-nav-item', { type: 'button', title: 'نگهبان امنیت، قوانین هر ایجنت و کارهای نگه‌داشته‌شده' }, '🛡 امنیت');
+  const hireBtn = h('button.mg-nav-item', { type: 'button', title: 'نقشه‌ی میزها، استخدام با نام و سمت و شرح کار، و مصاحبه‌ی اولیه' }, '🧑‍💼 استخدام');
   const flowBtn = h('button.mg-nav-item', { type: 'button', title: 'مدیرهای تیم و سناریوها: هر مرحله به یک نفر، با QA و برگشت' }, '🧭 روال‌ها');
   const schedBtn = h('button.btn', { type: 'button', title: 'مصاحبه‌ی هفتگی، بازبینی روزانه و شروع روز، خودکار' }, '⏰ زمان‌بندی');
   const nav = h('nav.mg-nav', { 'aria-label': 'بخش‌های مدیریت تیم' });
@@ -179,7 +181,7 @@ export function openManager(floor: string) {
     const person = panel?.kind === 'person' ? team.people.find((x) => x.id === (panel as { id: string }).id) : undefined;
     const extra = panel?.kind === 'schedule' ? scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, back) : person ? personBox(person, call, back) : null;
     const labels = [['overview', 'نمای کلی', '⌂'], ['tasks', 'کارها', '▤'], ['people', 'اعضای تیم', '♙'], ['meetings', 'جلسه‌ها', '◷'], ['schedule', 'زمان‌بندی', '◷'], ['settings', 'تنظیمات تیم', '⚙']];
-    nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)), flowBtn, secBtn);
+    nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)), hireBtn, flowBtn, secBtn);
     const heading = labels.find(([id]) => id === page)?.[1] ?? 'نمای کلی';
     const overview = page === 'overview';
     const taskPage = page === 'tasks';
@@ -229,6 +231,7 @@ export function openManager(floor: string) {
   schedBtn.addEventListener('click', () => { page = 'schedule'; panel = { kind: 'schedule' }; drafting = false; render(); });
   secBtn.addEventListener('click', () => openSecurity(floor));
   flowBtn.addEventListener('click', () => openFlows(floor));
+  hireBtn.addEventListener('click', () => openHiring(floor));
   meetBtn.addEventListener('click', () => openTeamMeeting(floor));
   lockBtn.addEventListener('click', () => void call('lock', { on: !team.hiringLocked }));
   void load().then(() => render());

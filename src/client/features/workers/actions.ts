@@ -19,6 +19,7 @@ import { askNotifyPermission, notifyPermission } from '../../notify';
 import { repoChoices } from '../../shared/hiring';
 import { store } from '../../state';
 import { openAsk } from '../../ui/ask';
+import { openHiring } from '../manager/hiring';
 import { STATUS_LABEL, clip, closeAllModals, h, toast } from '../../ui/dom';
 import { openDeskLabel } from '../../ui/floorplan';
 import type { MeetingPreset } from '../../ui/meeting';
@@ -94,7 +95,11 @@ export function installWorkerActions(ctx: Ctx, core: CoreState, parts: WorkerAct
   function promptAtDesk(deskId: string) {
     const w = store.workerAtDesk(deskId);
     const desk = plan().byId.get(deskId)!;
-    if (!w) {
+    if (!w && store.floor) {
+      // An empty desk: hiring is done in the manager's استخدام window, with a name, a post and an interview.
+      if (officeIsFull()) return;
+      openHiring(store.floor, deskId);
+    } else if (!w) {
       if (officeIsFull()) return;
       openPrompt({
         title: `✨ New task at ${desk.label}`,
@@ -130,6 +135,7 @@ export function installWorkerActions(ctx: Ctx, core: CoreState, parts: WorkerAct
   function hireAtDesk(deskId: string) {
     const desk = plan().byId.get(deskId)!;
     if (officeIsFull()) return;
+    if (store.floor) return openHiring(store.floor, deskId);
     openPrompt({
       title: `✨ Hire a worker at ${desk.label}`,
       subtitle: 'You can start with an empty prompt and send work later.',

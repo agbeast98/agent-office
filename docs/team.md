@@ -51,3 +51,16 @@ A **scenario** is a list of steps, each given to one person:
 - A step that gets stuck stops the run, with **↻ دوباره امتحان**; **■ توقف** cancels what is open. Every run's log is kept.
 
 Scenarios and managers are kept in `.agent-office/team-flows.json` and written, readable, to `freelance-team/scenarios.md`. Tasks made by a scenario do not wake the team's manager worker. Not here yet: the manager choosing among several ideas by itself, a scenario starting another, and a manager with a seat.
+
+## 🧑‍💼 Hiring and the first interview
+
+**🧑‍💼 استخدام** in the manager's computer (and **E** at an empty desk, which now opens the same window). A map of the floor's desks shows which are free, which are taken and who is in an interview. Pick a free desk and fill in a **name**, a **post** and a **description of the job** (what it does, what each job hands back, what it must not do), then **🎤 استخدام و شروع مصاحبه**.
+
+The new agent does not start working. It has its first interview with you, as a chat in the same window:
+
+1. It introduces itself, then asks its questions one at a time (about you, the business, tone, what a good result is, what is forbidden); you answer in the box.
+2. It says what it wants and can do, what it should not do, and what it would improve.
+3. It says what access it has (its own browser with the office's `browser_*` tools, where sending and logging in need your approval) and what it still needs.
+4. It writes its own profile, kept in the floor's repository so git carries it to your other computers: `freelance-team/people/<name>/skill.md` (the job, refined from what you wrote) and `memory.md` (what it learned about you and the work). It is told to read both at the start of every task and to add to `memory.md` after each.
+
+You then press **✓ استخدام**, **✕ رد** (it goes home and its profile is deleted), or **⏭ رد شدن از مصاحبه** to hire it without the interview being finished. Until it is hired, tasks and scenarios cannot be given to it. The agent speaks through the `interview_say` and `interview_finish` tools. Not here yet: the agent walking up to the boss's loft for the interview and down to its desk afterwards (it is seated at its desk from the start).

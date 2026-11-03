@@ -34,6 +34,7 @@ import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js'
 import { Notifier } from './notify.js';
 import { Security } from './security.js';
 import { Flows } from './team-flows.js';
+import { Interviews } from './team-interviews.js';
 import { tell as tellWorkers } from './hooks/office-tasks.js';
 import { browserGate, syncGuards } from './security-glue.js';
 
@@ -139,6 +140,7 @@ export class Floor {
   readonly notifier: Notifier;
   readonly security: Security;
   readonly flows: Flows;
+  readonly interviews: Interviews;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -334,7 +336,9 @@ export class Floor {
     this.teamMeetings = new TeamMeetings(dataDir);
     this.teamSchedule = new TeamSchedule(dataDir);
     this.notifier = new Notifier(dataDir);
-    this.flows = new Flows(dataDir, { tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));
+    this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
+    this.teamTasks.blocked = (id) => this.interviews.blocking(id);
+    this.flows = new Flows(dataDir, { blocked: (id) => this.interviews.blocking(id), tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));
     this.teamTasks.onChange = () => this.flows.sync();
     this.security = new Security(dataDir, path.join(def.dir, 'freelance-team', 'security-rules.md'));
     this.workerBrowsers.gate = (workerId, kind, address, detail) => browserGate(this, workerId, kind, address, detail);

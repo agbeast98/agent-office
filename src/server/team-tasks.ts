@@ -77,6 +77,8 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined 
 const fail = (error: string): Outcome => ({ ok: false, error });
 
 export class TeamTasks {
+  /** Says why a worker can't be given work (a new hire still in its interview), or nothing. */
+  blocked?: (workerId: string) => string | undefined;
   private tasks: TeamTask[] = [];
   private managerId?: string;
   private next = 1;
@@ -169,6 +171,8 @@ export class TeamTasks {
     if (by.boss) {
       const who = typeof input.assignee === 'string' && input.assignee.trim() ? findWorker(workers.filter((w) => w.kind === 'agent'), input.assignee) : undefined;
       if (typeof who === 'string') return fail(who);
+      const why = who && this.blocked?.(who.id);
+      if (why) return fail(why);
       if (who) {
         task.assignee = { id: who.id, name: who.name };
         if (who.id !== by.id) notices.push({ to: who.id, text: `کار تازه برای تو: ${task.id} «${task.title}»${task.detail ? `\n${task.detail}` : ''}\nوقتی شروع کردی وضعیتش را «doing» کن و وقتی تمام شد «review» (با update_task). کار را فقط از طریق مدیر هماهنگ کن.` });
@@ -218,6 +222,8 @@ export class TeamTasks {
         else {
           const who = findWorker(workers.filter((w) => w.kind === 'agent'), input.assignee);
           if (typeof who === 'string') return fail(who);
+          const why = task.assignee?.id !== who.id ? this.blocked?.(who.id) : undefined;
+          if (why) return fail(why);
           if (task.assignee?.id !== who.id) {
             task.assignee = { id: who.id, name: who.name };
             if (who.id !== by.id) notices.push({ to: who.id, text: `کار ${task.id} «${task.title}» به تو داده شد.${task.detail ? `\n${task.detail}` : ''}` });

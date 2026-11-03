@@ -1,0 +1,99 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { Interviews, interviewPrompt, slugOf } from '../src/server/team-interviews.js';
+import { TeamTasks } from '../src/server/team-tasks.js';
+import type { WorkerInfo } from '../src/shared/protocol.js';
+
+function fresh() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'interviews-'));
+  const people = path.join(dir, 'people');
+  return { dir, people, i: new Interviews(dir, people), done: () => rmSync(dir, { recursive: true, force: true }) };
+}
+const begin = (i: Interviews) => i.start({ worker: 'w1', name: 'سارا نادری', role: 'ایده‌یاب سئو', desk: 'desk-1', skill: 'سه ایده‌ی مقاله بده' });
+
+test('a hire starts an interview and a profile folder with what the person wrote', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    assert.equal(x.status, 'talking');
+    assert.match(readFileSync(path.join(t.people, x.slug, 'skill.md'), 'utf8'), /سه ایده‌ی مقاله بده/);
+    assert.ok(existsSync(path.join(t.people, x.slug, 'memory.md')));
+    assert.equal(slugOf('سارا نادری', () => false), 'سارا-نادری');
+    assert.equal(slugOf('a', (s) => s === 'a'), 'a-2');
+    assert.match(interviewPrompt('سارا', 'ایده‌یاب', 'x', 'freelance-team/people/سارا'), /interview_finish/);
+  } finally {
+    t.done();
+  }
+});
+
+test('the agent and the person talk, and the agent finishes with its own files', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    assert.equal(t.i.say('w1', 'سلام، من سارا هستم').ok, true);
+    assert.equal(t.i.say('other', 'سلام').ok, false);
+    const r = t.i.bossSay(x.id, 'مشتری‌ها کافه‌دارها هستند');
+    assert.ok(r.ok && r.notices[0].to === 'w1' && /کافه‌دارها/.test(r.notices[0].text));
+    assert.equal(t.i.finish('w1', { summary: 'خلاصه', skill: '# مهارت', memory: '' , access: 'مرورگر' }).ok, false);
+    assert.equal(t.i.finish('w1', { summary: 'خلاصه', skill: '# مهارت بهتر', memory: '# یاد گرفتم', access: 'مرورگر دارم؛ حساب سرچ کنسول لازم است' }).ok, true);
+    assert.equal(x.status, 'review');
+    assert.equal(readFileSync(path.join(t.people, x.slug, 'skill.md'), 'utf8').trim(), '# مهارت بهتر');
+    assert.match(x.access ?? '', /سرچ کنسول/);
+    assert.deepEqual(x.messages.map((m) => m.by), ['agent', 'boss', 'agent']);
+  } finally {
+    t.done();
+  }
+});
+
+test('it can not be hired before it finishes, unless the person skips; it is given no work meanwhile', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    assert.match(t.i.blocking('w1') ?? '', /مصاحبه/);
+    assert.equal(t.i.decide(x.id, 'hire').ok, false);
+    t.i.finish('w1', { summary: 's', skill: 'a', memory: 'b', access: 'c' });
+    assert.match(t.i.blocking('w1') ?? '', /مصاحبه/);
+    assert.equal(t.i.decide(x.id, 'hire').ok, true);
+    assert.equal(t.i.blocking('w1'), undefined);
+    assert.equal(t.i.decide(x.id, 'hire').ok, false);
+    const y = t.i.start({ worker: 'w2', name: 'نیما', role: 'نویسنده', desk: 'desk-2', skill: '' });
+    assert.equal(t.i.decide(y.id, 'skip').ok, true);
+    assert.equal(t.i.blocking('w2'), undefined);
+  } finally {
+    t.done();
+  }
+});
+
+test('a rejected candidate leaves no folder, and a restart keeps the interview going', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    const again = new Interviews(t.dir, t.people);
+    assert.equal(again.open('w1')?.id, x.id);
+    t.i.decide(x.id, 'reject');
+    assert.equal(existsSync(path.join(t.people, x.slug)), false);
+    assert.equal(t.i.all().length, 0);
+  } finally {
+    t.done();
+  }
+});
+
+test('tasks and the team manager can not hand work to someone still in an interview', () => {
+  const t = fresh();
+  try {
+    begin(t.i);
+    const tasks = new TeamTasks(t.dir);
+    tasks.blocked = (id) => t.i.blocking(id);
+    const workers = [{ id: 'w1', name: 'سارا نادری', kind: 'agent' }] as unknown as WorkerInfo[];
+    const boss = { name: 'مدیر', boss: true };
+    const r = tasks.create(boss, { title: 'کار', assignee: 'w1' }, workers);
+    assert.equal(r.ok, false);
+    t.i.decide('I-1', 'skip');
+    assert.equal(tasks.create(boss, { title: 'کار', assignee: 'w1' }, workers).ok, true);
+  } finally {
+    t.done();
+  }
+});

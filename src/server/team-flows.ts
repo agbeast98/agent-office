@@ -76,6 +76,8 @@ export interface FlowDeps {
   workers: () => WorkerInfo[];
   tell: (notices: Notice[], by: string) => void;
   notify: (text: string) => void;
+  /** Why a worker can't be given work yet, if it can't. */
+  blocked?: (workerId: string) => string | undefined;
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -272,6 +274,8 @@ export class Flows {
       const w = findWorker(agents, s.who);
       if (typeof w === 'string') return fail(`مرحله‌ی ${i + 1} «${s.title}»: ${w}`);
       s.who = w.id;
+      const why = this.deps.blocked?.(w.id);
+      if (why) return fail(`مرحله‌ی ${i + 1} «${s.title}»: ${why}`);
     }
     const now = Date.now();
     const run: Run = { id: `R-${this.next.run++}`, scenario: scenario.id, name: scenario.name, boss: boss.id, steps, maxReturns: scenario.maxReturns, input: text(input, 3000), status: 'running', idx: 0, returns: 0, parts: [], outputs: {}, log: [], startedAt: now, updatedAt: now };
