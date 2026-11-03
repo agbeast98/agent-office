@@ -126,6 +126,16 @@ export class Teams {
     if (this.teams.length !== before) this.save();
   }
 
+  /** The same person on another engine has a new worker id: the team, its proposals and their seat follow it. */
+  swap(from: string, to: string) {
+    for (const t of this.teams) {
+      if (t.manager === from) t.manager = to;
+      t.members = t.members.map((m) => (m === from ? to : m));
+    }
+    for (const p of this.proposals) if (p.worker === from) p.worker = to;
+    this.save();
+  }
+
   /** Takes a worker out of its team: it works for itself again. */
   leave(worker: string): boolean {
     let changed = false;

@@ -95,3 +95,24 @@ test('the manager comments on an interview, seen in its chat, and the candidate 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the same person on another engine keeps their place: team, manager seat, interviews', () => {
+  const x = fresh();
+  try {
+    x.t.create('سئو', 'm1');
+    x.t.add('T1', 'w1');
+    x.t.swap('w1', 'w9');
+    x.t.swap('m1', 'm9');
+    assert.equal(x.t.teamOf('w9')?.name, 'سئو');
+    assert.equal(x.t.teamOf('w1'), undefined);
+    assert.ok(x.t.isManager('m9'));
+    assert.equal(x.t.isManager('m1'), false);
+    const i = new Interviews(x.dir, path.join(x.dir, 'people'));
+    const iv = i.start({ worker: 'w9', name: 'آرمین', role: 'تصویرساز', desk: 'desk-1', skill: '' });
+    i.decide(iv.id, 'skip');
+    i.swap('w9', 'w10');
+    assert.equal(i.all().filter((a) => a.worker === 'w10').length, 1);
+  } finally {
+    x.done();
+  }
+});

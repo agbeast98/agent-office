@@ -1,5 +1,5 @@
 import { h } from '../../ui/dom';
-import type { Call, Person, Proposal, State, TeamView } from './hiring-types';
+import { ENGINES, type Call, type Person, type Proposal, type State, type TeamView } from './hiring-types';
 
 // The تیم‌ها tab of the استخدام window: each team with its manager and members, what its manager proposes, the
 // thread in which the person asks the manager whether the team is enough, and those who work alone.
@@ -12,8 +12,13 @@ const post = (p: Person) => (p.role ?? '').split(':')[0].trim() || 'بدون س�
 const drafts = new Map<string, string>();
 
 export function teamsTab(state: State, call: Call, useProposal: (p: Proposal) => void): HTMLElement[] {
-  const person = (p: Person, boss = false) => h('div.hr-person', { class: p.interview ? 'talk' : '' },
-    h('b', {}, p.name), h('small', {}, `${boss ? '🧭 مدیر · ' : ''}${post(p)}${p.interview ? ' · در مصاحبه' : ''}`));
+  const engineOf = (p: Person) => ENGINES.find(([v]) => v === (p.provider ?? 'claude'))?.[1] ?? p.provider ?? 'Claude';
+  const person = (p: Person, boss = false) => {
+    const sel = h('select', { 'aria-label': 'موتور', title: 'همین آدم با موتور دیگر؛ پروفایل و جایش در تیم می‌ماند' }, ...ENGINES.filter(([v]) => v && v !== (p.provider ?? 'claude')).map(([v, l]) => h('option', { value: v }, l))) as HTMLSelectElement;
+    return h('div.hr-person', { class: p.interview ? 'talk' : '' },
+      h('b', {}, p.name), h('small', {}, `${boss ? '🧭 مدیر · ' : ''}${post(p)}${p.interview ? ' · در مصاحبه' : ''} · ${engineOf(p)}`),
+      p.interview ? null : h('div.mg-row', {}, sel, h('button.btn', { type: 'button', onclick: () => confirm(`${p.name} با ${sel.selectedOptions[0]?.textContent ?? ''} دوباره راه‌اندازی شود؟ پروفایل و جایش در تیم می‌ماند.`) && void call('switch', { worker: p.id, provider: sel.value }) }, '🔁 تغییر موتور')));
+  };
 
   const proposalCard = (p: Proposal) => h('div.hr-prop', {},
     h('div.sec-hh', {}, h('b', {}, p.kind === 'hire' ? `پیشنهاد استخدام: ${p.role}` : `پیشنهاد عضو شدن: ${p.workerName ?? '؟'}`), h('small', {}, `از ${p.by} · ${ago(p.at)}`)),

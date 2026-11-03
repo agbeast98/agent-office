@@ -123,6 +123,13 @@ export class Interviews {
     return this.list.find((i) => i.worker === worker && (i.status === 'talking' || i.status === 'review'));
   }
 
+  /** The same person on another engine: its interviews follow the new worker id. */
+  swap(from: string, to: string) {
+    let changed = false;
+    for (const i of this.list) if (i.worker === from) { i.worker = to; changed = true; }
+    if (changed) this.save();
+  }
+
   /** Why a worker can't be given work yet: it hasn't been hired. */
   blocking(worker: string): string | undefined {
     const i = this.open(worker);

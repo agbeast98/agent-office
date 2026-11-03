@@ -6,6 +6,7 @@ import { DESK_BY_ID, SEATS, deskBuilt } from '../../../shared/layout.js';
 import { askAboutInterview, askAdvice, tellManager, writeRoster } from '../../hiring-glue.js';
 import { tell } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
+import { isAgentProvider } from '../../../shared/providers.js';
 import { interviewPrompt } from '../../team-interviews.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
@@ -26,7 +27,7 @@ export const hiringRoutes = {
       const interviews = floor.interviews;
       const person = (id: string) => {
         const w = workers.find((x) => x.id === id);
-        return w && { id: w.id, name: w.name, role: w.role, status: w.status, interview: interviews.open(w.id)?.id };
+        return w && { id: w.id, name: w.name, role: w.role, status: w.status, provider: w.provider, interview: interviews.open(w.id)?.id };
       };
       const inTeam = new Set(floor.teams.teams.flatMap((t) => [t.manager, ...t.members]));
       return send(res, 200, {
@@ -49,7 +50,7 @@ export const hiringRoutes = {
       });
     },
   },
-  /** POST /api/hiring/action?floor=<id>: { action: hire | company | say | askManager | hired | reject | skip | advise | adopt | leave | proposal, ... } */
+  /** POST /api/hiring/action?floor=<id>: { action: hire | switch | company | say | askManager | hired | reject | skip | advise | adopt | leave | proposal, ... } */
   action: {
     method: 'POST',
     path: '/api/hiring/action',
@@ -100,7 +101,8 @@ export const hiringRoutes = {
           const folder = `freelance-team/people/${probe.slug}`;
           const managerName = team ? floor.workers.get(team.manager)?.name : undefined;
           const about = mode === 'solo' ? undefined : { name: team?.name ?? teamName, manager: managerName, isManager: mode === 'newteam' };
-          const r = floor.workers.spawn(desk, by, interviewPrompt(name, role, skill, folder, about), false, 'agent');
+          const provider = isAgentProvider(body.provider) ? body.provider : undefined;
+          const r = floor.workers.spawn(desk, by, interviewPrompt(name, role, skill, folder, about), false, 'agent', provider);
           if (typeof r === 'string') {
             interviews.discard(probe);
             return bad(r);
@@ -116,6 +118,52 @@ export const hiringRoutes = {
           writeRoster(floor);
           ctx.toastFloor(floor, `🧑‍💼 ${by} ${name} را برای مصاحبه آورد`);
           return send(res, 200, { ok: true, interview: probe.id });
+        }
+        case 'switch': {
+          // The same person on another engine (say Codex instead of Claude): a new worker at the same desk that
+          // reads the profile it already has, then takes the old one's place in the team.
+          const id = str(body.worker, 32);
+          const old = floor.workers.get(id);
+          const provider = isAgentProvider(body.provider) ? body.provider : undefined;
+          const last = interviews.all().filter((i) => i.worker === id).pop();
+          // A worker already gone (a switch that failed half-way) is brought back from its profile.
+          if (!provider || (old ? old.kind !== 'agent' : !last)) return bad('ایجنت یا موتور درست نیست');
+          if (old && provider === old.provider) return bad('همین الان روی همین موتور است');
+          if (interviews.open(id)) return bad('اول مصاحبه‌ی او را تمام کنید');
+          // Before anyone is sent home: a new worker can't start while hiring is paused (budget), and he'd be lost.
+          if (ctx.ledger.hiringPaused) return bad(ctx.ledger.hiringPaused);
+          const team = teams.teamOf(id);
+          const manager = team && !teams.isManager(id) ? floor.workers.get(team.manager)?.name : undefined;
+          const keep = old
+            ? { name: old.name, role: old.role ?? '', desk: old.deskId }
+            : { name: last!.name, role: `${last!.role}: پروفایل تو در freelance-team/people/${last!.slug}/skill.md و memory.md است؛ در شروع هر کار بخوانشان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.`, desk: last!.desk };
+          if (old) {
+            const home = await floor.sendHome(id);
+            if (home.error) return bad(home.error);
+          }
+          const folder = last ? `freelance-team/people/${last.slug}` : undefined;
+          const intro = [
+            `تو «${keep.name}» هستی؛ همان آدمی که قبلاً با سمت «${keep.role.split(':')[0]}» در این دفتر کار می‌کرد و حالا موتور اجرایت عوض شده است. هیچ کاری نکن و مصاحبه‌ی تازه‌ای در کار نیست.`,
+            team ? (teams.isManager(id) ? `تو مدیر تیم «${team.name}» هستی.` : `تو عضو تیم «${team.name}» هستی${manager ? ` و مدیرت ${manager} است` : ''}.`) : '',
+            `فایل‌های freelance-team/company.md (کسب‌وکار)، ${folder ? `${folder}/skill.md و memory.md (پروفایل خودت)` : 'پروفایل خودت'} و freelance-team/people/ROSTER.md (تیم) را یک بار بخوان و بعد منتظر کار بمان. در شروع هر کار دوباره پروفایلت را بخوان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.`,
+          ].filter(Boolean).join(String.fromCharCode(10).repeat(2));
+          const made = floor.workers.spawn(keep.desk, by, intro, false, 'agent', provider);
+          if (typeof made === 'string') {
+            // Back on the engine it had, so a failed switch never loses someone.
+            const back = old ? floor.workers.spawn(keep.desk, by, intro, false, 'agent', old.provider) : undefined;
+            if (back && typeof back !== 'string') {
+              floor.workers.describe(back.id, { name: keep.name, role: keep.role });
+              teams.swap(id, back.id);
+              interviews.swap(id, back.id);
+            }
+            return bad(made);
+          }
+          floor.workers.describe(made.id, { name: keep.name, role: keep.role });
+          teams.swap(id, made.id);
+          interviews.swap(id, made.id);
+          writeRoster(floor);
+          ctx.toastFloor(floor, `🔁 ${keep.name} حالا با ${provider} کار می‌کند`);
+          return send(res, 200, { ok: true });
         }
         case 'company': {
           if (typeof body.text !== 'string') return bad('متن لازم است');
@@ -184,7 +232,7 @@ export const hiringRoutes = {
           return send(res, 200, { ok: true });
         }
         default:
-          return bad('action is hire, company, say, askManager, hired, reject, skip, advise, adopt, leave or proposal');
+          return bad('action is hire, switch, company, say, askManager, hired, reject, skip, advise, adopt, leave or proposal');
       }
     },
   },

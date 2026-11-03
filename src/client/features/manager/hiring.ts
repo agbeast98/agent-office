@@ -1,7 +1,7 @@
 import './hiring.css';
 import { h, openModal, toast } from '../../ui/dom';
 import { teamsTab } from './hiring-teams';
-import type { Desk, Draft, Interview, Proposal, State } from './hiring-types';
+import { ENGINES, type Desk, type Draft, type Interview, type Proposal, type State } from './hiring-types';
 
 // The استخدام window: the map of the floor's desks (who sits where, which are free), hiring at a free desk (alone,
 // into a team, or as the manager of a new team) with a name, a post and a description of the job, and the new
@@ -23,7 +23,7 @@ export function openHiring(floor: string, desk?: string) {
   let selected: string | undefined = desk;
   let timer: ReturnType<typeof setInterval> | undefined;
   let seen = '';
-  const draft: Draft = { mode: 'newteam', team: '', teamName: '', name: '', role: '', skill: '' };
+  const draft: Draft = { mode: 'newteam', team: '', teamName: '', name: '', role: '', skill: '', provider: '' };
 
   const nav = h('nav.sec-nav', { role: 'tablist' });
   const mapBox = h('div.hr-map');
@@ -121,8 +121,11 @@ export function openHiring(floor: string, desk?: string) {
     teamSel.addEventListener('change', () => (draft.team = teamSel.value));
     const teamName = h('input', { value: draft.teamName, maxlength: '50', placeholder: 'نام تیم، مثلاً سئو', dir: 'auto' }) as HTMLInputElement;
     teamName.addEventListener('input', () => (draft.teamName = teamName.value));
+    const engine = h('select', { 'aria-label': 'موتور' }, ...ENGINES.map(([v, l]) => h('option', { value: v }, l))) as HTMLSelectElement;
+    engine.value = draft.provider;
+    engine.addEventListener('change', () => (draft.provider = engine.value));
     const go = h('button.btn.primary', { type: 'button', disabled: !!state.paused, onclick: async () => {
-      if (await call('hire', { desk: d.id, mode: draft.mode, team: draft.team, teamName: draft.teamName, name: draft.name, role: draft.role, skill: draft.skill, proposal: draft.proposal })) {
+      if (await call('hire', { desk: d.id, mode: draft.mode, team: draft.team, teamName: draft.teamName, name: draft.name, role: draft.role, skill: draft.skill, provider: draft.provider || undefined, proposal: draft.proposal })) {
         Object.assign(draft, { name: '', role: '', skill: '', teamName: '', proposal: undefined });
         toast('ایجنت آمد و مصاحبه شروع شد');
       }
@@ -140,6 +143,7 @@ export function openHiring(floor: string, desk?: string) {
       h('label.sec-field', {}, h('span', {}, 'نام'), name),
       h('label.sec-field', {}, h('span', {}, 'سمت'), role),
       h('label.sec-field', {}, h('span', {}, 'شرح کار و مهارت (همان چیزی که از او می‌خواهید)'), skill),
+      h('label.sec-field', {}, h('span', {}, 'با کدام موتور کار کند؟'), engine),
       h('div.mg-empty', {}, 'بعد از استخدام، ایجنت اول با شما مصاحبه می‌کند: خودش را معرفی می‌کند، سؤال می‌پرسد، نظرش را می‌گوید و دسترسی‌هایی را که دارد یا لازم دارد اعلام می‌کند. تا استخدام نشده به او کاری داده نمی‌شود.'),
       go);
   };
