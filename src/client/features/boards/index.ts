@@ -128,7 +128,7 @@ export function installBoards(ctx: Ctx, deps: BoardsDeps) {
     reach: 9,
     hint: () => {
       const n = store.queue.tasks.filter((t) => t.status !== 'done').length;
-      return { k: String(n), parts: [hintTitle(`📋 Task queue${n ? ` · ${n}` : ''}`), key('E', 'Open')] };
+      return { k: String(n), parts: [hintTitle(`📋 صف تسک‌ها${n ? ` · ${n}` : ''}`), key('E', 'باز کردن')] };
     },
     use: onE(() => deps.showQueue()),
   });

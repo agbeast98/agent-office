@@ -115,7 +115,7 @@ export function openSearch(openTerminal: (workerId: string, find: TerminalFind) 
       return;
     }
     if (!found) {
-      status.textContent = `Finds words in the office chat and in every worker's terminal, including what they showed before the office restarted.`;
+      status.textContent = `کلمه‌ها را در گفتگوی دفتر و ترمینال همهٔ ایجنت‌ها پیدا می‌کند، حتی آنچه پیش از راه‌اندازی دوبارهٔ دفتر نشان داده بودند.`;
       results.replaceChildren();
       return;
     }

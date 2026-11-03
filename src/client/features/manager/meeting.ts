@@ -37,7 +37,7 @@ export function openTeamMeeting(floor: string, special?: () => void) {
   const endBtn = h('button.btn', { type: 'button' }, '✓ پایان جلسه');
   const title = h('h2', {}, '🤝 اتاق جلسه');
   const dock = composer((a, x) => act(a, x));
-  const el = h('div.modal.manager-window.meetroom', { role: 'dialog', 'aria-label': 'اتاق جلسه', lang: 'fa', dir: 'rtl' },
+  const el = h('div.modal.meetroom', { role: 'dialog', 'aria-label': 'اتاق جلسه', lang: 'fa', dir: 'rtl' },
     h('header', {}, title, pill, endBtn), h('div.mr-body', {}, nav, h('div.mr-pane', {}, main, dock.el)), msg);
   openModal(el, { doing: 'در اتاق جلسه', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 

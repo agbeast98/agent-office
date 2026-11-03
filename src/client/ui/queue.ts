@@ -46,8 +46,8 @@ export function openQueue(net: Net, actions: QueueActions) {
   plus.addEventListener('click', () => net.send({ t: 'queue.limit', maxWorkers: store.queue.maxWorkers + 1 }));
   const el = h(
     'div.modal',
-    { role: 'dialog', 'aria-label': 'Task queue', style: 'width:min(800px,100%)' },
-    h('header', {}, h('h2', {}, '📋 Task queue'), limit, close),
+    { role: 'dialog', 'aria-label': 'صف تسک‌ها', style: 'width:min(800px,100%)' },
+    h('header', {}, h('h2', {}, '📋 صف تسک‌ها'), limit, close),
     body,
     h('footer', {}, h('span.grow', {}, 'The queue keeps going while you are away. Set “workers at once” to 0 to pause it.')),
   );
@@ -159,14 +159,14 @@ export function openQueue(net: Net, actions: QueueActions) {
       h(
         'p.note',
         {},
-        'Or open the 📌 Issues board and click ',
-        h('b', {}, 'Add to queue'),
-        ' on an issue. Whenever a desk is free and fewer than ',
+        'یا تختهٔ 📌 مشکلات را باز کنید و روی یک مورد ',
+        h('b', {}, 'افزودن به صف'),
+        ' را بزنید. هر وقت میزی خالی باشد و کمتر از ',
         h('b', {}, q.maxWorkers === 0 ? '0' : String(q.maxWorkers)),
-        " of its tasks are running, the next task gets a fresh worker in its own git worktree (workers you hire yourself don't count). Issues are assigned on GitHub when they start, and the pull request is linked when it shows up.",
+        ' تسک از صف در حال اجرا باشد، تسک بعدی یک ایجنت تازه در یک worktree جداگانهٔ گیت می‌گیرد (ایجنت‌هایی که خودتان استخدام کرده‌اید حساب نمی‌شوند). مشکل‌ها هنگام شروع در گیت‌هاب به ایجنت سپرده می‌شوند و درخواست ادغام (PR) به‌محض ساخته‌شدن وصل می‌شود.',
       ),
       queued.length && officeFull(m)
-        ? h('p.note', {}, `⏸ The office is at its limit of ${m.limit} worker${m.limit === 1 ? '' : 's'}, so the next task waits until one goes home. A queue worker that's finished goes home by itself to make room.`)
+        ? h('p.note', {}, `⏸ دفتر به سقف ${m.limit} ایجنت رسیده است؛ تسک بعدی منتظر می‌ماند تا یکی برود. ایجنت صفی که کارش تمام شود خودش می‌رود تا جا باز شود.`)
         : null,
       section('🤖 Working on it', running),
       section('⏳ Up next', queued),

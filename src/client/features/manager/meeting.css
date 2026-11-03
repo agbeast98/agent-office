@@ -1,5 +1,8 @@
 /* The meeting room's window: a rail of sections on the right, the section in the middle, the box to speak under the conversation. */
-.meetroom { width: min(1080px, 96vw); height: min(740px, 93vh); }
+.meetroom { width: min(1080px, 96vw); height: min(740px, 93vh); display: flex; flex-direction: column; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
+.meetroom h2 { margin: 0; font-size: 18px; }
+.meetroom > header { display: flex; align-items: center; gap: 12px; direction: ltr; } .meetroom > header > * { direction: rtl; } .meetroom > header .close { margin-left: auto; }
+html[dir="rtl"] .meetroom > header .close { margin-left: 0; margin-right: auto; }
 .meetroom > header h2 { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mr-pill { padding: 2px 10px; border: 2px solid var(--ink); border-radius: 14px; font-size: 12px; font-weight: 800; background: #eee; }
 .mr-pill.on { background: #c9f0d3; }

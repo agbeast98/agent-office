@@ -50,7 +50,7 @@ export function openServices() {
   const body = h('div.body.team.services');
   const close = h('button.btn.close', { 'aria-label': 'Close' }, '✕');
   const tabs = h('div.os-tabs');
-  const footer = h('footer', {}, h('span.grow', {}, 'Tunnels go through the office, so the office password still guards every page. Keep the terminal open while you look.'));
+  const footer = h('footer', {}, h('span.grow', {}, 'تونل‌ها از دفتر می‌گذرند، پس رمز دفتر همچنان از هر صفحه محافظت می‌کند. تا وقتی نگاه می‌کنید ترمینال را باز نگه دارید.'));
   const el = h(
     'div.modal',
     { role: 'dialog', 'aria-label': 'Services', style: 'width:min(760px,100%)' },
@@ -75,8 +75,8 @@ export function openServices() {
       ),
     );
     footer.firstElementChild!.textContent = direct
-      ? 'Every link goes through the office, so the office sign-in still guards every page.'
-      : 'Tunnels go through the office, so the office password still guards every page. Keep the terminal open while you look.';
+      ? 'هر پیوند از دفتر می‌گذرد، پس ورود به دفتر همچنان از هر صفحه محافظت می‌کند.'
+      : 'تونل‌ها از دفتر می‌گذرند، پس رمز دفتر همچنان از هر صفحه محافظت می‌کند. تا وقتی نگاه می‌کنید ترمینال را باز نگه دارید.';
     body.replaceChildren(
       h(
         'p.note',
@@ -110,8 +110,8 @@ export function openServices() {
         h(
           'div.svc-empty',
           {},
-          h('p', {}, 'Nothing running yet.'),
-          h('p.note', {}, 'When a worker starts a web server — ', h('code', {}, 'npm run dev'), ', a preview build, ', h('code', {}, 'python -m http.server'), ' — it shows up here within a few seconds. Try prompting: “start the dev server in the background so we can review it”.'),
+          h('p', {}, 'هنوز چیزی در حال اجرا نیست.'),
+          h('p.note', {}, 'وقتی یک ایجنت وب‌سرور راه بیندازد — ', h('code', {}, 'npm run dev'), '، نسخهٔ پیش‌نمایش، ', h('code', {}, 'python -m http.server'), ' — چند ثانیه بعد همین‌جا دیده می‌شود. می‌توانید بگویید: «سرور توسعه را در پس‌زمینه راه بینداز تا بررسی کنیم».'),
         ),
       );
       return;
