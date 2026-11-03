@@ -31,6 +31,7 @@ export const hiringRoutes = {
       const inTeam = new Set(floor.teams.teams.flatMap((t) => [t.manager, ...t.members]));
       return send(res, 200, {
         paused: ctx.ledger.hiringPaused ?? null,
+        company: interviews.company(),
         desks: SEATS.filter((d) => !d.station && !d.room && !d.beanbag && deskBuilt(d, wing)).map((d) => {
           const w = at(d.id);
           return { id: d.id, label: d.label, x: d.x, z: d.z, rotY: d.rotY, worker: w && { id: w.id, name: w.name, role: w.role, status: w.status }, interview: w ? interviews.open(w.id)?.id : undefined };
@@ -48,7 +49,7 @@ export const hiringRoutes = {
       });
     },
   },
-  /** POST /api/hiring/action?floor=<id>: { action: hire | say | askManager | hired | reject | skip | advise | adopt | leave | proposal, ... } */
+  /** POST /api/hiring/action?floor=<id>: { action: hire | company | say | askManager | hired | reject | skip | advise | adopt | leave | proposal, ... } */
   action: {
     method: 'POST',
     path: '/api/hiring/action',
@@ -66,6 +67,7 @@ export const hiringRoutes = {
         return send(res, 400, { error: 'Bad request' });
       }
       const by = session.account?.name ?? 'مدیرعامل';
+      if (typeof body.text === 'string' && body.action === 'company') body.text = body.text.slice(0, 12_000);
       const { interviews, teams } = floor;
       const bad = (error: string) => send(res, 400, { error });
       switch (body.action) {
@@ -92,6 +94,7 @@ export const hiringRoutes = {
             if (teams.teams.some((t) => t.name === teamName)) return bad('تیمی با این نام هست');
             if (!/مدیر|manager/i.test(role)) role = `مدیر تیم ${teamName}`;
           }
+          interviews.ensureCompany();
           // The folder it will keep its profile in, named before it starts so the first message can say where.
           const probe = interviews.start({ worker: '', name, role, desk, skill, team: team?.id, isManager: mode === 'newteam' });
           const folder = `freelance-team/people/${probe.slug}`;
@@ -113,6 +116,11 @@ export const hiringRoutes = {
           writeRoster(floor);
           ctx.toastFloor(floor, `🧑‍💼 ${by} ${name} را برای مصاحبه آورد`);
           return send(res, 200, { ok: true, interview: probe.id });
+        }
+        case 'company': {
+          if (typeof body.text !== 'string') return bad('متن لازم است');
+          if (!interviews.saveCompany(body.text)) return bad('ذخیره نشد');
+          return send(res, 200, { ok: true });
         }
         case 'say': {
           const r = interviews.bossSay(str(body.id, 20), body.text);
@@ -176,7 +184,7 @@ export const hiringRoutes = {
           return send(res, 200, { ok: true });
         }
         default:
-          return bad('action is hire, say, askManager, hired, reject, skip, advise, adopt, leave or proposal');
+          return bad('action is hire, company, say, askManager, hired, reject, skip, advise, adopt, leave or proposal');
       }
     },
   },

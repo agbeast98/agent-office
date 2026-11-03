@@ -43,3 +43,5 @@ html[dir="rtl"] .hirewin > header .close { margin-left: 0; margin-right: auto; }
 .hr-advice { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--muted); }
 .hr-msg.manager { align-self: center; background: #e6f4ea; border: 1px dashed #2c7a43; }
 .hr-warn.ok { background: #e6f4ea; color: #2c7a43; }
+.hr-card.company > summary { cursor: pointer; font-weight: 700; }
+.hr-card.company textarea { min-height: 140px; }

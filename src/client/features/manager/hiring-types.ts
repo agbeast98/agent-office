@@ -9,7 +9,7 @@ export interface Interview {
 export interface Proposal { id: string; team: string; kind: 'hire' | 'adopt'; by: string; role: string; skill: string; why: string; worker?: string; workerName?: string; at: number }
 export interface Advice { team: string; by: 'boss' | 'manager'; text: string; at: number }
 export interface TeamView { id: string; name: string; manager: Person | null; members: Person[]; advice: Advice[]; proposals: Proposal[] }
-export interface State { paused: string | null; desks: Desk[]; interviews: Interview[]; teams: TeamView[]; alone: Person[] }
+export interface State { paused: string | null; company: string; desks: Desk[]; interviews: Interview[]; teams: TeamView[]; alone: Person[] }
 
 /** What is typed in the hire form stays while the window redraws. */
 export interface Draft { mode: 'solo' | 'team' | 'newteam'; team: string; teamName: string; name: string; role: string; skill: string; proposal?: string }

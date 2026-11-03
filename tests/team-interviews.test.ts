@@ -97,3 +97,21 @@ test('tasks and the team manager can not hand work to someone still in an interv
     t.done();
   }
 });
+
+test('the business is written once in company.md and every interview is told to read it first', () => {
+  const t = fresh();
+  try {
+    assert.equal(t.i.company(), '');
+    t.i.ensureCompany();
+    assert.match(t.i.company(), /## خدمت‌ها/);
+    assert.equal(t.i.saveCompany('# Khat Web\nسایت فروشگاهی'), true);
+    t.i.ensureCompany();
+    assert.match(t.i.company(), /سایت فروشگاهی/);
+    assert.equal(path.dirname(t.i.companyFile ?? ''), t.dir);
+    const prompt = interviewPrompt('سارا', 'ایده‌یاب', 'x', 'freelance-team/people/سارا');
+    assert.match(prompt, /freelance-team\/company\.md/);
+    assert.match(prompt, /دوباره نپرس/);
+  } finally {
+    t.done();
+  }
+});

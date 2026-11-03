@@ -18,7 +18,7 @@ export function openHiring(floor: string, desk?: string) {
   if (opened) return;
   opened = true;
   const qs = new URLSearchParams({ floor }).toString();
-  let state: State = { paused: null, desks: [], interviews: [], teams: [], alone: [] };
+  let state: State = { paused: null, company: '', desks: [], interviews: [], teams: [], alone: [] };
   let tab: Tab = 'hire';
   let selected: string | undefined = desk;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -204,6 +204,23 @@ export function openHiring(floor: string, desk?: string) {
     return !!a && el.contains(a) && ['INPUT', 'TEXTAREA'].includes(a.tagName) && !!(a as HTMLInputElement).value;
   };
 
+  // ---- The business, written once for everyone ----
+
+  /** What is typed into the business box and not saved yet, so a redraw does not lose it. */
+  let companyDraft: string | undefined;
+
+  const companyCard = () => {
+    const text = h('textarea', { rows: '8', maxlength: '12000', dir: 'auto', placeholder: 'کسب‌وکار، خدمت‌ها، بازار، رقبا، قوانین…' }) as HTMLTextAreaElement;
+    text.value = companyDraft ?? state.company;
+    text.addEventListener('input', () => (companyDraft = text.value));
+    const filled = state.company.replace(/\(.*?\)/g, '').replace(/[#\s\-]/g, '').length > 120;
+    return h('details.hr-card.company', { open: !filled || companyDraft !== undefined },
+      h('summary', {}, `📘 کسب‌وکار شما، برای همه‌ی نیروها${filled ? '' : ' (هنوز خالی است)'}`),
+      h('div.mg-empty', {}, 'هر ایجنت تازه اول این را می‌خواند و همان چیزها را دوباره نمی‌پرسد. چیزهایی که در مصاحبه‌ها یاد می‌گیرند زیر «افزوده‌ها» به آن اضافه می‌کنند.'),
+      text,
+      h('button.btn.primary', { type: 'button', onclick: async () => { if (await call('company', { text: text.value })) { companyDraft = undefined; toast('ذخیره شد'); } } }, 'ذخیره'));
+  };
+
   const render = () => {
     const waiting = state.teams.reduce((n, t) => n + t.proposals.length, 0);
     const tabs: [Tab, string][] = [['hire', '🎤 استخدام و مصاحبه'], ['teams', `👥 تیم‌ها${waiting ? ` (${waiting} پیشنهاد)` : ''}`]];
@@ -216,9 +233,9 @@ export function openHiring(floor: string, desk?: string) {
     const iv = d ? interviewAt(d) : undefined;
     drawMap();
     panel.replaceChildren(...(iv ? [interviewPanel(iv)]
-      : d && !d.worker ? [hireForm(d)]
+      : d && !d.worker ? [companyCard(), hireForm(d)]
       : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, (d.worker.role ?? 'بدون سمت').split(':')[0]), h('div.mg-empty', {}, `${d.label} · استخدام‌شده`))]
-      : [h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, state.teams.length ? 'یک میز خالی را روی نقشه انتخاب کنید.' : 'یک میز خالی را روی نقشه انتخاب کنید و اولین نفر را «مدیر یک تیم تازه» استخدام کنید.')),
+      : [companyCard(), h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, state.teams.length ? 'یک میز خالی را روی نقشه انتخاب کنید.' : 'یک میز خالی را روی نقشه انتخاب کنید و اولین نفر را «مدیر یک تیم تازه» استخدام کنید.')),
         ...state.interviews.map((x) => h('button.mr-tab', { type: 'button', onclick: () => { selected = x.desk; render(); } }, `🎤 ${x.name} · ${x.status === 'review' ? 'منتظر تصمیم شما' : 'در مصاحبه'}`))]));
   };
 
