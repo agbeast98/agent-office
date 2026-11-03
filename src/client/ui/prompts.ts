@@ -3,6 +3,7 @@ import type { Net } from '../net';
 import { store } from '../state';
 import { PROMPTS, PROMPT_GROUPS, PROMPT_IDS, PROMPT_MAX, fillPrompt, placeholders, promptText, type PromptGroup, type PromptId, type PromptVars } from '../../shared/prompts';
 import { h, openModal, timeAgo } from './dom';
+import { fa } from './fa-locale';
 
 /** One of the office's prompts, as it has it now (rewritten in ⚙️ Settings, or the default), filled in. */
 export function officePrompt(id: PromptId, vars: PromptVars = {}): string {
@@ -32,14 +33,14 @@ export function openPromptEditor(net: Net, first: PromptId = PROMPT_IDS[0]) {
   const text = (id: PromptId) => drafts.get(id) ?? saved(id);
   const dirty = (id: PromptId) => drafts.has(id) && norm(drafts.get(id)!) !== saved(id);
 
-  const list = h('nav.prompt-list', { 'aria-label': 'Prompts' });
+  const list = h('nav.prompt-list', { 'aria-label': fa('Prompts') });
   const items = new Map<PromptId, HTMLButtonElement>();
   const groups = new Map<PromptGroup, PromptId[]>();
   for (const id of PROMPT_IDS) groups.set(PROMPTS[id].group, [...(groups.get(PROMPTS[id].group) ?? []), id]);
   for (const [group, ids] of groups) {
-    list.append(h('h4', {}, PROMPT_GROUPS[group]));
+    list.append(h('h4', {}, fa(PROMPT_GROUPS[group])));
     for (const id of ids) {
-      const b = h('button.prompt-item', { type: 'button', onclick: () => pick(id) }, h('span', {}, PROMPTS[id].label), h('span.prompt-mark')) as HTMLButtonElement;
+      const b = h('button.prompt-item', { type: 'button', onclick: () => pick(id) }, h('span', {}, fa(PROMPTS[id].label)), h('span.prompt-mark')) as HTMLButtonElement;
       items.set(id, b);
       list.append(b);
     }
@@ -48,18 +49,18 @@ export function openPromptEditor(net: Net, first: PromptId = PROMPT_IDS[0]) {
   const heading = h('h3');
   const status = h('span.prompt-status');
   const used = h('p.prompt-used');
-  const ta = h('textarea.prompt-text', { spellcheck: 'false', 'aria-label': 'Prompt', maxlength: PROMPT_MAX }) as HTMLTextAreaElement;
+  const ta = h('textarea.prompt-text', { spellcheck: 'false', 'aria-label': fa('Prompt'), maxlength: PROMPT_MAX }) as HTMLTextAreaElement;
   const vars = h('div.prompt-vars');
   const warnings = h('div.prompt-warnings');
-  const reset = h('button.btn', { type: 'button', title: 'Put the office’s own wording back in the box (then Save)' }, '↺ Default');
-  const undo = h('button.btn', { type: 'button', title: 'Back to what’s saved' }, 'Undo changes');
-  const save = h('button.btn.primary', { type: 'button' }, 'Save');
+  const reset = h('button.btn', { type: 'button', title: fa('Put the office’s own wording back in the box (then Save)') }, `↺ ${fa('Default')}`);
+  const undo = h('button.btn', { type: 'button', title: fa('Back to what’s saved') }, fa('Undo changes'));
+  const save = h('button.btn.primary', { type: 'button' }, fa('Save'));
   const note = h('span.grow');
-  const close = h('button.btn.close', { 'aria-label': 'Close' }, '✕');
+  const close = h('button.btn.close', { 'aria-label': fa('Close') }, '✕');
   const el = h(
     'div.modal.prompts',
-    { role: 'dialog', 'aria-label': 'Prompts' },
-    h('header', {}, h('h2', {}, '📝 Prompts'), close),
+    { role: 'dialog', 'aria-label': fa('Prompts') },
+    h('header', {}, h('h2', {}, `📝 ${fa('Prompts')}`), close),
     h('div.prompts-body', {}, list, h('section.prompt-edit', {}, h('div.prompt-head', {}, heading, status), used, ta, vars, warnings)),
     h('footer', {}, note, reset, undo, save),
   );

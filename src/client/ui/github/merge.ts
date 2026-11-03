@@ -1,6 +1,7 @@
 import type { GhCheck, GhMergeMethod, GhPull, GhPullDetail } from '../../../shared/protocol';
 import type { Net } from '../../net';
 import { h, openModal } from '../dom';
+import { fa } from '../fa-locale';
 import { mergeWaiters } from './api';
 import { MERGE_KEY, mergePref, savePref } from './prefs';
 
@@ -26,20 +27,20 @@ export function conflicted(d: GhPullDetail) {
 export function mergeStatus(d: GhPullDetail): MergeStatus {
   const failing = d.checks.filter((c) => c.state === 'fail').length;
   const pending = d.checks.filter((c) => c.state === 'pending').length;
-  if (d.state === 'MERGED') return { icon: '🎉', text: 'Merged.', cls: 'ok', can: false, auto: false };
-  if (d.state === 'CLOSED') return { icon: '🗑️', text: 'Closed without merging.', cls: 'muted', can: false, auto: false };
-  if (d.isDraft) return { icon: '📝', text: 'This is still a draft. Mark it ready for review on GitHub before merging.', cls: 'muted', can: false, auto: false };
+  if (d.state === 'MERGED') return { icon: '🎉', text: 'با موفقیت ادغام شد.', cls: 'ok', can: false, auto: false };
+  if (d.state === 'CLOSED') return { icon: '🗑️', text: 'بدون ادغام بسته شد.', cls: 'muted', can: false, auto: false };
+  if (d.isDraft) return { icon: '📝', text: 'این درخواست هنوز پیش‌نویس است. پیش از ادغام، آن را در GitHub برای بازبینی آماده کنید.', cls: 'muted', can: false, auto: false };
   if (conflicted(d))
-    return { icon: '⚠️', text: `This branch has conflicts with ${d.baseRefName} that must be resolved first.`, cls: 'bad', can: false, auto: false };
-  if (d.mergeStateStatus === 'BEHIND') return { icon: '⤵️', text: `The branch is behind ${d.baseRefName}, and this repo wants it up to date before merging.`, cls: 'warn', can: true, auto: true };
+    return { icon: '⚠️', text: `این شاخه با شاخهٔ ${d.baseRefName} تعارض دارد؛ ابتدا تعارض‌ها را برطرف کنید.`, cls: 'bad', can: false, auto: false };
+  if (d.mergeStateStatus === 'BEHIND') return { icon: '⤵️', text: `شاخه از ${d.baseRefName} عقب است؛ مخزن پیش از ادغام به‌روز بودن آن را لازم دارد.`, cls: 'warn', can: true, auto: true };
   if (d.mergeStateStatus === 'BLOCKED') {
-    const why = d.reviewDecision === 'CHANGES_REQUESTED' ? 'changes were requested' : d.reviewDecision === 'REVIEW_REQUIRED' ? 'it needs an approving review' : failing ? `${failing} check${failing > 1 ? 's are' : ' is'} failing` : pending ? 'required checks are still running' : 'a branch rule is not met yet';
-    return { icon: '🚫', text: `Merging is blocked: ${why}.`, cls: 'bad', can: true, auto: true };
+    const why = d.reviewDecision === 'CHANGES_REQUESTED' ? 'تغییرهایی درخواست شده است' : d.reviewDecision === 'REVIEW_REQUIRED' ? 'به بازبینی تأییدشده نیاز دارد' : failing ? `${failing.toLocaleString('fa-IR')} بررسی ناموفق است` : pending ? 'بررسی‌های لازم هنوز در حال اجرا هستند' : 'یکی از قوانین شاخه هنوز برقرار نیست';
+    return { icon: '🚫', text: `ادغام مسدود شده است: ${why}.`, cls: 'bad', can: true, auto: true };
   }
-  if (failing) return { icon: '❌', text: `${failing} check${failing > 1 ? 's' : ''} failing. It can still be merged.`, cls: 'warn', can: true, auto: false };
-  if (pending || d.mergeStateStatus === 'UNSTABLE') return { icon: '🟡', text: 'Checks are still running. It can be merged now, or once they pass.', cls: 'warn', can: true, auto: true };
-  if (d.mergeStateStatus === 'UNKNOWN' || d.mergeable === 'UNKNOWN') return { icon: '⏳', text: 'GitHub is still working out whether this can merge. Refresh in a moment.', cls: 'muted', can: true, auto: false };
-  return { icon: '✅', text: `Ready to merge: no conflicts with ${d.baseRefName}${d.checks.length ? ' and all checks passed' : ''}.`, cls: 'ok', can: true, auto: false };
+  if (failing) return { icon: '❌', text: `${failing.toLocaleString('fa-IR')} بررسی ناموفق است؛ بااین‌حال می‌توان آن را ادغام کرد.`, cls: 'warn', can: true, auto: false };
+  if (pending || d.mergeStateStatus === 'UNSTABLE') return { icon: '🟡', text: 'بررسی‌ها هنوز در حال اجرا هستند. می‌توانید اکنون یا پس از موفقیت آن‌ها ادغام کنید.', cls: 'warn', can: true, auto: true };
+  if (d.mergeStateStatus === 'UNKNOWN' || d.mergeable === 'UNKNOWN') return { icon: '⏳', text: 'GitHub هنوز امکان ادغام را مشخص نکرده است. کمی بعد تازه‌سازی کنید.', cls: 'muted', can: true, auto: false };
+  return { icon: '✅', text: `برای ادغام آماده است: با شاخهٔ ${d.baseRefName} تعارضی ندارد${d.checks.length ? ' و همهٔ بررسی‌ها موفق بوده‌اند' : ''}.`, cls: 'ok', can: true, auto: false };
 }
 
 export function checksList(checks: GhCheck[]) {
@@ -54,7 +55,7 @@ export function checksList(checks: GhCheck[]) {
 
 // ---- Merge dialog -------------------------------------------------------------------------------
 
-const METHOD_LABEL: Record<GhMergeMethod, string> = { squash: 'Squash and merge', merge: 'Create a merge commit', rebase: 'Rebase and merge' };
+const METHOD_LABEL: Record<GhMergeMethod, string> = { squash: 'یکپارچه‌سازی و ادغام', merge: 'ساخت commit ادغام', rebase: 'بازپایه‌گذاری و ادغام' };
 
 export function openMerge(it: GhPull, d: GhPullDetail, net: Net, handToWorker: () => void, onMerged: () => void) {
   const st = mergeStatus(d);
@@ -72,7 +73,7 @@ export function openMerge(it: GhPull, d: GhPullDetail, net: Net, handToWorker: (
         h('button.btn', { type: 'button', class: m === method ? 'on' : '', onclick: () => ((method = m), savePref(MERGE_KEY, { method, deleteBranch }), renderMethods()) }, METHOD_LABEL[m]),
       ),
     );
-    go.textContent = auto.checked ? '⏱ Merge when ready' : `🔀 ${METHOD_LABEL[method]}`;
+    go.textContent = auto.checked ? '⏱ پس از آماده‌شدن ادغام شود' : `🔀 ${METHOD_LABEL[method]}`;
   };
   auto.addEventListener('change', renderMethods);
   const del = h('input', { type: 'checkbox', id: 'merge-del' }) as HTMLInputElement;
@@ -90,18 +91,18 @@ export function openMerge(it: GhPull, d: GhPullDetail, net: Net, handToWorker: (
 
   const el = h(
     'div.modal.gh-merge',
-    { role: 'dialog', 'aria-label': `Merge PR #${it.number}` },
-    h('header', {}, h('h2', {}, `🔀 Merge #${it.number}`)),
+    { role: 'dialog', 'aria-label': `ادغام درخواست شمارهٔ ${it.number}` },
+    h('header', {}, h('h2', {}, `🔀 ادغام شمارهٔ ${it.number}`)),
     h(
       'div.body',
       {},
-      h('p.gh-merge-title', {}, it.title, h('small', {}, `${it.headRefName} → ${it.baseRefName}`)),
+      h('p.gh-merge-title', {}, it.title, h('small', { dir: 'ltr' }, h('bdi', { dir: 'ltr' }, `${it.headRefName} → ${it.baseRefName}`))),
       h('div.gh-status', { class: st.cls }, h('span', {}, st.icon), st.text),
       d.checks.length ? checksList(d.checks) : null,
-      h('label', { style: 'margin-top:14px' }, 'How'),
+      h('label', { style: 'margin-top:14px' }, 'روش ادغام'),
       methodBtns,
-      h('label.gh-check', { for: 'merge-del' }, del, `Delete ${it.headRefName} after merging`),
-      st.auto ? h('label.gh-check', { for: 'merge-auto', title: 'gh pr merge --auto (the repo must allow auto-merge)' }, auto, 'Merge automatically once the requirements pass') : null,
+      h('label.gh-check', { for: 'merge-del' }, del, 'پس از ادغام شاخهٔ ', h('bdi', { dir: 'ltr' }, it.headRefName), ' حذف شود'),
+      st.auto ? h('label.gh-check', { for: 'merge-auto', title: 'gh pr merge --auto (the repo must allow auto-merge)' }, auto, 'پس از برآورده‌شدن پیش‌نیازها، خودکار ادغام شود') : null,
       result,
     ),
     h('footer', {}, st.can || conflicted(d) ? null : worker, h('span.grow'), cancel, conflicted(d) ? worker : go),
@@ -120,14 +121,14 @@ export function openMerge(it: GhPull, d: GhPullDetail, net: Net, handToWorker: (
     busy = true;
     go.disabled = true;
     result.className = 'gh-merge-result';
-    result.replaceChildren(h('span.spinner'), auto.checked && st.auto ? 'Asking GitHub to merge it when ready…' : 'Merging…');
+    result.replaceChildren(h('span.spinner'), auto.checked && st.auto ? 'درخواست ادغام پس از آماده‌شدن به GitHub ارسال می‌شود…' : 'در حال ادغام…');
     mergeWaiters.set(it.number, (msg) => {
       mergeWaiters.delete(it.number);
       busy = false;
       if (msg.error) {
         go.disabled = false;
         result.className = 'gh-merge-result error';
-        result.replaceChildren(msg.error);
+        result.replaceChildren(fa(msg.error));
         return;
       }
       modal.close();

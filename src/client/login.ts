@@ -1,5 +1,7 @@
 export {}; // a module, so its names don't clash with the other pages' scripts
 
+import { fa } from './ui/fa-locale';
+
 const form = document.getElementById('form') as HTMLFormElement;
 const nameRow = document.getElementById('name-row') as HTMLLabelElement;
 const nameInput = document.getElementById('name') as HTMLInputElement;
@@ -21,9 +23,9 @@ if (linkKey) {
   void fetch('/api/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: linkKey }) })
     .then(async (res) => {
       if (res.ok) return location.replace(NEXT);
-      error.textContent = ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not sign in';
+      error.textContent = fa(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not sign in');
     })
-    .catch(() => void (error.textContent = 'Server unreachable'));
+    .catch(() => void (error.textContent = fa('Server unreachable')));
 }
 
 // Ask for a name once people have accounts; it's optional while the shared password still works.
@@ -34,7 +36,7 @@ void fetch('/api/login', { cache: 'no-store' })
     nameRow.hidden = false;
     nameInput.required = !shared;
     nameNote.hidden = !shared;
-    sub.textContent = shared ? 'Knock knock. Who is it?' : 'Knock knock. Who is it? Sign in with your own account.';
+    sub.textContent = fa(shared ? 'Knock knock. Who is it?' : 'Knock knock. Who is it? Sign in with your own account.');
     try {
       nameInput.value = localStorage.getItem(NAME_KEY) ?? '';
     } catch {
@@ -65,10 +67,10 @@ form.addEventListener('submit', async (e) => {
       return;
     }
     const body = await res.json().catch(() => ({}));
-    error.textContent = body.error ?? 'Could not sign in';
+    error.textContent = fa(body.error ?? 'Could not sign in');
     input.select();
   } catch {
-    error.textContent = 'Server unreachable';
+    error.textContent = fa('Server unreachable');
   } finally {
     submit.disabled = false;
   }

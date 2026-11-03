@@ -16,10 +16,14 @@
   --info: #5bc0eb;
   --shadow: 0 4px 0 var(--ink);
   --radius: 16px;
-  --font: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, sans-serif;
+  --font: 'Vazirmatn', 'Noto Sans Arabic', Tahoma, 'Nunito', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
+html[dir="rtl"] { direction: rtl; }
+html[dir="rtl"] body { line-height: 1.65; }
+html[dir="rtl"] :where(input, textarea, [contenteditable="true"]) { unicode-bidi: plaintext; }
+html[dir="rtl"] :where(code, pre, kbd, samp, .mono, .terminal, .term-host, .url, .path, .model-id) { direction: ltr; unicode-bidi: isolate; text-align: left; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe3ff; }
 body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
 button { font-family: inherit; }
@@ -126,3 +130,24 @@ a.when:hover { text-decoration: underline; }
 .pd-side input[type=text] { width: 100%; font: inherit; font-size: 13px; border: 2px solid var(--ink); border-radius: 10px; padding: 5px 9px; background: #fff; outline: none; }
 .elevator .dir-change { margin-left: 6px; padding: 1px 8px; font-size: 12px; border-width: 2px; border-radius: 9px; box-shadow: 0 2px 0 var(--ink); vertical-align: baseline; }
 .meeting-field label { margin: 0; }
+
+
+/* Small screens retain reachable actions and scroll the content, not the whole window. */
+.modal > header, .modal > footer { flex-shrink: 0; }
+.modal .body { min-height: 0; min-width: 0; overscroll-behavior: contain; }
+.modal .close { flex: 0 0 auto; }
+@media (max-width: 640px), (max-height: 480px) {
+  .backdrop { padding: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .modal { max-height: calc(100dvh - 24px); }
+  .modal > header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+  .modal > header h2 { flex: 1 1 60%; font-size: 16px; }
+  .modal > header > .close { order: -1; }
+  .modal > footer { flex-wrap: wrap; padding: 8px 10px; }
+  .modal > footer .grow { flex-basis: 100%; overflow-wrap: anywhere; }
+  .modal .body { padding: 12px; }
+  .modal .btn { white-space: normal; overflow-wrap: anywhere; min-height: 40px; }
+  .modal .close { width: 44px; height: 44px; min-height: 44px; }
+  .modal input, .modal textarea, .modal select { max-width: 100%; min-width: 0; font-size: 16px !important; }
+  .webhook { flex-wrap: wrap; }
+  .webhook input[type=text] { flex-basis: 100%; }
+}

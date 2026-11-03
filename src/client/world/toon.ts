@@ -73,7 +73,8 @@ function textTexture(text: string, opts: TextOpts) {
   const size = opts.size ?? 48;
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
-  const font = `800 ${size}px Nunito, ui-rounded, system-ui, sans-serif`;
+  const persian = /[\u0600-\u06ff]/.test(text);
+  const font = `800 ${size}px ${persian ? 'Tahoma, ' : ''}Nunito, ui-rounded, system-ui, sans-serif`;
   ctx.font = font;
   const w = Math.ceil(ctx.measureText(text).width) + size;
   const h = Math.ceil(size * 1.6);
@@ -91,6 +92,7 @@ function textTexture(text: string, opts: TextOpts) {
     ctx.stroke();
   }
   ctx.fillStyle = opts.color ?? '#2b2d42';
+  ctx.direction = persian ? 'rtl' : 'ltr';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2 + size * 0.05);

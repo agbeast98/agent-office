@@ -4,6 +4,7 @@ import { ROOF } from '../../shared/rooftop';
 import { CARS, type CarSeat } from '../../shared/garage';
 import { seatOn, type MapPlan } from '../../shared/maps';
 import { store } from '../state';
+import { fa } from './fa-locale';
 
 /**
  * What a teammate is up to, for the line under their name tag and in the sidebar: whatever they have
@@ -12,7 +13,7 @@ import { store } from '../state';
  * the office.
  */
 export function whereabouts(p: PeerInfo, car?: { car: number; seat: CarSeat }, plan: MapPlan = store.plan()): string | undefined {
-  if (p.doing) return p.doing;
+  if (p.doing) return fa(p.doing);
   // Not standing anywhere: in on the 2D view, from a phone, say.
   if (p.lite) return '📱 on the 2D view';
   // In one of the garage's cars (see Store.carOf).

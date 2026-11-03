@@ -31,3 +31,12 @@
 .term-say { display: flex; gap: 8px; }
 .modal .term-say input[type=text] { flex: 1; min-width: 0; padding: 8px 10px; }
 .modal.term header .typed { font-size: 12px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+
+
+@media (max-width: 640px), (max-height: 480px) {
+  .modal.term { height: calc(100dvh - 24px); }
+  .modal.term header > :not(.dot, h2, .close) { max-width: 100%; }
+  .modal.term header .viewers { flex-wrap: wrap; }
+  .term-say { flex-wrap: wrap; }
+  .term-say input { flex-basis: 100%; }
+}

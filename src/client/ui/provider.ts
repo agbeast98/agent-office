@@ -4,6 +4,7 @@ import { AGENT_EFFORTS, isAgentEffort } from '../../shared/protocol';
 import { AGENT_PROVIDERS, CLAUDE_MODEL_NAMES, PROVIDER_META, claudeModelName, isAgentProvider, isClaudeModel, takesEffort, type ModelOption } from '../../shared/providers';
 import { store } from '../state';
 import { h } from './dom';
+import { fa } from './fa-locale';
 
 export const PROVIDER_LABEL = Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, PROVIDER_META[p].label])) as Record<AgentProvider, string>;
 
@@ -211,7 +212,7 @@ export function agentFields(project: ProjectInfo | null, id: string, initial: Ag
     const m = meta();
     const field = m.models;
     const catalogue = catalogues.get(value());
-    note.textContent = providerUsageNote(value());
+    note.textContent = locale === 'fa' ? fa(providerUsageNote(value())) : providerUsageNote(value());
     modelLabel.classList.toggle('hidden', !field);
     modelSelect.classList.toggle('hidden', !field || typed());
     modelInput.classList.toggle('hidden', !field || !typed());
@@ -223,10 +224,10 @@ export function agentFields(project: ProjectInfo | null, id: string, initial: Ag
     effortLabel.classList.toggle('hidden', !m.takesEffort);
     effortSelect.classList.toggle('hidden', !m.takesEffort);
     effortSelect.setAttribute('aria-label', m.effortLabel ? `${m.label} ${m.effortLabel.toLowerCase()} level` : `${m.label} reasoning effort`);
-    if (!field) hint.textContent = m.unpicked ?? '';
+    if (!field) hint.textContent = locale === 'fa' ? fa(m.unpicked ?? '') : m.unpicked ?? '';
     else if (field.catalog && catalogue?.request) hint.textContent = `Loading ${m.label} models…`;
     else if (field.catalog && catalogue?.failed) hint.textContent = `${m.label}’s models couldn’t be listed: leave it empty for its default, or type a model id.`;
-    else hint.textContent = field.hint;
+    else hint.textContent = locale === 'fa' ? fa(field.hint) : field.hint;
     fields.classList.toggle('hidden', !field && !m.takesEffort && !hint.textContent);
     paintEffort();
   };

@@ -1,3 +1,4 @@
+import { popupPosition } from './popup-position';
 import './floormenu.css';
 import { cloneLabel, floorPalette } from '../../shared/floors';
 import { ROOF, ROOF_NAME } from '../../shared/rooftop';
@@ -39,7 +40,7 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
     const isHere = f.id === store.floor;
     const p = floorPalette(f.palette);
     const n = Math.abs(i - here);
-    const where = isHere ? 'you are here' : here < 0 ? '' : `${i > here ? '⬆' : '⬇'} ${n} floor${n === 1 ? '' : 's'} ${i > here ? 'up' : 'down'}`;
+    const where = isHere ? 'شما اینجا هستید' : here < 0 ? '' : `${i > here ? '⬆' : '⬇'} ${n.toLocaleString('fa-IR')} طبقه ${i > here ? 'بالاتر' : 'پایین‌تر'}`;
     const stats: HTMLElement[] = [];
     if (f.cloning) stats.push(h('span', { title: f.clone?.detail ?? 'Being cloned' }, cloneLabel(f.clone)));
     else {
@@ -50,7 +51,7 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
     }
     const btn = h(
       'button.floor-item',
-      { type: 'button', role: 'menuitem', class: isHere ? 'here' : '', disabled: isHere || f.cloning, title: isHere ? "You're on this floor" : f.cloning ? 'Still being cloned' : opts.indoors() ? `Go to ${f.name}, right where you're standing` : `Go to ${f.name}, in its elevator` },
+      { type: 'button', role: 'menuitem', class: isHere ? 'here' : '', disabled: isHere || f.cloning, title: isHere ? 'شما در این طبقه هستید' : f.cloning ? 'ساخت این طبقه هنوز ادامه دارد' : opts.indoors() ? `رفتن به ${f.name}، همین جایی که ایستاده‌اید` : `رفتن به ${f.name} با آسانسور` },
       h('span.floor-no', { style: `background:${p.trim}` }, String(i + 1)),
       h('span.floor-text', {}, h('span.floor-name', {}, f.name), h('span.floor-sub', {}, where || (f.repo ?? f.dir))),
       h('span.floor-stats', {}, ...stats),
@@ -66,7 +67,7 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
   const render = () => {
     const floors = store.floors;
     const here = floors.findIndex((f) => f.id === store.floor);
-    const add = h('button.floor-item.add', { type: 'button', role: 'menuitem', title: 'The elevator: add another project as a floor' }, h('span.floor-no', {}, '🛗'), h('span.floor-text', {}, h('span.floor-name', {}, 'Elevator'), h('span.floor-sub', {}, 'Add a project…')));
+    const add = h('button.floor-item.add', { type: 'button', role: 'menuitem', title: 'آسانسور: افزودن پروژه‌ای دیگر به‌عنوان طبقه' }, h('span.floor-no', {}, '🛗'), h('span.floor-text', {}, h('span.floor-name', {}, 'آسانسور'), h('span.floor-sub', {}, 'افزودن پروژه…')));
     add.addEventListener('click', () => {
       close();
       opts.elevator();
@@ -77,9 +78,9 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
     const people = [...store.peers.values()].filter((p) => p.floor === ROOF).length;
     const roof = h(
       'button.floor-item',
-      { type: 'button', role: 'menuitem', class: onRoof ? 'here' : '', disabled: onRoof, title: onRoof ? "You're up on the roof" : 'Take the elevator up to the roof' },
+      { type: 'button', role: 'menuitem', class: onRoof ? 'here' : '', disabled: onRoof, title: onRoof ? 'شما روی پشت‌بام هستید' : 'رفتن به پشت‌بام با آسانسور' },
       h('span.floor-no', { style: 'background:#2b2d42' }, '🍸'),
-      h('span.floor-text', {}, h('span.floor-name', {}, ROOF_NAME), h('span.floor-sub', {}, onRoof ? 'you are here' : 'A DJ, drinks and the city')),
+      h('span.floor-text', {}, h('span.floor-name', {}, ROOF_NAME), h('span.floor-sub', {}, onRoof ? 'شما اینجا هستید' : 'دی‌جی، نوشیدنی و منظرهٔ شهر')),
       h('span.floor-stats', {}, people ? h('span', { title: 'People up there' }, `🧑 ${people}`) : ''),
     );
     roof.addEventListener('click', () => {
@@ -87,13 +88,14 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
       close();
       opts.roof?.();
     });
-    el.replaceChildren(h('div.floor-menu-head', {}, `🏢 ${floors.length} floor${floors.length === 1 ? '' : 's'}`), ...(floors.length && opts.roof ? [roof] : []), ...items, add);
+    el.replaceChildren(h('div.floor-menu-head', {}, `🏢 ${floors.length.toLocaleString('fa-IR')} طبقه`), ...(floors.length && opts.roof ? [roof] : []), ...items, add);
   };
 
   const place = () => {
     const r = anchor.getBoundingClientRect();
-    el.style.left = `${r.left}px`;
-    el.style.top = `${r.bottom + 8}px`;
+    const v = window.visualViewport;
+    const p = popupPosition(r, el.offsetWidth, { width: v?.width ?? innerWidth, height: v?.height ?? innerHeight, left: v?.offsetLeft, top: v?.offsetTop });
+    Object.assign(el.style, { left: `${p.left}px`, right: 'auto', top: `${p.top}px`, maxHeight: `${p.maxHeight}px`, maxWidth: `${p.maxWidth}px` });
   };
 
   const onDown = (e: PointerEvent) => {
@@ -112,8 +114,15 @@ export function toggleFloorMenu(anchor: HTMLElement, opts: FloorMenuOptions): vo
     window.removeEventListener('pointerdown', onDown, true);
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', place);
+    window.visualViewport?.removeEventListener('resize', place);
+    window.visualViewport?.removeEventListener('scroll', place);
+    observer.disconnect();
     for (const off of offs) off();
   };
+  const observer = new ResizeObserver(place);
+  observer.observe(anchor);
+  window.visualViewport?.addEventListener('resize', place);
+  window.visualViewport?.addEventListener('scroll', place);
   render();
   document.body.append(el);
   place();

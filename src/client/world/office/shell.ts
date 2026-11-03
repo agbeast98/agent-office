@@ -24,10 +24,10 @@ export interface Door {
 /** A window filling its hole in an outside wall: a frame lining the hole, a mullion, sills and real glass. */
 export function windowIn(o: Opening): THREE.Group {
   const g = new THREE.Group();
-  const frame = toon('#ffffff');
+  const frame = toon('#46514e');
   const w = o.width;
   const h = o.y1 - o.y0;
-  const F = 0.09;
+  const F = 0.055;
   const D = WALL_T + 0.04;
   // Built along x with the outside toward +z, then turned onto its wall.
   g.add(mesh(box(w, F, D), frame, 0, o.y1 - F / 2, 0, false));
@@ -67,7 +67,7 @@ export function wetPane(o: Opening, mat: THREE.Material): THREE.Group {
 /** A door's frame and threshold, lining its hole in the wall (built like windowIn: along x, outdoors toward +z). */
 function doorFrame(o: Opening): THREE.Group {
   const g = new THREE.Group();
-  const frame = toon('#ffffff');
+  const frame = toon('#46514e');
   const F = 0.08;
   const D = WALL_T + 0.04;
   g.add(mesh(box(o.width, F, D), frame, 0, o.y1 - F / 2, 0, false));
@@ -116,7 +116,7 @@ export function exitDoor(night: NightParts): { group: THREE.Group; door: Door } 
   hinge.add(leaf);
   g.add(hinge);
 
-  const exit = textPlane('EXIT', { bg: '#2a9d4b', color: '#ffffff', size: 64, border: '#ffffff' });
+  const exit = textPlane('خروج', { bg: '#2a9d4b', color: '#ffffff', size: 64, border: '#ffffff' });
   exit.scale.multiplyScalar(0.7);
   exit.position.set(0, o.y1 + 0.35, -(WALL_T / 2 + 0.03));
   exit.rotation.y = Math.PI;

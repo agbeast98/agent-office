@@ -38,10 +38,11 @@ export class Banner {
     this.shown = text;
     this.el.classList.toggle('hidden', !text);
     if (!text) return;
-    this.go.title = `Go to ${text.title.replace(/ needs you$/, '')}'s desk (N)`;
+    const workerName = text.title.replace(/ needs you$/, '');
+    this.go.title = `رفتن به میز ${workerName} (N)`;
     this.go.replaceChildren(
       h('span.needs-you-icon', { 'aria-hidden': 'true' }, '🙋'),
-      h('span.needs-you-text', {}, h('strong', {}, text.title), text.detail ? h('span.needs-you-ask', {}, text.detail) : null),
+      h('span.needs-you-text', {}, h('strong', {}, h('bdi', { dir: 'auto' }, workerName), ' به شما نیاز دارد'), text.detail ? h('span.needs-you-ask', {}, text.detail) : null),
       ...(text.more ? [h('span.needs-you-more', {}, text.more)] : []),
       h('span.key', {}, 'N'),
     );

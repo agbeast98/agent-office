@@ -3,6 +3,7 @@ import { JUKEBOX_TUNES, STREAM, checkStreamUrl, trackTitle, tuneById } from '../
 import type { Net } from '../../net';
 import { store } from '../../state';
 import { h, openModal, toast } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 
 /** The jukebox: what's on, the tunes to pick from, skip and stop, and a box for a stream. */
 export function openJukebox(net: Net, openVolume: () => void) {
@@ -40,9 +41,11 @@ export function openJukebox(net: Net, openVolume: () => void) {
         'div.svc-main',
         {},
         h('div.svc-title', {}, j.on ? trackTitle(j) : 'The jukebox is off'),
-        h('div.svc-meta', {}, j.on ? [stream ? 'a stream' : tuneById(j.track)?.mood, j.by && `put on by ${j.by}`].filter(Boolean).join(' · ') : j.by ? `${j.by} turned it off` : 'Pick a tune to put it on'),
+        h('div.svc-meta', {}, j.on
+          ? [stream ? fa('a stream') : fa(tuneById(j.track)?.mood ?? ''), j.by && `${fa('put on by')} ${j.by}`].filter(Boolean).join(' · ')
+          : j.by ? `${j.by} ${fa('turned it off')}` : 'Pick a tune to put it on'),
       ),
-      j.on ? button('⏭️ Skip', 'On to the next tune', () => net.send({ t: 'jukebox.skip' })) : button('▶️ Play', `Put ${trackTitle(j)} back on`, () => net.send({ t: 'jukebox.play' }), true),
+      j.on ? button('⏭️ Skip', 'On to the next tune', () => net.send({ t: 'jukebox.skip' })) : button('▶️ Play', `${fa('Put the track back on:')} ${trackTitle(j)}`, () => net.send({ t: 'jukebox.play' }), true),
       j.on ? button('⏹️ Stop', 'Turn the jukebox off', () => net.send({ t: 'jukebox.stop' })) : '',
     );
     list.replaceChildren(
@@ -50,7 +53,7 @@ export function openJukebox(net: Net, openVolume: () => void) {
         const playing = j.on && j.track === t.id;
         const li = h(
           'li',
-          { class: playing ? 'on' : '', tabindex: 0, role: 'button', 'aria-pressed': String(playing), title: playing ? 'Playing now' : `Put on ${t.title}` },
+          { class: playing ? 'on' : '', tabindex: 0, role: 'button', 'aria-pressed': String(playing), title: playing ? 'Playing now' : `${fa('Play this track:')} ${t.title}` },
           h('span.jb-icon', {}, playing ? '🔊' : '🎵'),
           h('div.svc-main', {}, h('div.svc-title', {}, t.title), h('div.svc-meta', {}, t.mood)),
         );
@@ -72,7 +75,7 @@ export function openJukebox(net: Net, openVolume: () => void) {
   const play = () => {
     const u = checkStreamUrl(url.value);
     if ('error' in u) {
-      toast(u.error, 'warn');
+      toast(fa(u.error), 'warn');
       return url.focus();
     }
     net.send({ t: 'jukebox.play', url: u.url });

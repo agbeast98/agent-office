@@ -42,3 +42,14 @@
 .wb-ask-text { flex: 1 1 auto; line-height: 1.6; }
 .wb-allow { border-color: #75c9be !important; color: #09201e !important; background: #8bdbcf !important; font-weight: 800; }
 .wb-deny { border-color: #ec745d !important; color: #ffd9d0 !important; background: #5a2a22 !important; }
+
+
+@media (max-width: 640px), (max-height: 480px) {
+  .wb-toolbar { flex-wrap: wrap; padding: 6px; }
+  .wb-toolbar .btn { min-height: 40px; }
+  .wb-address { min-width: 0; }
+  .wb-status, .wb-footer { overflow-wrap: anywhere; }
+  .wb-ask { flex-wrap: wrap; }
+  .wb-ask-text { flex-basis: 100%; }
+  .wb-viewport { min-height: 80px; }
+}

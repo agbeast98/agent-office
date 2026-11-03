@@ -16,3 +16,9 @@
 .floor-item .floor-sub { font-size: 12px; font-weight: 700; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .floor-item .floor-stats { display: flex; gap: 6px; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .floor-item .floor-stats .waiting { color: var(--bad); }
+
+.floor-item { text-align: start; }
+@media (max-width: 480px) {
+  .floor-item { grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
+  .floor-item .floor-stats { grid-column: 2; flex-wrap: wrap; }
+}

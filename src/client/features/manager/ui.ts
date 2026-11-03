@@ -1,5 +1,6 @@
 import './ui.css';
 import { h, openModal, toast } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import { openTeamMeeting } from './meeting';
 import { openFlows } from './flows';
 import { openSecurity } from './security';
@@ -78,7 +79,7 @@ export function openManager(floor: string) {
       await load();
       return out;
     } catch (e) {
-      msg.textContent = e instanceof Error ? e.message : 'انجام نشد';
+      msg.textContent = fa(e instanceof Error ? e.message : 'انجام نشد');
       return undefined;
     }
   };

@@ -38,3 +38,15 @@
 .volume input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); box-shadow: 0 2px 0 var(--ink); }
 .volume input[type=range]:focus-visible::-webkit-slider-thumb { border-color: var(--accent); }
 .volume.muted input[type=range], .volume.muted .vol-pct { opacity: .45; }
+
+
+.settings-body, .settings-pane, .settings-nav { min-width: 0; }
+@media (max-width: 640px) {
+  .modal.settings { height: calc(100dvh - 24px); }
+  html[dir=rtl] .settings-nav { border-inline-end: 0; }
+  .settings-pane { overflow-wrap: anywhere; }
+  .settings-pane .seg > .btn { max-width: 100%; }
+  .volume { flex-wrap: wrap; gap: 8px; }
+  .volume input[type=range] { flex: 1 0 100%; order: 1; min-width: 120px; }
+  .volume .btn { min-width: 0; }
+}

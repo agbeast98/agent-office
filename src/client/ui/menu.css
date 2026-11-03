@@ -39,3 +39,17 @@
 .menu-toggle[aria-checked=true] .switch::after { transform: translateX(14px); }
 .menu-foot { grid-column: 1 / -1; margin: 8px 0 0; padding: 8px 8px 2px; border-top: 2px dashed rgba(43, 45, 66, .18); font-size: 12px; font-weight: 700; color: var(--muted); }
 @media (max-width: 600px) { .hud-menu { grid-template-columns: 1fr; } }
+
+
+.hud-menu { overscroll-behavior: contain; scrollbar-gutter: stable; }
+.menu-item { text-align: start; }
+.menu-item:focus-visible, .menu-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 640px), (pointer: coarse) {
+  .menu-item { min-height: 44px; }
+  .menu-pin { width: 44px; height: 44px; opacity: .7; }
+  .mi-label { white-space: normal; overflow-wrap: anywhere; }
+  .mi-label small { white-space: normal; }
+}
+
+.menu-head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 6px; border-bottom: 2px solid var(--paper-2); }
+.menu-head .close { width: 44px; height: 44px; flex: none; }

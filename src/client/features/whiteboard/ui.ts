@@ -7,6 +7,7 @@ import { byIndex } from '../../../shared/whiteboard';
 import type { Net } from '../../net';
 import { store } from '../../state';
 import { h, openModal, toast, type Modal } from '../../ui/dom';
+import { fa } from '../../ui/fa-locale';
 import type { WhiteboardApp } from './whiteboard-app';
 
 declare const __EXCALIDRAW_ASSETS__: string;
@@ -90,7 +91,7 @@ function renderPeople() {
   const others = store.drawing.filter((id) => id !== store.you).flatMap((id) => store.peers.get(id) ?? []);
   open.people.replaceChildren(
     ...(others.length
-      ? [h('span.wb-live', {}, 'LIVE'), ...others.map((p) => h('span.wb-person', { title: `${p.name} is drawing` }, h('span.dot', { style: `background:${p.color}` }), p.name))]
+      ? [h('span.wb-live', {}, 'LIVE'), ...others.map((p) => h('span.wb-person', { title: `${p.name} · ${fa('is drawing')}` }, h('span.dot', { style: `background:${p.color}` }), h('bdi', { dir: 'auto' }, p.name)))]
       : [h('span.wb-alone', {}, 'Just you for now. Anyone on this floor can join in.')]),
   );
 }

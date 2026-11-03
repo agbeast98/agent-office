@@ -3,6 +3,7 @@ import { changedImageType, type ChangedFile, type ChangesState, type ServerMsg }
 import type { Net } from '../net';
 import { store } from '../state';
 import { h, openModal, type Modal } from './dom';
+import { fa } from './fa-locale';
 import { confirmDialog, openPrompt } from './prompt';
 
 // The Changes window at a desk: the files a worker changed and their diff against the branch the
@@ -21,7 +22,7 @@ export function openChangesFor(): { workerId: string; repo?: string } | null {
   return current ? { workerId: current.workerId, repo: current.repo() } : null;
 }
 
-const STATUS_WORD: Record<ChangedFile['status'], string> = { M: 'modified', A: 'added', D: 'deleted', R: 'renamed', T: 'type changed', '?': 'new file' };
+const STATUS_WORD: Record<ChangedFile['status'], string> = { M: 'ویرایش‌شده', A: 'افزوده‌شده', D: 'حذف‌شده', R: 'تغییرنام‌یافته', T: 'نوع‌تغییریافته', '?': 'فایل تازه' };
 
 function plusMinus(a: number, d: number, binary = false): HTMLElement {
   if (binary) return h('span.pm', {}, h('span.bin', {}, 'binary'));
@@ -188,7 +189,7 @@ export function openChanges(net: Net, workerId: string, onTerminal?: () => void,
     list.replaceChildren();
     if (!s) return;
     const n = s.files.length;
-    filesHead.textContent = n ? `${n}${s.more ? '+' : ''} changed file${n > 1 || s.more ? 's' : ''}` : 'Changed files';
+    filesHead.textContent = n ? `${n}${s.more ? '+' : ''} فایل تغییرکرده` : fa('Changed files');
     for (const f of s.files) {
       const li = h(
         'li',
@@ -200,23 +201,23 @@ export function openChanges(net: Net, workerId: string, onTerminal?: () => void,
       );
       list.append(li);
     }
-    if (s.more) list.append(h('li.empty', {}, `…and ${s.more} more`));
+    if (s.more) list.append(h('li.empty', {}, `… و ${s.more} فایل دیگر`));
     list.querySelector('li.on')?.scrollIntoView({ block: 'nearest' });
   };
 
   const renderDiffHead = () => {
     const f = state?.files.find((x) => x.path === selected);
     if (!f) return diffHead.replaceChildren();
-    const discardOne = h('button.btn', { type: 'button', title: 'Throw away the uncommitted changes to this file' }, '↩︎ Discard');
+    const discardOne = h('button.btn', { type: 'button', title: 'Throw away the uncommitted changes to this file' }, `↩︎ ${fa('Discard')}`);
     discardOne.addEventListener('click', () =>
-      confirmDialog(`Discard the changes to ${f.path.split('/').pop()}?`, `This puts ${f.path} back to the last commit in ${where()}. ${f.status === '?' ? 'The file is deleted.' : 'Committed changes stay.'}`, 'Discard', () =>
+      confirmDialog(`تغییرهای ${f.path.split('/').pop()} دور ریخته شود؟`, `این کار ${f.path} را در ${where()} به آخرین ثبت‌شده برمی‌گرداند. ${f.status === '?' ? 'فایل حذف خواهد شد.' : 'تغییرهای ثبت‌شده باقی می‌مانند.'}`, fa('Discard'), () =>
         net.send({ t: 'changes.discard', workerId, path: f.path, repo }),
       ),
     );
     diffHead.replaceChildren(
       h('span.st', { class: f.status === '?' ? 'A' : f.status }, f.status === '?' ? 'A' : f.status),
       h('span.path', { title: f.path }, f.from ? `${f.from} → ${f.path}` : f.path),
-      h('span.word', {}, f.uncommitted ? `${STATUS_WORD[f.status]} · not committed` : STATUS_WORD[f.status]),
+      h('span.word', {}, f.uncommitted ? `${STATUS_WORD[f.status]} · ${fa('not committed')}` : STATUS_WORD[f.status]),
       plusMinus(f.additions, f.deletions, f.binary),
     );
     if (f.uncommitted && !state?.busy) diffHead.append(discardOne);
@@ -229,33 +230,33 @@ export function openChanges(net: Net, workerId: string, onTerminal?: () => void,
     const adds = s?.files.reduce((n, f) => n + f.additions, 0) ?? 0;
     const dels = s?.files.reduce((n, f) => n + f.deletions, 0) ?? 0;
     summary.replaceChildren();
-    if (busy) summary.append(h('span.spinner'), h('span', {}, s!.busy!));
+    if (busy) summary.append(h('span.spinner'), h('span', {}, fa(s!.busy!)));
     else if (s && !s.error) {
       const bits: (string | HTMLElement)[] = [];
       if (s.files.length) bits.push(plusMinus(adds, dels));
-      bits.push(uncommitted ? `${uncommitted} uncommitted` : s.files.length ? 'all committed' : '');
-      if (s.ahead) bits.push(`${s.ahead} commit${s.ahead > 1 ? 's' : ''} ahead of ${s.base}`);
-      if (!s.dir) bits.push(h('span', { title: "This worker works in the project folder itself, so this is everything uncommitted there — everyone's edits, not just its own." }, '📁 shared project folder'));
+      bits.push(uncommitted ? `${uncommitted} تغییر ثبت‌نشده` : s.files.length ? fa('all committed') : '');
+      if (s.ahead) bits.push(`${s.ahead} ثبت جلوتر از ${s.base}`);
+      if (!s.dir) bits.push(h('span', { title: "This worker works in the project folder itself, so this is everything uncommitted there — everyone's edits, not just its own." }, `📁 ${fa('shared project folder')}`));
       else bits.push(h('span', { title: `Its own worktree at ${s.dir}` }, `📁 ${s.dir}`));
       summary.append(...bits.filter(Boolean).map((b) => (typeof b === 'string' ? h('span', {}, b) : b)));
     }
     discardBtn.disabled = busy || !uncommitted;
     commitBtn.disabled = busy || !uncommitted;
-    commitBtn.textContent = uncommitted ? `✅ Commit ${uncommitted} file${uncommitted > 1 ? 's' : ''}…` : '✅ Commit…';
+    commitBtn.textContent = uncommitted ? `✅ ${fa('Commit')} ${uncommitted} فایل…` : `✅ ${fa('Commit…')}`;
     prSlot.replaceChildren();
     if (!s) return;
     if (s.pr) prSlot.append(h('a.btn.primary', { href: s.pr.url, target: '_blank', rel: 'noopener', title: 'Open on GitHub' }, `🔀 PR #${s.pr.number} ↗`));
     else if (s.prBase) {
-      const why = busy ? '' : uncommitted ? 'Commit first' : !s.ahead ? `Nothing on ${s.branch} that ${s.prBase} lacks yet` : '';
-      const pr = h('button.btn.primary', { type: 'button', title: why || `Push ${s.branch} and open a pull request against ${s.prBase}` }, '🔀 Open PR…');
+      const why = busy ? '' : uncommitted ? fa('Commit first') : !s.ahead ? `هنوز تغییر تازه‌ای در ${s.branch} نیست که در ${s.prBase} وجود نداشته باشد.` : '';
+      const pr = h('button.btn.primary', { type: 'button', title: why || `${fa('Push this branch and open a pull request against')} ${s.prBase}` }, `🔀 ${fa('Open PR…')}`);
       pr.disabled = busy || !!why;
       pr.addEventListener('click', () =>
         openPrompt({
-          title: '🔀 Open a pull request',
-          subtitle: `Pushes ${s.branch} to origin and opens a PR against ${s.prBase}. The first line is the title; the rest is the description.`,
+          title: `🔀 ${fa('Open a pull request')}`,
+          subtitle: `${fa('Pushes this branch to origin and opens a pull request against')} ${s.prBase}. ${fa('The first line is the title; the rest is the description.')}`,
           initial: s.subject ?? '',
           placeholder: 'Title',
-          submitLabel: 'Open PR ↗',
+          submitLabel: fa('Open PR ↗'),
           onSubmit: (text) => {
             const [first, ...rest] = text.split('\n');
             net.send({ t: 'changes.pr', workerId, title: first.trim(), body: rest.join('\n').trim(), repo });
@@ -268,10 +269,10 @@ export function openChanges(net: Net, workerId: string, onTerminal?: () => void,
 
   const renderHeader = () => {
     const w = store.workers.get(workerId);
-    if (w) title.textContent = `${w.name} · changes`;
+    if (w) title.textContent = `${w.name} · ${fa('changes')}`;
     const s = state;
     if (!s || s.error) branch.textContent = '';
-    else branch.textContent = s.base === 'HEAD' ? `🌿 ${s.branch} · uncommitted changes` : `🌿 ${s.branch} · vs ${s.base}`;
+    else branch.textContent = s.base === 'HEAD' ? `🌿 ${s.branch} · تغییرهای ثبت‌نشده` : `🌿 ${s.branch} · مبنا: ${s.base}`;
   };
 
   const onState = (s: ChangesState) => {

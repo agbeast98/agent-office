@@ -18,7 +18,7 @@ import { hoop } from '../../features/basketball/world';
 import { kitchen } from '../kitchen';
 import { signs } from '../desksigns';
 import type { Collider, DeskView, Interactable, Office, OfficeHandles } from '../types';
-import { PALETTE, floorTexture, paintPlanks, type Looks } from './materials';
+import { PALETTE, floorTexture, paintPlanks, studioPalette, type Looks } from './materials';
 import { boards, clearOfStairs, lamps, lounge, machineMonitor, nightLights, plants, rugs, tv } from './room';
 import { plug, walls, type Door } from './shell';
 import { balcony } from './balcony';
@@ -26,6 +26,8 @@ import { downstairs } from './ground';
 import { wing } from './wing';
 import { beanbags, desks, kiosks } from './seats';
 import { meetingRoom } from './meeting-room';
+import { studioZones } from './studio-zones';
+import { studioArchitecture } from './studio';
 import { loft } from './loft';
 import type { Fixture, Gives, Site } from './fixture';
 
@@ -43,6 +45,7 @@ function floorPlan() {
     rugs,
     nightLights,
     walls,
+    studioArchitecture,
     balcony,
     tee,
     ...downstairs(cars, street, green, scenic),
@@ -60,6 +63,7 @@ function floorPlan() {
     cabinet,
     bookshelf,
     kitchen,
+    studioZones,
     plants,
     lamps,
     wing,
@@ -128,8 +132,9 @@ export function buildOffice(): Office {
   }
 
   const setLook = (p: FloorPalette) => {
-    looks.wall.color.set(p.wall);
-    looks.trim.color.set(p.trim);
+    const finish = studioPalette(p);
+    looks.wall.color.set(finish.wall);
+    looks.trim.color.set(finish.trim);
     for (const t of looks.planks) {
       paintPlanks(t.image as HTMLCanvasElement, p);
       t.needsUpdate = true;

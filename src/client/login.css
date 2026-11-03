@@ -1,5 +1,7 @@
 :root { --bg: #ffe8cc; --ink: #2b2d42; --card: #fffaf3; --accent: #ff8a5b; --muted: #7a6f65; --border: #2b2d42; }
 * { box-sizing: border-box; }
+html[dir="rtl"] { direction: rtl; }
+html[dir="rtl"] body { font-family: 'Vazirmatn', 'Noto Sans Arabic', Tahoma, 'Nunito', system-ui, sans-serif; line-height: 1.7; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body {
@@ -11,14 +13,16 @@ body {
 .logo { display: grid; place-items: center; }
 h1 { margin: 8px 0 4px; font-size: 28px; }
 .sub { margin: 0 0 20px; color: var(--muted); }
-label { display: block; text-align: left; font-weight: 700; font-size: 14px; }
+label { display: block; text-align: start; font-weight: 700; font-size: 14px; }
 input { width: 100%; margin-top: 6px; padding: 12px 14px; font-size: 16px; border: 3px solid var(--border); border-radius: 12px; background: #fff; color: var(--ink); outline: none; }
+html[dir="rtl"] input:not([type="password"]) { direction: rtl; text-align: start; }
+html[dir="rtl"] input[type="password"], html[dir="rtl"] code { direction: ltr; unicode-bidi: isolate; text-align: left; }
 input:focus { border-color: var(--accent); }
 button { margin-top: 16px; width: 100%; padding: 12px; font-size: 16px; font-weight: 800; border: 3px solid var(--border); border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; box-shadow: 0 4px 0 var(--border); }
 button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--border); }
 button:disabled { opacity: .6; cursor: default; }
 .error { min-height: 1.2em; color: #c3423f; font-weight: 700; margin: 12px 0 0; }
-.warn { text-align: left; background: #fff3c4; border: 3px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; font-size: 14px; }
+.warn { text-align: start; background: #fff3c4; border: 3px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; font-size: 14px; }
 .secret { display: flex; gap: 8px; align-items: center; justify-content: center; background: #fff; border: 3px dashed var(--border); border-radius: 12px; padding: 14px; }
 .secret code { font: 800 26px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; word-break: break-all; }
 button.mini { width: auto; margin: 0; padding: 6px 10px; font-size: 13px; box-shadow: 0 2px 0 var(--border); }
@@ -28,3 +32,10 @@ a { color: var(--ink); font-weight: 800; }
 label + label { margin-top: 12px; }
 .note { text-align: left; color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 .role { display: inline-block; background: #fff3c4; border: 2px solid var(--border); border-radius: 999px; padding: 0 8px; font-size: 13px; font-weight: 800; }
+
+@media (max-width: 480px), (max-height: 500px) {
+  body { padding: 12px; align-items: flex-start; }
+  .card { padding: 20px 16px; min-width: 0; }
+  input { font-size: 16px; }
+  .secret { flex-wrap: wrap; }
+}

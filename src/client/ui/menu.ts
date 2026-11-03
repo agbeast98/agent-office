@@ -1,8 +1,10 @@
 import './menu.css';
+import { popupPosition } from './popup-position';
 import { store, type HudPanel, type Settings, type Topic } from '../state';
 import { waitingOnSomeone } from '../notify';
 import { DESK_BY_ID } from '../../shared/layout';
 import { $, h, openModal, type Modal } from './dom';
+import { fa } from './fa-locale';
 
 /** One thing the ☰ menu does. Any of them can be pinned to the top bar. */
 export interface HudAction {
@@ -170,8 +172,8 @@ export function mountHud(actions: HudAction[], settings: Settings, save: () => v
       pin.innerHTML = PIN_SVG;
       const paintPin = () => {
         pin.setAttribute('aria-pressed', String(pinned(a)));
-        pin.setAttribute('aria-label', `Pin ${labelOf(a)} to the top bar`);
-        pin.title = pinned(a) ? 'Unpin from the top bar' : 'Pin to the top bar';
+        pin.setAttribute('aria-label', `${fa('Pin')} ${fa(labelOf(a))} ${fa('to the top bar')}`);
+        pin.title = fa(pinned(a) ? 'Unpin from the top bar' : 'Pin to the top bar');
       };
       paintPin();
       pin.addEventListener('click', () => {
@@ -201,9 +203,10 @@ export function mountHud(actions: HudAction[], settings: Settings, save: () => v
     const el = h(
       'div.hud-menu',
       { role: 'menu', 'aria-label': 'Menu' },
+      h('div.menu-head', {}, h('strong', {}, 'منوی دفتر'), h('button.btn.close', { type: 'button', 'aria-label': 'بستن منو', onclick: () => menu?.close() }, '✕')),
       h('div.menu-col', {}, ...section('Open', rows('Open')), ...section('Together', rows('Together'))),
       h('div.menu-col', {}, ...section('Show on screen', PANELS.map(toggle)), ...section('Office', rows('Office'))),
-      h('p.menu-foot', {}, 'Pin what you use most to keep it on the top bar. ', h('kbd', {}, 'Tab'), ' opens and closes this menu.'),
+      h('p.menu-foot', {}, 'برای نگه‌داشتن بخش‌های پراستفاده در نوار بالا، آن‌ها را سنجاق کنید. کلید ', h('kbd', {}, 'Tab'), ' منو را باز و بسته می‌کند.'),
     );
     // On the window, so the keys work wherever focus is while the menu is up.
     const onKey = (e: KeyboardEvent) => menuKey(el, e);
@@ -211,6 +214,11 @@ export function mountHud(actions: HudAction[], settings: Settings, save: () => v
       // A dropdown under ☰, which closes it again, like a click anywhere else.
       closeButton: false,
       onClose: () => {
+        window.removeEventListener('resize', place);
+        window.visualViewport?.removeEventListener('resize', place);
+        window.visualViewport?.removeEventListener('scroll', place);
+        observer.disconnect();
+        menuBtn.focus({ preventScroll: true });
         menu = null;
         menuBtn.setAttribute('aria-expanded', 'false');
         window.removeEventListener('keydown', onKey, true);
@@ -219,11 +227,18 @@ export function mountHud(actions: HudAction[], settings: Settings, save: () => v
     window.addEventListener('keydown', onKey, true);
     menu.backdrop.classList.add('menu-backdrop');
     menuBtn.setAttribute('aria-expanded', 'true');
-    // Hangs under the ☰ button.
-    const r = menuBtn.getBoundingClientRect();
-    el.style.top = `${r.bottom + 8}px`;
-    el.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
-    el.style.maxHeight = `${window.innerHeight - r.bottom - 20}px`;
+    // Anchor to whichever side the button occupies, then clamp after every resize.
+    const place = () => {
+      const v = window.visualViewport;
+      const p = popupPosition(menuBtn.getBoundingClientRect(), el.offsetWidth, { width: v?.width ?? innerWidth, height: v?.height ?? innerHeight, left: v?.offsetLeft, top: v?.offsetTop });
+      Object.assign(el.style, { left: `${p.left}px`, right: 'auto', top: `${p.top}px`, maxHeight: `${p.maxHeight}px`, maxWidth: `${p.maxWidth}px` });
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(dock);
+    window.addEventListener('resize', place);
+    window.visualViewport?.addEventListener('resize', place);
+    window.visualViewport?.addEventListener('scroll', place);
+    place();
     el.querySelector<HTMLElement>('.menu-item')?.focus();
   }
 
@@ -248,10 +263,10 @@ export function mountHud(actions: HudAction[], settings: Settings, save: () => v
         next = items[items.length - 1];
         break;
       case 'ArrowRight':
-        next = onPin ? null : at?.nextElementSibling;
+        next = getComputedStyle(el).direction === 'rtl' ? (onPin ? at?.previousElementSibling : null) : (onPin ? null : at?.nextElementSibling);
         break;
       case 'ArrowLeft':
-        next = onPin ? at?.previousElementSibling : null;
+        next = getComputedStyle(el).direction === 'rtl' ? (onPin ? null : at?.nextElementSibling) : (onPin ? at?.previousElementSibling : null);
         break;
       case 'Tab':
         // Not on to the office's own Tab, which would open it again, or past the menu to what's behind it.

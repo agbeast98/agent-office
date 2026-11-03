@@ -4,6 +4,9 @@ import { deskPoint } from '../../../shared/nav';
 import { mesh, roundedBox, textPlane, toon } from '../toon';
 import type { Collider, DeskView, Interactable } from '../types';
 import type { Fixture } from './fixture';
+import { studioDesktop } from './studio';
+import { chair } from './gaming-chair';
+export { chair } from './gaming-chair';
 import { PALETTE, box } from './materials';
 import { deskBooks, deskMug, plant } from './props';
 
@@ -18,23 +21,6 @@ export function seatable(obj: THREE.Object3D, seatId: string, radius: number, in
   obj.userData.interact = it;
 }
 
-export function chair(color: string): THREE.Group {
-  const g = new THREE.Group();
-  const mat = toon(color);
-  g.add(mesh(roundedBox(0.62, 0.1, 0.58, 0.12), mat, 0, 0.5, 0));
-  const back = mesh(roundedBox(0.62, 0.1, 0.6, 0.12), mat, 0, 0.86, 0.27);
-  back.rotation.x = Math.PI / 2 - 0.12;
-  g.add(back);
-  g.add(mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), toon(PALETTE.deskLeg), 0, 0.26, 0));
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const leg = mesh(box(0.05, 0.04, 0.32), toon(PALETTE.deskLeg), Math.sin(a) * 0.15, 0.05, Math.cos(a) * 0.15);
-    leg.rotation.y = a;
-    g.add(leg);
-  }
-  return g;
-}
-
 /**
  * The `index`th desk (of DESKS) at `def`: its top, legs and modesty panel (in `trimMat`), its knick-knack,
  * its chair, and the anchors its worker and laptop go in.
@@ -45,14 +31,15 @@ export function buildDesk(def: DeskDef, index: number, trimMat: THREE.Material):
   group.rotation.y = def.rotY;
   const { width, depth, height } = DESK_SIZE;
   group.add(mesh(roundedBox(width - 0.06, 0.08, depth - 0.04, 0.08), toon(PALETTE.desk), 0, height - 0.04, 0));
-  const legMat = toon('#8d99ae');
+  const legMat = toon(PALETTE.deskLeg);
+  // Slim closed steel frames: same footprint and seating clearance as the original legs.
   for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      group.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, height - 0.08, 8), legMat, sx * (width / 2 - 0.14), (height - 0.08) / 2, sz * (depth / 2 - 0.12)));
-    }
+    const x = sx * (width / 2 - 0.14);
+    for (const sz of [-1, 1]) group.add(mesh(box(0.055, height - 0.08, 0.055), legMat, x, (height - 0.08) / 2, sz * (depth / 2 - 0.12)));
+    group.add(mesh(roundedBox(0.07, 0.045, depth - 0.17, 0.02), legMat, x, 0.04, 0));
   }
-  // Modesty panel facing away from the worker
-  group.add(mesh(box(width - 0.3, 0.32, 0.03), trimMat, 0, height - 0.26, -depth / 2 + 0.06));
+  group.add(mesh(box(width - 0.3, 0.12, 0.035), trimMat, 0, height - 0.19, -depth / 2 + 0.08));
+  group.add(studioDesktop(width, depth, height));
   // Little desk decorations. Which desk gets which stays as it is: the holiday present goes in whichever
   // back corner it leaves free (DESK_SPOTS in holiday.ts).
   const deco = index % 3;

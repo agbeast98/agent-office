@@ -37,3 +37,11 @@
 /* The folder's Change button: styles/base.css, after the button rules it restyles. */
 .elevator .dir-pick { margin-top: 8px; }
 .elevator .err { margin: 8px 0 0; font-size: 13px; font-weight: 800; color: var(--bad); overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .elevator .floor-btn { grid-template-columns: auto minmax(0, 1fr); gap: 6px 8px; padding: 8px; text-align: start; }
+  .elevator .floor-stats { grid-column: 2; flex-wrap: wrap; }
+  .elevator .floor-name { display: block; overflow-wrap: anywhere; }
+  .elevator .here-tag { display: block; width: fit-content; margin: 3px 0 0; }
+  .elevator .floor-off { min-width: 44px; padding-inline: 6px; }
+}

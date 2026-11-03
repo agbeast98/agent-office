@@ -11,23 +11,23 @@ export const PALETTE = {
   floorAlt: FLOOR_PALETTES[0].floorAlt,
   wall: FLOOR_PALETTES[0].wall,
   wallTrim: FLOOR_PALETTES[0].trim,
-  desk: '#f7f3ea',
-  deskLeg: '#3d405b',
-  wood: '#c98b5a',
+  desk: '#ded0b6',
+  deskLeg: '#303c3b',
+  wood: '#b99266',
   cork: '#d8a86a',
-  chairs: ['#ff8a5b', '#5bc0eb', '#9bc53d', '#b388eb', '#ffb400', '#f7aef8'],
-  rugs: ['#bde0fe', '#ffd6a5', '#caffbf', '#ffc6ff'],
-  plant: '#5fb760',
-  plantDark: '#3f8f45',
-  pot: '#e76f51',
+  chairs: ['#668279', '#627d89', '#9b906f', '#797a8b', '#bc9462', '#789b91'],
+  rugs: ['#a8b4a4', '#c1b5a0', '#94aaa6', '#b5b4aa'],
+  plant: '#63876a',
+  plantDark: '#355c48',
+  pot: '#b7b0a1',
   ink: '#2b2d42',
   /** The building's outside paint. */
-  exterior: '#e07a5f',
+  exterior: '#c7c6b8',
 };
 
 /** Window glass: faintly blue and see-through. */
-export const GLASS = new THREE.MeshBasicMaterial({ color: '#d6f1ff', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
-const SHINE = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+export const GLASS = new THREE.MeshBasicMaterial({ color: '#d6f1ff', transparent: true, opacity: 0.09, depthWrite: false, side: THREE.DoubleSide });
+const SHINE = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide });
 
 /** A sheet of glass `w` by `h`, centered, with a couple of cartoon glints so it reads as glass. */
 export function glassPane(w: number, h: number): THREE.Group {
@@ -94,8 +94,15 @@ export function onWall(side: Side, u: number): { x: number; z: number; rotY: num
   }
 }
 
-/** Chunky planks in a floor's colors. */
+/** Restrained architectural paint, with each team's original hue retained as a subtle tint. */
+export function studioPalette(p: FloorPalette): FloorPalette {
+  const tint = (a: string, b: string, amount: number) => `#${new THREE.Color(a).lerp(new THREE.Color(b), amount).getHexString()}`;
+  return { ...p, wall: tint(p.wall, '#eeeae1', 0.72), trim: tint(p.trim, '#525f58', 0.72), floor: tint(p.floor, '#cdbb9f', 0.8), floorAlt: tint(p.floorAlt, '#c3af91', 0.8), seam: '#9d8d76' };
+}
+
+/** Fine-grained oak planks in a floor's colors. */
 export function paintPlanks(c: HTMLCanvasElement, p: FloorPalette) {
+  p = studioPalette(p);
   const g = c.getContext('2d')!;
   g.fillStyle = p.floor;
   g.fillRect(0, 0, 512, 512);
@@ -104,10 +111,15 @@ export function paintPlanks(c: HTMLCanvasElement, p: FloorPalette) {
     for (let col = -1; col < 3; col++) {
       const x = col * 256 + offset;
       g.fillStyle = (row + col) % 3 === 0 ? p.floorAlt : p.floor;
-      g.fillRect(x + 2, row * 64 + 2, 252, 60);
+      g.fillRect(x + 1, row * 64 + 1, 254, 63);
     }
+    // Deterministic fine grain: no downloaded texture or random flicker when teams change.
+    g.globalAlpha = 0.08;
+    g.fillStyle = '#5b4833';
+    for (let line = 0; line < 7; line++) g.fillRect((row * 47 + line * 31) % 110, row * 64 + 6 + line * 8, 220 + line * 23, 1);
+    g.globalAlpha = 1;
     g.fillStyle = p.seam;
-    g.fillRect(0, row * 64, 512, 3);
+    g.fillRect(0, row * 64, 512, 1);
   }
 }
 

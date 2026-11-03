@@ -3,6 +3,7 @@
  * crosshair, drawn each frame by the aim tick (see input/pointer.ts), only when they change.
  */
 import { $, modalOpen } from '../ui/dom';
+import { fa } from '../ui/fa-locale';
 import type { Ctx } from './context';
 import type { CoreState } from './ctx';
 import { key } from './hint';
@@ -56,7 +57,7 @@ export function installHintBar(ctx: Ctx, core: CoreState, parts: Pick<Parts, 'po
     el.classList.toggle('hidden', !show);
     el.classList.toggle('on', !!target);
     el.classList.toggle('free', free);
-    el.querySelector('.look-hint')!.textContent = relookOnKey ? 'Press a key or click to look around' : 'Click to look around';
+    el.querySelector('.look-hint')!.textContent = fa(relookOnKey ? 'Press a key or click to look around' : 'Click to look around');
   }
 
   return { renderHint, renderCrosshair };

@@ -34,16 +34,17 @@ export function installTv(ctx: Ctx, deps: TvDeps) {
     c.height = 720;
     const g = c.getContext('2d')!;
     const grad = g.createLinearGradient(0, 0, 1280, 720);
-    grad.addColorStop(0, '#3a0ca3');
-    grad.addColorStop(1, '#4cc9f0');
+    grad.addColorStop(0, '#203a33');
+    grad.addColorStop(1, '#638276');
     g.fillStyle = grad;
     g.fillRect(0, 0, 1280, 720);
     g.fillStyle = '#fff';
     g.textAlign = 'center';
-    g.font = '900 88px Nunito, ui-rounded, system-ui, sans-serif';
-    g.fillText('📺 Office TV', 640, 330);
-    g.font = '700 44px Nunito, ui-rounded, system-ui, sans-serif';
-    g.fillText('Click “Share screen” to put something up here', 640, 420);
+    g.direction = 'rtl';
+    g.font = '900 78px Tahoma, Arial, sans-serif';
+    g.fillText('نمایشگر دفتر', 640, 330);
+    g.font = '700 34px Tahoma, Arial, sans-serif';
+    g.fillText('برای نمایش محتوا، «اشتراک‌گذاری صفحه» را انتخاب کنید', 640, 420);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
@@ -56,7 +57,7 @@ export function installTv(ctx: Ctx, deps: TvDeps) {
     reach: 10,
     hint: () => {
       const any = deps.shares().length > 0;
-      return { k: String(any), parts: [hintTitle('📺 Office TV'), key('E', any ? 'Watch full screen' : 'Share your screen')] };
+      return { k: String(any), parts: [hintTitle('نمایشگر دفتر'), key('E', any ? 'نمایش تمام‌صفحه' : 'اشتراک‌گذاری صفحه')] };
     },
     use: onE(() => deps.watch()),
   });

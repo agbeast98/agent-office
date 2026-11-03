@@ -1,5 +1,12 @@
 # Features
 
+## Persian interface and studio office
+
+This fork uses Persian and right-to-left layouts across the main interface, settings, meetings and authentication pages. Technical identifiers, paths, source code and user-authored content retain their original language. Some legacy world labels and embedded third-party tools still use English. See the [Persian quick start](../README.fa.md).
+
+The office has coordinated oak desks, steel frames, muted upholstery, linear lights, kitchen finishes and Persian wayfinding. Seating anchors and existing interaction targets remain in place. On narrow screens the toolbar scrolls while the menu stays reachable; menus stay inside the viewport, meeting forms wrap, and the 2D view uses a two-row navigation bar below 361 pixels. Enter activates a focused menu button and Escape closes the menu. The 2D view remains available from the menu for smaller or slower devices.
+
+
 - **گزارش فارسی.** In a desk’s terminal, this tab shows the latest 500 terminal rows as selectable text with browser bidirectional layout. It follows output while you are at the bottom. At an agent desk the composer sends to that worker with an explicit request to answer in Persian. Existing English output stays in its original language. The tab works in the 3D office and the 2D view.
 
 Everything in the office, room by room. Back to the [README](../README.md).

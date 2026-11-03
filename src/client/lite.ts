@@ -29,6 +29,7 @@ import { askNotifyPermission, DesktopNotifier, notifyPermission, waitingOnSomeon
 import { repoChoices } from './shared/hiring';
 // The tab title counts the workers waiting on someone, on every floor, as the 3D office's does.
 import { renderTitle } from './shared/title';
+import { fa } from './ui/fa-locale';
 
 // Sent here because this browser can't draw the 3D office (see noWebGL in core/scene.ts).
 if (new URLSearchParams(location.search).get('why') === 'webgl') {
@@ -99,20 +100,28 @@ const floorLabel = (f: FloorInfo) => `${f.name}${f.cloning ? ` (${cloneLabel(f.c
 
 function renderFloors() {
   const options = store.floors.map((f) => h('option', { value: f.id, disabled: !!f.cloning }, floorLabel(f)));
-  if (!store.floors.length) options.push(h('option', { value: '' }, 'No floors yet'));
+  if (!store.floors.length) options.push(h('option', { value: '' }, fa('No floors yet')));
   floorSelect.replaceChildren(...options);
   floorSelect.value = store.floor ?? '';
   floorSelect.disabled = store.floors.length < 2;
   const p = store.project;
   const f = store.currentFloor();
-  $('floor-meta').textContent = p ? [p.branch && `⎇ ${p.branch}`, f?.repo ?? p.dir, f && `👥 ${f.people} here`].filter(Boolean).join(' · ') : store.floors.length ? '' : 'Add a project from the elevator in the 3D office.';
+  const meta = $('floor-meta');
+  if (p) {
+    const folder = f?.repo ?? p.dir;
+    meta.replaceChildren(
+      ...(p.branch ? [h('bdi', { dir: 'ltr' }, `⎇ ${p.branch}`), document.createTextNode(' · ')] : []),
+      h('bdi', { dir: 'auto' }, folder),
+      ...(f ? [document.createTextNode(' · '), document.createTextNode(`👥 ${new Intl.NumberFormat('fa-IR').format(f.people)} ${fa('here')}`)] : []),
+    );
+  } else meta.textContent = store.floors.length ? '' : fa('Add a project from the elevator in the 3D office.');
   // Someone waiting on another floor: a way straight there.
   const elsewhere = store.floors.filter((o) => o.id !== store.floor && o.waiting > 0 && !o.cloning);
   const box = $('elsewhere');
   box.classList.toggle('hidden', !elsewhere.length);
   box.replaceChildren(
     ...elsewhere.map((o) =>
-      h('button.btn.lite-go', { type: 'button', onclick: () => net.send({ t: 'floor.go', floor: o.id }) }, `🙋 ${o.waiting} waiting on ${o.name}`, h('span', { 'aria-hidden': 'true' }, '→')),
+      h('button.btn.lite-go', { type: 'button', onclick: () => net.send({ t: 'floor.go', floor: o.id }) }, `🙋 ${new Intl.NumberFormat('fa-IR').format(o.waiting)} ${fa('waiting on')} `, h('bdi', { dir: 'auto' }, o.name), h('span', { 'aria-hidden': 'true' }, '←')),
     ),
   );
   renderTitle();
@@ -132,7 +141,7 @@ function renderWorkers() {
   const list = byUrgency(store.workers.values());
   const ul = $('workers');
   ul.replaceChildren(...list.map(workerCard));
-  if (!list.length) ul.append(h('li.lite-empty', {}, store.project ? 'Nobody is working on this floor. ✨ New task hires someone.' : 'No workers here.'));
+  if (!list.length) ul.append(h('li.lite-empty', {}, fa(store.project ? 'Nobody is working on this floor. ✨ New task hires someone.' : 'No workers here.')));
   $('waiting-now').textContent = waitingLabel(waitingInOrder(list));
   renderTitle();
 }
@@ -145,11 +154,11 @@ function workerCard(w: WorkerInfo): HTMLElement {
   const task = w.task?.name ?? w.title ?? (w.prompt ? clip(w.prompt, 90) : undefined);
   // What it's asking, doing or did, in a line.
   const now = w.lost
-    ? '🌿 Its worktree was deleted outside agent-office: open it to fix it'
+    ? fa('🌿 Its worktree was deleted outside agent-office: open it to fix it')
     : w.status === 'needs_input'
-      ? `🙋 ${w.activity ?? 'Waiting on an answer'}`
+      ? `🙋 ${w.activity ?? fa('Waiting on an answer')}`
       : asleep
-        ? '💤 Asleep: open it to wake it up'
+        ? fa('💤 Asleep: open it to wake it up')
         : w.status === 'done'
           ? w.task?.summary && `✅ ${w.task.summary}`
           : (w.task?.summary ?? w.activity);
@@ -165,7 +174,7 @@ function workerCard(w: WorkerInfo): HTMLElement {
     { class: `${w.status}${waiting ? ' waiting' : ''}` },
     h(
       'button.lite-card',
-      { type: 'button', onclick: () => openWorker(w.id), 'aria-label': `${w.name}, ${STATUS_LABEL[w.status] ?? w.status}: open its terminal` },
+    { type: 'button', onclick: () => openWorker(w.id), 'aria-label': `${w.name}، ${fa(STATUS_LABEL[w.status] ?? w.status)}: ${fa('open its terminal')}` },
       h('span.dot', { style: `background:${w.color}` }),
       h(
         'span.lite-info',
@@ -175,10 +184,10 @@ function workerCard(w: WorkerInfo): HTMLElement {
         now ? h('span.lite-now', {}, now) : null,
         h('span.lite-sub', {}, sub.join(' · ')),
       ),
-      h('span.lite-state', {}, h('span.pill', { class: w.status }, STATUS_LABEL[w.status] ?? w.status), waiting && w.waitingSince ? h('small', {}, timeAgo(w.waitingSince)) : null),
+      h('span.lite-state', {}, h('span.pill', { class: w.status }, fa(STATUS_LABEL[w.status] ?? w.status)), waiting && w.waitingSince ? h('small', {}, timeAgo(w.waitingSince)) : null),
     ),
     // One that's asking something is answered in its terminal, where the question is.
-    asleep || w.lost || w.status === 'needs_input' ? null : h('button.btn.lite-say', { type: 'button', title: `Send ${w.name} a prompt`, 'aria-label': `Send ${w.name} a prompt`, onclick: () => promptWorker(w.id) }, '✍️'),
+    asleep || w.lost || w.status === 'needs_input' ? null : h('button.btn.lite-say', { type: 'button', title: `${fa('Send')} ${w.name} ${fa('a prompt')}`, 'aria-label': `${fa('Send')} ${w.name} ${fa('a prompt')}`, onclick: () => promptWorker(w.id) }, '✍️'),
   );
 }
 
@@ -352,7 +361,7 @@ onDoingChange(() => sendDoing());
 
 // ---- Notifications ------------------------------------------------------------------------------
 // The browser only asks from a tap, so there's a button for it while it hasn't been asked.
-const bell = h('button.btn', { type: 'button', title: 'Get a notification when a worker needs input or is done', 'aria-label': 'Turn on notifications' }, '🔔');
+const bell = h('button.btn', { type: 'button', title: fa('Get a notification when a worker needs input or is done'), 'aria-label': fa('Turn on notifications') }, '🔔');
 bell.addEventListener('click', async () => {
   await askNotifyPermission();
   bell.remove();
@@ -362,13 +371,13 @@ if (notifyPermission() === 'default' && settings.notify) $('to-3d').before(bell)
 // ---- In ----------------------------------------------------------------------------------------
 /** Your name, the first time this browser comes in on the shared password. */
 function askName(done: (name: string) => void) {
-  const input = h('input', { type: 'text', maxlength: 24, placeholder: 'Your name', 'aria-label': 'Your name', autocomplete: 'nickname' }) as HTMLInputElement;
+  const input = h('input', { type: 'text', maxlength: 24, placeholder: fa('Your name'), 'aria-label': fa('Your name'), autocomplete: 'nickname' }) as HTMLInputElement;
   const form = h(
     'form.modal.lite-name',
     {},
-    h('header', {}, h('h2', {}, '👋 Who is it?')),
-    h('div.body', {}, h('p', {}, 'Your teammates see this name on what you type and send.'), input),
-    h('footer', {}, h('button.btn.primary', { type: 'submit' }, 'Come on in')),
+    h('header', {}, h('h2', {}, fa('👋 Who is it?'))),
+    h('div.body', {}, h('p', {}, fa('Your teammates see this name on what you type and send.')), input),
+    h('footer', {}, h('button.btn.primary', { type: 'submit' }, fa('Come on in'))),
   );
   const modal = openModal(form, { escCloses: false, backdropCloses: false });
   form.addEventListener('submit', (e) => {

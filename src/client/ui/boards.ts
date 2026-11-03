@@ -3,6 +3,7 @@ import type { GhIssue, GhLabel, GhPull, WorkerInfo } from '../../shared/protocol
 import type { Net } from '../net';
 import { store, workerForPull } from '../state';
 import { h, openModal, timeAgo } from './dom';
+import { fa } from './fa-locale';
 import { openIssue } from './github/issue-window';
 import { labelChip, openLabels } from './github/labels';
 import { inProgress } from './github/progress';
@@ -25,8 +26,8 @@ interface Column<T> {
 const byUpdated = (a: { updatedAt: string }, b: { updatedAt: string }) => b.updatedAt.localeCompare(a.updatedAt);
 
 function githubErrorHint(error: string): string {
-  if (/^Unknown JSON field:/i.test(error)) return 'The server is running an older GitHub CLI than this feature expected; update `gh` if the board still cannot load.';
-  return 'The server runs `gh` in the project directory — make sure it is installed and authenticated (gh auth login).';
+  if (/^Unknown JSON field:/i.test(error)) return fa('The server is running an older GitHub CLI than this feature expected; update `gh` if the board still cannot load.');
+  return fa('The server runs `gh` in the project directory — make sure it is installed and authenticated (gh auth login).');
 }
 
 function issueColumns(items: GhIssue[]): Column<GhIssue>[] {
@@ -246,7 +247,7 @@ export function openBoard(kind: 'issues' | 'pulls', net: Net, actions: BoardActi
 
   const render = () => {
     const st = kind === 'issues' ? store.issues : store.pulls;
-    status.textContent = st.loading ? 'Refreshing…' : st.fetchedAt ? `Updated ${timeAgo(st.fetchedAt)}` : '';
+    status.textContent = st.loading ? fa('Refreshing…') : st.fetchedAt ? `${fa('Updated')} ${timeAgo(st.fetchedAt)}` : '';
     // Every refresh rebuilds the columns, so note how far each was scrolled and put it back afterwards,
     // and keep focus (and the caret, in a filter box) on the header, label toggle or box it was on.
     const scrolled = [...body.querySelectorAll('.column > ul')].map((ul) => ul.scrollTop);
@@ -256,7 +257,7 @@ export function openBoard(kind: 'issues' | 'pulls', net: Net, actions: BoardActi
     const caret = active instanceof HTMLInputElement ? ([active.selectionStart, active.selectionEnd] as const) : null;
     body.replaceChildren();
     if (st.error && !st.items.length) {
-      body.append(h('div.board-error', {}, `Couldn't load from GitHub: ${st.error}`, h('br'), h('small', {}, githubErrorHint(st.error))));
+      body.append(h('div.board-error', {}, `${fa("Couldn't load from GitHub:")} ${st.error}`, h('br'), h('small', {}, githubErrorHint(st.error))));
       return;
     }
     const all = boardLabels(st.items);
@@ -264,7 +265,7 @@ export function openBoard(kind: 'issues' | 'pulls', net: Net, actions: BoardActi
       for (const col of issueColumns(store.issues.items)) {
         body.append(
           column(col, all, (it, i) =>
-            card(it.number, it.title, [...labelChips(it.labels), queueChip(it.number), it.assignees.length ? `👤 ${it.assignees.join(', ')}` : it.taken ? '🤖 handed to a worker' : `by ${it.author}`, it.comments ? `💬 ${it.comments}` : '', timeAgo(it.updatedAt)], i, () => openIssue(it, net, actions), () => openLabels('issue', it, net)),
+            card(it.number, it.title, [...labelChips(it.labels), queueChip(it.number), it.assignees.length ? `👤 ${it.assignees.join(', ')}` : it.taken ? fa('🤖 handed to a worker') : `${fa('by')} ${it.author}`, it.comments ? `💬 ${it.comments}` : '', timeAgo(it.updatedAt)], i, () => openIssue(it, net, actions), () => openLabels('issue', it, net)),
           ),
         );
       }
@@ -279,8 +280,8 @@ export function openBoard(kind: 'issues' | 'pulls', net: Net, actions: BoardActi
               [
                 w ? deskChip(w) : '',
                 ...labelChips(it.labels),
-                `by ${it.author}`,
-                it.reviewDecision === 'CHANGES_REQUESTED' ? '🛠 changes requested' : '',
+                `${fa('by')} ${it.author}`,
+                it.reviewDecision === 'CHANGES_REQUESTED' ? fa('🛠 changes requested') : '',
                 CHECK_ICON[it.checks],
                 h('span', { style: 'color:#2a9d4b' }, `+${it.additions}`),
                 h('span', { style: 'color:#c3423f' }, `-${it.deletions}`),
@@ -307,7 +308,7 @@ export function openBoard(kind: 'issues' | 'pulls', net: Net, actions: BoardActi
   if (kind === 'pulls') unsubs.push(store.on('workers', render));
   const timer = setInterval(() => {
     const st = kind === 'issues' ? store.issues : store.pulls;
-    status.textContent = st.loading ? 'Refreshing…' : st.fetchedAt ? `Updated ${timeAgo(st.fetchedAt)}` : '';
+    status.textContent = st.loading ? fa('Refreshing…') : st.fetchedAt ? `${fa('Updated')} ${timeAgo(st.fetchedAt)}` : '';
   }, 15000);
   const modal = openModal(el, {
     doing: kind === 'issues' ? '📋 at the issues board' : '🔀 at the PR board',

@@ -1,0 +1,51 @@
+/* Direction-specific layout fixes. Keep terminals, URLs and source content isolated LTR. */
+html[dir="rtl"] .side { left: auto; right: 12px; }
+html[dir="rtl"] .chat { text-align: start; }
+html[dir="rtl"] .chat input { text-align: start; }
+html[dir="rtl"] .project-meta, html[dir="rtl"] .panel, html[dir="rtl"] .modal { text-align: start; }
+html[dir="rtl"] .modal header, html[dir="rtl"] .modal footer { direction: rtl; }
+html[dir="rtl"] .settings-nav { border-inline-end: 3px solid var(--ink); border-inline-start: 0; }
+html[dir="rtl"] .setting-note, html[dir="rtl"] .setting-description { line-height: 1.8; }
+html[dir="rtl"] .lite-floor { align-items: flex-start; }
+html[dir="rtl"] .lite-state { align-items: flex-start; }
+html[dir="rtl"] .lite-say { margin-inline-start: 10px; margin-inline-end: 0; }
+html[dir="rtl"] .lite-nav { direction: rtl; }
+html[dir="rtl"] .queue-add .provider-choice label { margin-inline: 0 6px; }
+html[dir="rtl"] .queue-add .provider-choice > label:first-child { margin-inline-start: 0; }
+html[dir="rtl"] .meeting-window, html[dir="rtl"] .queue-window, html[dir="rtl"] .settings { direction: rtl; }
+html[dir="rtl"] .term-host, html[dir="rtl"] .browser-frame, html[dir="rtl"] .diff, html[dir="rtl"] pre { direction: ltr; unicode-bidi: isolate; text-align: left; }
+html[dir="rtl"] :where(.modal input, .modal textarea) { text-align: start; }
+html[dir="rtl"] :where(.modal input[type="url"], .modal input[type="password"], .modal .provider-model input, .modal .branch-name) { direction: ltr; unicode-bidi: isolate; text-align: left; }
+html[dir="rtl"] :where(.modal p, .modal li, .modal small, .modal .setting-note, .modal .setting-description) { unicode-bidi: plaintext; }
+html[dir="rtl"] :where(.modal p[lang="en"], .modal [data-locale="en"]) { direction: ltr; unicode-bidi: plaintext; text-align: left; }
+html[dir="rtl"] .modal.bookshelf .body { direction: rtl; }
+html[dir="rtl"] .modal.bookshelf .bs-side { border-right: 0; border-left: 3px solid var(--ink); }
+html[dir="rtl"] .modal.bookshelf .bs-path,
+html[dir="rtl"] .modal.bookshelf .bs-crumbs bdi[dir="ltr"] { direction: ltr; unicode-bidi: isolate; text-align: left; }
+html[dir="rtl"] .modal.bookshelf .bs-page .md { unicode-bidi: plaintext; }
+html[dir="rtl"] .wb-window > header { direction: rtl; }
+html[dir="rtl"] .wb-person { padding-inline: 4px 9px; }
+html[dir="rtl"] .needs-you-go { padding-inline: 14px 6px; text-align: right; border-radius: 0 12px 12px 0; }
+html[dir="rtl"] .needs-you-x { border-left: 0; border-right: 2px solid rgba(43, 45, 66, .35); border-radius: 12px 0 0 12px; }
+html[dir="rtl"] .manager-window > header .close { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .modal.gh-window .gh-meta { direction: rtl; }
+html[dir="rtl"] .modal.gh-window .gh-body { direction: rtl; }
+html[dir="rtl"] .modal.gh-window .gh-card .md { direction: rtl; unicode-bidi: plaintext; }
+html[dir="rtl"] .modal.gh-window .pd { direction: rtl; }
+html[dir="rtl"] .modal.gh-window .pd-side { border-right: 0; border-left: 3px solid var(--ink); }
+html[dir="rtl"] .modal.gh-window .pd-files li { padding-left: 6px; padding-right: calc(6px + var(--depth, 0) * 14px); }
+html[dir="rtl"] .modal.gh-window .pd-main,
+html[dir="rtl"] .modal.gh-window .pd-lines,
+html[dir="rtl"] .modal.gh-window .pd-fpath { direction: ltr; unicode-bidi: isolate; text-align: left; }
+html[dir="rtl"] .modal.gh-window .pd-fh { direction: rtl; }
+html[dir="rtl"] .modal.gh-window .pd-thread { margin-left: 12px; margin-right: 108px; }
+@media (max-width: 420px) {
+  html[dir="rtl"] .lite-nav .btn { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; font-size: 12px; }
+}
+@media (max-width: 760px) {
+  html[dir="rtl"] .modal.bookshelf .bs-side { border-left: 0; border-bottom: 3px solid var(--ink); }
+  html[dir="rtl"] .modal.gh-window .pd-side { border-left: 0; border-bottom: 3px solid var(--ink); }
+}
+@media (max-width: 800px) {
+  html[dir="rtl"] .modal.gh-window .pd-thread { margin-right: 12px; }
+}
