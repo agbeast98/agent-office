@@ -37,3 +37,17 @@ A **security agent** (tick **نگهبان امنیت** on one of the team in �
 Not covered yet: Codex agents (their hooks differ), and an agent already running keeps the hooks it started with until it is resumed.
 
 A security agent has no desk to sit at: in the 3D office it walks about the floor on its own, and when something it guards is held it walks over and stands beside that agent's desk, facing it, until it is decided, then goes back to wandering. (Its desk stays its own, empty.)
+
+## 🧭 Scenarios and team managers
+
+**🧭 روال‌ها** in the manager's computer. A **team manager** is a name, a team and a brief: no desk, no seat, no AI of its own. The office plays them, so waiting and passing work on cost no tokens; an AI wakes only for the step it is given.
+
+A **scenario** is a list of steps, each given to one person:
+
+- Each step becomes a task for its person (with the manager's brief, the project input and what the earlier steps wrote). They write the result with `add_task_note` and set `review`; the office closes it and hands the next step what was written.
+- **QA step:** says yes (`review`) or sends it back (`blocked` plus each fault in notes). The faults go to the step it is set to return to, which redoes the work and everything after it. After the scenario's limit of returns the run stops and asks you.
+- **هم‌زمان با بعدی:** that step and the next start together (backend and frontend); the one after waits for both.
+- **منتظر تأیید من:** the run stops before this step (an upload, say) until you press **✓ تأیید و ادامه**.
+- A step that gets stuck stops the run, with **↻ دوباره امتحان**; **■ توقف** cancels what is open. Every run's log is kept.
+
+Scenarios and managers are kept in `.agent-office/team-flows.json` and written, readable, to `freelance-team/scenarios.md`. Tasks made by a scenario do not wake the team's manager worker. Not here yet: the manager choosing among several ideas by itself, a scenario starting another, and a manager with a seat.

@@ -5,6 +5,7 @@ import type { Route } from '../router.js';
 import { agentRoutes } from './agents.js';
 import { authRoutes } from './auth.js';
 import { fileRoutes } from './files.js';
+import { flowRoutes } from './flows.js';
 import { githubRoutes } from './github.js';
 import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
@@ -40,6 +41,8 @@ export const routes: readonly Route[] = [
   teamRoutes.team,
   teamRoutes.action,
   teamRoutes.schedule,
+  flowRoutes.state,
+  flowRoutes.action,
   securityRoutes.state,
   securityRoutes.action,
   teamMeetingRoutes.meeting,

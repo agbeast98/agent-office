@@ -23,6 +23,7 @@ export const teamRoutes = {
         hiringLocked: ctx.ledger.hiringLocked,
         notifyConfigured: floor.notifier.configured,
         security: { waiting: floor.security.holds.filter((h) => h.status === 'pending').length, asked: floor.security.holds.filter((h) => h.status === 'asked').length },
+        flows: { running: floor.flows.runs.filter((r) => r.status === 'running').length, waiting: floor.flows.runs.filter((r) => r.status === 'gate' || r.status === 'stuck').length },
         schedule: floor.teamSchedule.items.map(({ lastRun: _lastRun, ...i }) => i),
         approvals: floor.workerBrowsers.waiting().map((a) => ({ workerId: a.workerId, name: floor.workers.get(a.workerId)?.name ?? a.workerId, ...a.request })),
         people: workers.map((w) => ({ id: w.id, name: w.name, role: w.role, status: w.status, activity: w.activity })),

@@ -33,6 +33,8 @@ import { TeamMeetings } from './team-meeting.js';
 import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js';
 import { Notifier } from './notify.js';
 import { Security } from './security.js';
+import { Flows } from './team-flows.js';
+import { tell as tellWorkers } from './hooks/office-tasks.js';
 import { browserGate, syncGuards } from './security-glue.js';
 
 type ToastLevel = 'info' | 'warn' | 'error';
@@ -136,6 +138,7 @@ export class Floor {
   readonly teamSchedule: TeamSchedule;
   readonly notifier: Notifier;
   readonly security: Security;
+  readonly flows: Flows;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -331,6 +334,8 @@ export class Floor {
     this.teamMeetings = new TeamMeetings(dataDir);
     this.teamSchedule = new TeamSchedule(dataDir);
     this.notifier = new Notifier(dataDir);
+    this.flows = new Flows(dataDir, { tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));
+    this.teamTasks.onChange = () => this.flows.sync();
     this.security = new Security(dataDir, path.join(def.dir, 'freelance-team', 'security-rules.md'));
     this.workerBrowsers.gate = (workerId, kind, address, detail) => browserGate(this, workerId, kind, address, detail);
     this.workerBrowsers.onPending = (workerId, request) => void this.notifier.send(`⏳ ${this.workers.get(workerId)?.name ?? 'یک ایجنت'} منتظر تأیید شماست: «${request.label}»${request.risky ? ' (پرداخت/حذف: فقط خودتان)' : ''}`);

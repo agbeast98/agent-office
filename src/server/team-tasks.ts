@@ -34,6 +34,8 @@ export interface TeamTask {
   /** A day, YYYY-MM-DD, when it has to be done. */
   due?: string;
   notes: TaskNote[];
+  /** The scenario run it is a step of (see team-flows.ts): that, not the manager worker, takes it from review. */
+  flow?: string;
 }
 
 /** Who is acting: a worker, or the person at the manager's computer. */
@@ -59,6 +61,7 @@ export interface TaskInput {
   priority?: unknown;
   due?: unknown;
   status?: unknown;
+  flow?: unknown;
 }
 
 export const MAX_TASKS = 500;
@@ -79,7 +82,7 @@ export class TeamTasks {
   private next = 1;
   private file: string;
 
-  constructor(dataDir: string, private onChange: (tasks: TeamTask[]) => void = () => {}) {
+  constructor(dataDir: string, public onChange: (tasks: TeamTask[]) => void = () => {}) {
     this.file = path.join(dataDir, 'team-tasks.json');
     this.load();
   }
@@ -162,6 +165,7 @@ export class TeamTasks {
       notes: [],
     };
     if (typeof input.due === 'string' && DAY.test(input.due)) task.due = input.due;
+    if (by.boss && typeof input.flow === 'string' && input.flow) task.flow = input.flow;
     if (by.boss) {
       const who = typeof input.assignee === 'string' && input.assignee.trim() ? findWorker(workers.filter((w) => w.kind === 'agent'), input.assignee) : undefined;
       if (typeof who === 'string') return fail(who);
@@ -231,7 +235,7 @@ export class TeamTasks {
       task.status = status;
     }
 
-    if (task.status !== before && boss && boss.id !== by.id) {
+    if (task.status !== before && boss && boss.id !== by.id && !task.flow) {
       if (task.status === 'review') notices.push({ to: boss.id, text: `${by.name} کار ${task.id} «${task.title}» را برای بازبینی گذاشت. بررسی کن و اگر خوب است «done» کن، وگرنه با یک یادداشت به او برگردان (doing).` });
       else if (task.status === 'blocked') notices.push({ to: boss.id, text: `${by.name} در کار ${task.id} «${task.title}» گیر کرده است. یادداشت‌هایش را ببین.` });
     }
@@ -255,7 +259,7 @@ export class TeamTasks {
     const notices: Notice[] = [];
     const boss = this.manager(workers);
     const other = by.boss ? task.assignee : boss ? { id: boss.id, name: boss.name } : undefined;
-    if (other && other.id !== by.id) notices.push({ to: other.id, text: `یادداشت تازه روی ${task.id} «${task.title}» از ${by.name}: ${said}` });
+    if (other && other.id !== by.id && !task.flow) notices.push({ to: other.id, text: `یادداشت تازه روی ${task.id} «${task.title}» از ${by.name}: ${said}` });
     return { ok: true, task, notices };
   }
 

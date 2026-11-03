@@ -96,7 +96,7 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
   tell(floor, result.notices, me.name);
   // A task the manager makes while a meeting is on is kept with that meeting.
   if (body.action === 'create' && by.boss && result.task) floor.teamMeetings.linkTask(result.task.id);
-  if (result.task && (result.task.status === 'review' || result.task.status === 'blocked')) {
+  if (result.task && !result.task.flow && (result.task.status === 'review' || result.task.status === 'blocked')) {
     void floor.notifier.send(`${result.task.status === 'review' ? '🔍 منتظر بازبینی' : '⛔ گیرکرده'}: ${result.task.id} «${result.task.title}» (${me.name})`);
   }
   ctx.toastFloor(floor, `📋 ${me.name}: ${body.action === 'note' ? 'note on' : body.action === 'update' ? 'updated' : body.action === 'request' ? 'asked the manager for' : 'created'} ${result.task?.id} «${result.task?.title}»`);

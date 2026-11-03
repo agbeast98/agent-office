@@ -1,6 +1,7 @@
 import './ui.css';
 import { h, openModal, toast } from '../../ui/dom';
 import { openTeamMeeting } from './meeting';
+import { openFlows } from './flows';
 import { openSecurity } from './security';
 import { approvalsBox, dayBar, personBox, scheduleBox, type Approval, type ScheduleItem } from './extras';
 
@@ -25,7 +26,7 @@ interface Task {
   updatedAt: number;
   notes: Note[];
 }
-interface Team { security?: { waiting: number; asked: number }; manager?: { id: string; name: string }; hiringLocked?: boolean; notifyConfigured?: boolean; schedule?: ScheduleItem[]; approvals?: Approval[]; people: Person[]; tasks: Task[] }
+interface Team { flows?: { running: number; waiting: number }; security?: { waiting: number; asked: number }; manager?: { id: string; name: string }; hiringLocked?: boolean; notifyConfigured?: boolean; schedule?: ScheduleItem[]; approvals?: Approval[]; people: Person[]; tasks: Task[] }
 
 const COLUMNS: { status: string; title: string }[] = [
   { status: 'todo', title: '📥 انجام‌نشده' },
@@ -61,9 +62,10 @@ export function openManager(floor: string) {
   const meetBtn = h('button.btn', { type: 'button', title: 'جلسه‌ با همین افراد، بدون استخدام' }, '🤝 جلسه‌ی تیمی');
   const lockBtn = h('button.btn', { type: 'button', title: 'وقتی قفل است هیچ ایجنتی استخدام نمی‌شود' }, '🔒 استخدام');
   const secBtn = h('button.btn', { type: 'button', title: 'نگهبان امنیت، قوانین هر ایجنت و کارهای نگه‌داشته‌شده' }, '🛡 امنیت');
+  const flowBtn = h('button.btn', { type: 'button', title: 'مدیرهای تیم و سناریوها: هر مرحله به یک نفر، با QA و برگشت' }, '🧭 روال‌ها');
   const schedBtn = h('button.btn', { type: 'button', title: 'مصاحبه‌ی هفتگی، بازبینی روزانه و شروع روز، خودکار' }, '⏰ زمان‌بندی');
   const el = h('div.modal.manager-window', { role: 'dialog', 'aria-label': 'کامپیوتر مدیر', lang: 'fa', dir: 'rtl' },
-    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, secBtn, schedBtn, lockBtn),
+    h('header', {}, title, h('span.muted', {}, 'مدیر:'), mgr, newBtn, meetBtn, flowBtn, secBtn, schedBtn, lockBtn),
     h('div.mg-body', {}, h('div.mg-main', {}, dayBar((a, x) => call(a, x)), people, board, msg), side));
   const modal = openModal(el, { doing: 'در کامپیوتر مدیر', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
@@ -107,6 +109,8 @@ export function openManager(floor: string) {
     const sec = team.security;
     secBtn.textContent = `🛡 امنیت${sec && sec.asked + sec.waiting ? ` (${sec.asked + sec.waiting})` : ''}`;
     secBtn.classList.toggle('primary', !!sec?.asked);
+    flowBtn.textContent = `🧭 روال‌ها${team.flows && team.flows.running + team.flows.waiting ? ` (${team.flows.running + team.flows.waiting})` : ''}`;
+    flowBtn.classList.toggle('primary', !!team.flows?.waiting);
     lockBtn.textContent = team.hiringLocked ? '🔒 استخدام قفل است' : '🔓 استخدام باز است';
     lockBtn.classList.toggle('primary', !!team.hiringLocked);
   };
@@ -197,6 +201,7 @@ export function openManager(floor: string) {
   mgr.addEventListener('change', () => void call('manager', { worker: mgr.value }));
   newBtn.addEventListener('click', () => { drafting = true; panel = undefined; render(); });
   secBtn.addEventListener('click', () => openSecurity(floor));
+  flowBtn.addEventListener('click', () => openFlows(floor));
   schedBtn.addEventListener('click', () => { panel = panel?.kind === 'schedule' ? undefined : { kind: 'schedule' }; drafting = false; render(); });
   meetBtn.addEventListener('click', () => openTeamMeeting(floor));
   lockBtn.addEventListener('click', () => void call('lock', { on: !team.hiringLocked }));
