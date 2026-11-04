@@ -87,13 +87,24 @@ function shellQuote(value: string): string {
 }
 
 /**
+ * The hook's shell line. On Windows Codex hands it to PowerShell or cmd, and neither runs a
+ * single-quoted program path, so there it is `node` from PATH plus double-quoted arguments, a form
+ * both shells accept.
+ */
+export function hookCommand(hookPath: string, event: string, platform: string = process.platform): string {
+  if (platform !== 'win32') return [process.execPath, hookPath, event].map(shellQuote).join(' ');
+  const exe = /^node(\.exe)?$/i.test(path.win32.basename(process.execPath)) ? 'node' : `"${process.execPath}"`;
+  return [exe, `"${hookPath}"`, event].join(' ');
+}
+
+/**
  * Build the CLI config overrides for all lifecycle hooks. The command is encoded as a TOML basic
  * string so paths containing spaces remain valid; the command itself is shell-quoted.
  */
 export function codexHookArgs(hookPath: string): string[] {
   const args: string[] = [];
   for (const event of CODEX_HOOK_EVENTS) {
-    const command = [process.execPath, hookPath, event].map(shellQuote).join(' ');
+    const command = hookCommand(hookPath, event);
     const config = `hooks.${event}=[{hooks=[{type="command",command=${JSON.stringify(command)},timeout=3}]}]`;
     args.push('-c', config);
   }

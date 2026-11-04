@@ -8,6 +8,7 @@ import path from 'node:path';
 import {
   CODEX_HOOK_EVENTS,
   codexHookArgs,
+  hookCommand,
   codexModelArgs,
   normalizeCodexHook,
   validateCodexHook,
@@ -47,6 +48,13 @@ test('generates one stable CLI hook override per supported event', () => {
     assert.match(args[i * 2 + 1], /timeout=3/);
     assert.match(args[i * 2 + 1], /agent-office-codex-hook\.cjs/);
   }
+});
+
+test('on Windows the hook line starts with a bare node, which PowerShell and cmd both run', () => {
+  const line = hookCommand('C:\\Users\\a b\\hook.cjs', 'Stop', 'win32');
+  assert.ok(/^(node|".*") "C:\\Users\\a b\\hook\.cjs" Stop$/.test(line), line);
+  assert.ok(!line.includes("'"));
+  assert.match(hookCommand('/tmp/x y/hook.cjs', 'Stop', 'linux'), /^'.*' '\/tmp\/x y\/hook\.cjs' 'Stop'$/);
 });
 
 test('a worker\'s own model and effort go on Codex\'s command line, in place of an office-wide model', () => {
