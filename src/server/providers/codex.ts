@@ -90,6 +90,7 @@ function codexHook(h: WorkerHandle<CodexState>, event: string, payload: unknown)
 }
 
 const chatReader = new CodexChatReader();
+const BOOT_HINT = 'Open the terminal: complete login and review Office hooks in /hooks';
 
 export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   id: 'codex',
@@ -97,6 +98,8 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   createState: () => ({ usage: new CodexUsageReader(), tools: new Map(), pending: new Set() }),
   prepare: ({ dataDir, mcpScript }) => ({ hook: writeCodexHook(dataDir), mcpScript }),
   launch({ h, args, prompt, resumeSessionId, setup }) {
+    // The hint of a boot that was silent (see bootHint) is stale once it is launched again.
+    if (h.info.activity === BOOT_HINT) h.info.activity = undefined;
     // Resumed too: Codex resumes on whatever its config says now, not on the model the session ran on.
     args = codexModelArgs(args, h.info.model, h.info.effort);
     args.push(...codexHookArgs(setup.hook), ...(setup.mcpScript ? codexMcpArgs(setup.mcpScript) : []), '--no-alt-screen');
@@ -121,7 +124,7 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
     return read(found) ?? { status: 'waiting', cursor: 0, messages: [] };
   },
   quietResume: true,
-  bootHint: 'Open the terminal: complete login and review Office hooks in /hooks',
+  bootHint: BOOT_HINT,
   hook: { strictJson: true, handle: codexHook },
   usage: {
     persisted: true,
