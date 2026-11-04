@@ -6,7 +6,7 @@ import { DESK_BY_ID, SEATS, deskBuilt } from '../../../shared/layout.js';
 import { askAboutInterview, askAdvice, tellManager, writeRoster } from '../../hiring-glue.js';
 import { tell } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
-import { isAgentProvider } from '../../../shared/providers.js';
+import { AGENT_EFFORTS, isAgentProvider } from '../../../shared/providers.js';
 import { interviewPrompt } from '../../team-interviews.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
@@ -128,7 +128,9 @@ export const hiringRoutes = {
           const last = interviews.all().filter((i) => i.worker === id).pop();
           // A worker already gone (a switch that failed half-way) is brought back from its profile.
           if (!provider || (old ? old.kind !== 'agent' : !last)) return bad('ایجنت یا موتور درست نیست');
-          if (old && provider === old.provider) return bad('همین الان روی همین موتور است');
+          const model = str(body.model, 120).trim() || undefined;
+          const effort = AGENT_EFFORTS.find((e) => e === body.effort);
+          if (old && provider === old.provider && model === old.model && effort === old.effort) return bad('همین الان روی همین موتور و مدل است');
           if (interviews.open(id)) return bad('اول مصاحبه‌ی او را تمام کنید');
           // Before anyone is sent home: a new worker can't start while hiring is paused (budget), and he'd be lost.
           if (ctx.ledger.hiringPaused) return bad(ctx.ledger.hiringPaused);
@@ -147,10 +149,10 @@ export const hiringRoutes = {
             team ? (teams.isManager(id) ? `تو مدیر تیم «${team.name}» هستی.` : `تو عضو تیم «${team.name}» هستی${manager ? ` و مدیرت ${manager} است` : ''}.`) : '',
             `فایل‌های freelance-team/company.md (کسب‌وکار)، ${folder ? `${folder}/skill.md و memory.md (پروفایل خودت)` : 'پروفایل خودت'} و freelance-team/people/ROSTER.md (تیم) را یک بار بخوان و بعد منتظر کار بمان. در شروع هر کار دوباره پروفایلت را بخوان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.`,
           ].filter(Boolean).join(String.fromCharCode(10).repeat(2));
-          const made = floor.workers.spawn(keep.desk, by, intro, false, 'agent', provider);
+          const made = floor.workers.spawn(keep.desk, by, intro, false, 'agent', provider, model, effort);
           if (typeof made === 'string') {
             // Back on the engine it had, so a failed switch never loses someone.
-            const back = old ? floor.workers.spawn(keep.desk, by, intro, false, 'agent', old.provider) : undefined;
+            const back = old ? floor.workers.spawn(keep.desk, by, intro, false, 'agent', old.provider, old.model, old.effort) : undefined;
             if (back && typeof back !== 'string') {
               floor.workers.describe(back.id, { name: keep.name, role: keep.role });
               teams.swap(id, back.id);
@@ -162,7 +164,7 @@ export const hiringRoutes = {
           teams.swap(id, made.id);
           interviews.swap(id, made.id);
           writeRoster(floor);
-          ctx.toastFloor(floor, `🔁 ${keep.name} حالا با ${provider} کار می‌کند`);
+          ctx.toastFloor(floor, `🔁 ${keep.name} حالا با ${provider}${model ? ` (${model})` : ''} کار می‌کند`);
           return send(res, 200, { ok: true });
         }
         case 'company': {

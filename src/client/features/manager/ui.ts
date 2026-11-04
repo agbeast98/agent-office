@@ -4,6 +4,7 @@ import { fa } from '../../ui/fa-locale';
 import { openTeamMeeting } from './meeting';
 import { openFlows } from './flows';
 import { openHiring } from './hiring';
+import { createMembers } from './members';
 import { openSecurity } from './security';
 import { approvalsBox, dayBar, personBox, scheduleBox, type Approval, type ScheduleItem } from './extras';
 
@@ -57,6 +58,7 @@ export function openManager(floor: string) {
   let panel: { kind: 'schedule' } | { kind: 'person'; id: string } | undefined;
 
   const people = h('div.mg-people');
+  const membersView = createMembers({ floor, selected: selectedPeople, call: (action, extra) => call(action, extra), changed: () => void load(), onInvite: () => { page = 'meetings'; render(); }, onHire: () => openHiring(floor) });
   const board = h('div.mg-board');
   const side = h('div.mg-side');
   const mgr = h('select', { 'aria-label': 'مدیر تیم' }) as HTMLSelectElement;
@@ -186,6 +188,7 @@ export function openManager(floor: string) {
     const overview = page === 'overview';
     const taskPage = page === 'tasks';
     const peoplePage = page === 'people';
+    if (peoplePage) void membersView.refresh();
     const settingsPage = page === 'settings';
     const metrics = h('section.mg-metrics', {},
       ...[['در حال انجام', team.tasks.filter(x => x.status === 'doing').length, 'فعال در تیم'], ['آمادهٔ بازبینی', team.tasks.filter(x => x.status === 'review').length, 'نیازمند بررسی'], ['منتظر تصمیم', team.tasks.filter(x => x.status === 'blocked' || x.request).length, 'نیازمند پیگیری']].map(([label, value, hint]) => h('article.mg-metric', {}, h('span', {}, String(label)), h('strong', {}, String(value)), h('small', {}, String(hint)))));
@@ -194,7 +197,7 @@ export function openManager(floor: string) {
       ...(followup.length ? followup.map(t => h('button.mg-followup', { type: 'button', onclick: () => { selected = t.id; page = 'tasks'; drafting = false; render(); } }, h('span', {}, h('b', {}, t.title), h('small', {}, `${t.id} · ${t.assignee || 'بدون مسئول'}`)), h('span.mg-status', {}, STATUS_FA[t.status] ?? t.status))) : [h('p.mg-empty', {}, 'موردی در انتظار پیگیری نیست.') ]));
     const today = h('section.mg-panel.mg-agenda', {}, h('h3', {}, 'ترکیب تیم'), h('p', {}, `${team.people.length} عضو در این تیم`), ...team.people.slice(0, 6).map(p => h('div.mg-agenda-person', {}, h('i', { class: p.status }), h('span', {}, p.name), h('small', {}, p.role?.split(':')[0] ?? p.activity ?? 'عضو تیم'))));
     const panelBody = taskPage ? h('div.mg-task-layout', {}, board, ...(t ? [detailBox(t)] : drafting ? [newTaskBox()] : [h('section.mg-panel.mg-empty', {}, 'برای دیدن جزئیات، یک کار را انتخاب کنید.')]))
-      : peoplePage ? h('section.mg-panel.mg-people-page', {}, h('div.mg-panel-head', {}, h('div', {}, h('h3', {}, 'اعضای تیم'), h('p', {}, 'برای دیدن جزئیات روی نام کلیک کنید.')), h('button.btn.primary', { type: 'button', onclick: () => { page = 'meetings'; render(); } }, `دعوت به جلسه (${selectedPeople.size})`)), ...team.people.map(p => h('label.mg-person-row', {}, h('input', { type: 'checkbox', checked: selectedPeople.has(p.id), onchange: (e: Event) => { const checkbox = e.target as HTMLInputElement; checkbox.checked ? selectedPeople.add(p.id) : selectedPeople.delete(p.id); } }), h('i', { class: p.status }), h('button.mg-member-name', { type: 'button', onclick: () => { panel = { kind: 'person', id: p.id }; render(); } }, h('b', {}, p.name), h('small', {}, p.role ?? p.activity ?? 'بدون نقش ثبت‌شده')), h('span.muted', {}, p.id === team.manager?.id ? 'مدیر تیم' : 'عضو'))))
+      : peoplePage ? membersView.el
       : settingsPage ? h('section.mg-panel', {}, h('h3', {}, 'تنظیمات تیم'), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'مدیر تیم'), h('small', {}, 'مسئول هماهنگی و پیگیری اعضا')), mgr), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'استخدام'), h('small', {}, team.hiringLocked ? 'استخدام برای این تیم قفل است' : 'استخدام برای این تیم باز است')), lockBtn))
       : page === 'meetings' ? h('section.mg-panel', {}, h('h3', {}, 'جلسهٔ تیم'), h('p', {}, selectedPeople.size ? `${selectedPeople.size} عضو برای دعوت انتخاب شده‌اند.` : 'همین حالا جلسهٔ تیمی را باز کنید.'), h('button.btn.primary', { type: 'button', onclick: () => openTeamMeeting(floor) }, 'باز کردن جلسهٔ تیمی'))
       : extra ? h('section.mg-panel', {}, extra) : overview ? h('div.mg-overview-layout', {}, overviewList, today) : h('section.mg-panel', {}, scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, () => { page = 'overview'; render(); }));
@@ -212,6 +215,7 @@ export function openManager(floor: string) {
       const next = (await res.json()) as Team;
       const sig = JSON.stringify(next);
       team = next;
+      if (page === 'people') void membersView.refresh();
       if (sig === seen) return;
       seen = sig;
       const active = document.activeElement;

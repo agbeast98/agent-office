@@ -178,6 +178,19 @@ export class Interviews {
     }
   }
 
+  /** The newest interview of a worker (its profile folder is that one's slug), hired or not. */
+  latestFor(worker: string): Interview | undefined {
+    return this.list.filter((i) => i.worker === worker).pop();
+  }
+
+  /** A worker's skill.md or memory.md replaced by the person (the manager's computer, 👥 اعضای تیم). False without a profile. */
+  saveFile(worker: string, name: 'skill.md' | 'memory.md', body: string): boolean {
+    const i = this.latestFor(worker);
+    if (!i || !this.peopleDir) return false;
+    this.write(i.slug, name, body.slice(0, FILE_MAX));
+    return this.fileFor(i, name) !== undefined;
+  }
+
   private write(slug: string, name: 'skill.md' | 'memory.md', body: string) {
     if (!this.peopleDir) return;
     try {
