@@ -3,6 +3,7 @@
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { codexHookArgs, codexModelArgs, normalizeCodexHook, writeCodexHook } from '../codex.js';
+import { CodexChatReader } from '../codex-chat.js';
 import { CodexUsageReader } from '../codex-usage.js';
 import { codexMcpArgs } from '../office-workers.js';
 import { reduceLifecycle, type ToolTracker } from '../workers/lifecycle.js';
@@ -88,6 +89,8 @@ function codexHook(h: WorkerHandle<CodexState>, event: string, payload: unknown)
   });
 }
 
+const chatReader = new CodexChatReader();
+
 export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   id: 'codex',
   scrubEnv: ['CODEX_THREAD_ID', 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'],
@@ -101,6 +104,14 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
     if (prompt) args.push('--', prompt);
     tracker(h.state).clear();
     return { args, rotateToken: true };
+  },
+  // The chat tab: its prompts and answers off the root rollout its hooks named. Without a hook report yet
+  // there is no telling which rollout is this worker's (workers can share a folder), so it waits.
+  conversation(h, after = 0) {
+    const { transcript, home } = h.state;
+    const sessionId = h.info.sessionId ?? transcript?.match(/-([a-zA-Z0-9-]{1,160})\.jsonl$/)?.[1];
+    if (!transcript || !home || !sessionId) return { status: 'waiting', cursor: 0, messages: [] };
+    return chatReader.read(transcript, sessionId, home, after);
   },
   bootHint: 'Open the terminal: complete login and review Office hooks in /hooks',
   hook: { strictJson: true, handle: codexHook },

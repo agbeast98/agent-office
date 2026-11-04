@@ -53,6 +53,8 @@ function textFor(row: Record<string, unknown>, sessionId: string, offset: number
   });
   const text = parts.join('').slice(0, MAX_MESSAGE_CHARS).trim();
   if (!text) return;
+  // What Codex loads around the person's words (the folder's AGENTS.md, the environment) is not something they said.
+  if (role === 'user' && /^(# AGENTS\.md instructions|<environment_context>|<user_instructions>|<INSTRUCTIONS>)/.test(text)) return;
   const at = typeof row.timestamp === 'string' && row.timestamp.length <= 64 ? row.timestamp : undefined;
   return { id: `${sessionId}:${offset}`, role, text, ...(at ? { at } : {}) };
 }
