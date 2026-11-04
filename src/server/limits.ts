@@ -22,6 +22,7 @@ export class PlanLimitsReader {
   private limits: PlanLimits = { windows: [], at: 0 };
   /** Per-model weeks from the last answer that listed them; an answer from Claude Code's cache may not. */
   private modelWeeks: PlanWindow[] = [];
+  private codex: PlanLimits['codex'];
   private timer: NodeJS.Timeout | undefined;
   private running = false;
   private lastRead = 0;
@@ -38,12 +39,14 @@ export class PlanLimitsReader {
     private env: Record<string, string>,
     private wanted: () => boolean,
     private onChange: (limits: PlanLimits) => void,
+    /** the `codex` binary, or null: its plan limits ride along in the same state */
+    private codexBin: string | null = null,
   ) {
     this.schedule(0);
   }
 
   get state(): PlanLimits {
-    return this.limits;
+    return this.codex ? { ...this.limits, codex: this.codex } : this.limits;
   }
 
   /** Reads now, unless a read is running or one just finished. */
@@ -58,7 +61,7 @@ export class PlanLimitsReader {
   }
 
   private schedule(ms: number) {
-    if (this.closed || !this.claude) return;
+    if (this.closed || !(this.claude || this.codexBin)) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.read(), ms);
     this.timer.unref();
@@ -67,21 +70,23 @@ export class PlanLimitsReader {
   private async read() {
     if (!this.wanted()) return this.schedule(POLL_MS);
     this.running = true;
-    const answer = await ask(this.claude!, this.env);
+    const [answer, codex] = await Promise.all([this.claude ? ask(this.claude, this.env) : null, this.codexBin ? askCodex(this.codexBin, this.env) : null]);
     this.running = false;
+    if (codex) this.codex = codex;
     this.lastRead = Date.now();
     if (this.closed) return;
     let next = POLL_MS;
     if (answer === null) {
-      if (++this.fails >= FAILS_BEFORE_BACKOFF) {
+      if (codex) this.onChange(this.state);
+      if (this.claude && ++this.fails >= FAILS_BEFORE_BACKOFF) {
         this.fails = 0;
         next = BACKOFF_MS;
       }
     } else {
       this.fails = 0;
       this.limits = this.parse(answer);
-      if (!this.limits.windows.length) next = NO_PLAN_MS;
-      this.onChange(this.limits);
+      if (!this.limits.windows.length && !this.codex?.windows.length) next = NO_PLAN_MS;
+      this.onChange(this.state);
     }
     this.schedule(next);
   }
@@ -162,5 +167,70 @@ function ask(claude: string, env: Record<string, string>): Promise<any> {
     child.on('close', () => finish(null));
     child.stdin.on('error', () => {});
     child.stdin.write(JSON.stringify({ type: 'control_request', request_id: 'usage', request: { subtype: 'get_usage', skip_behaviors: true } }) + '\n');
+  });
+}
+
+/** One window of Codex's `account/rateLimits/read`: usedPercent, windowDurationMins, resetsAt (seconds). */
+function codexWindow(label: string, w: any): PlanWindow | null {
+  if (typeof w?.usedPercent !== 'number' || !Number.isFinite(w.usedPercent)) return null;
+  const mins = w.windowDurationMins;
+  const name = typeof mins === 'number' && mins > 0 ? (mins >= 7 * 24 * 60 ? 'Week' : mins % 60 === 0 ? `${mins / 60}h session` : `${mins}m`) : label;
+  return { label: name, pct: Math.max(0, Math.min(100, w.usedPercent)), resetsAt: typeof w.resetsAt === 'number' ? w.resetsAt * 1000 : undefined };
+}
+
+/**
+ * Codex's own numbers: `codex app-server` answers `account/rateLimits/read` over JSON-RPC on stdio,
+ * as the Codex app shows them. Asking starts no conversation. Null when Codex isn't signed in
+ * with ChatGPT or couldn't answer.
+ */
+function askCodex(bin: string, env: Record<string, string>): Promise<PlanLimits['codex'] | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let buf = '';
+    let plan: string | undefined;
+    // npm's codex.cmd shim on Windows needs a shell to run.
+    const shim = process.platform === 'win32' && /.(cmd|bat)$/i.test(bin);
+    const child = spawn(shim ? `"${bin}"` : bin, ['app-server'], { cwd: os.tmpdir(), env, stdio: ['pipe', 'pipe', 'ignore'], shell: shim, windowsHide: true });
+    const finish = (v: PlanLimits['codex'] | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+      child.stdin.end();
+      child.kill();
+      setTimeout(() => child.exitCode === null && child.signalCode === null && child.kill('SIGKILL'), 2_000).unref();
+    };
+    const timer = setTimeout(() => finish(null), TIMEOUT_MS);
+    const send = (m: object) => child.stdin.write(JSON.stringify(m) + '\n');
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (d: string) => {
+      buf += d;
+      let nl: number;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        let msg: any;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (msg?.id === 1) {
+          send({ jsonrpc: '2.0', method: 'initialized' });
+          send({ jsonrpc: '2.0', id: 2, method: 'account/rateLimits/read' });
+        } else if (msg?.method === 'account/updated' && typeof msg.params?.planType === 'string') {
+          plan = msg.params.planType.slice(0, LABEL_MAX);
+        } else if (msg?.id === 2) {
+          const rl = msg.result?.rateLimits;
+          const windows = [codexWindow('5h session', rl?.primary), codexWindow('Week', rl?.secondary)].filter((w): w is PlanWindow => w !== null);
+          const p = typeof rl?.planType === 'string' ? rl.planType.slice(0, LABEL_MAX) : plan;
+          finish(windows.length ? { plan: p, windows, at: Date.now() } : null);
+        }
+      }
+    });
+    child.on('error', () => finish(null));
+    child.on('close', () => finish(null));
+    child.stdin.on('error', () => {});
+    send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: { name: 'agent-office', version: '0.1' } } });
   });
 }

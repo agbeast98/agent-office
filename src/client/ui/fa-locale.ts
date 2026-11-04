@@ -195,6 +195,7 @@ const extra: Record<string, string> = {
   'Share screen': 'اشتراک‌گذاری صفحه', 'Accounts': 'حساب‌های کاربری',
   'Controls': 'راهنمای کنترل‌ها', '2D view': 'نمای دوبعدی',
   'The plan’s 5-hour and week': 'محدودیت پنج‌ساعته و هفتگی طرح',
+  'ChatGPT’s 5-hour and week': 'محدودیت پنج‌ساعته و هفتگی ChatGPT',
   'Close pull request': 'بستن درخواست ادغام', 'Leave a comment (optional)': 'افزودن دیدگاه (اختیاری)', 'Closing comment': 'دیدگاه هنگام بستن',
   'open': 'باز', 'closed': 'بسته‌شده', 'merged': 'ادغام‌شده', 'draft': 'پیش‌نویس', 'added': 'افزوده‌شده', 'deleted': 'حذف‌شده', 'modified': 'ویرایش‌شده', 'renamed': 'تغییرنام‌یافته',
   'opened this': 'این مورد را باز کرد', 'commented': 'دیدگاه گذاشت', 'approved': 'تأیید کرد', 'requested changes': 'تغییر درخواست کرد', 'reviewed': 'بازبینی شد', 'review dismissed': 'بازبینی لغو شد', 'review required': 'بازبینی لازم است',
@@ -368,7 +369,7 @@ const extra: Record<string, string> = {
   'Paste an incoming webhook from Slack or Discord, and the office posts to that channel when a worker needs input or finishes and nobody has its terminal open. It’s for everyone in the office.': 'نشانی وب‌هوک Slack یا Discord را وارد کنید تا وقتی ایجنتی به پاسخ نیاز دارد یا کارش تمام می‌شود و ترمینالش باز نیست، دفتر در آن کانال پیام بفرستد. این تنظیم برای همهٔ افراد دفتر است.',
   'Posting to': 'ارسال به', 'failed': 'ناموفق بود', 'last message': 'آخرین پیام', 'Back to': 'بازگشت به',
   'Together': 'همکاری', 'Show on screen': 'نمایش روی صفحه', 'Settings': 'تنظیمات',
-  'Pin': 'سنجاق‌کردن', 'to the top bar': 'به نوار بالا', 'Claude limits': 'محدودیت‌های Claude',
+  'Pin': 'سنجاق‌کردن', 'to the top bar': 'به نوار بالا', 'Claude limits': 'محدودیت‌های Claude', 'Codex limits': 'محدودیت‌های Codex',
 };
 
 export function fa(value: string): string {

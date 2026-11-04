@@ -65,6 +65,7 @@ export function createServices(ctx: Ctx): BuildingServices {
 
   // The Claude plan's 5-hour and weekly limits, for the meter under the workers: the office's own
   // plan, and each account's own once it runs on a Claude sign-in of its own.
+  const codexBin = resolveCommand('codex');
   const limits = new PlanLimitsReader(
     claudeBin,
     childEnv(),
@@ -72,6 +73,7 @@ export function createServices(ctx: Ctx): BuildingServices {
     (state) => {
       for (const c of clients.values()) if (limitsOf(c) === limits) ctx.sendTo(c, { t: 'limits', state });
     },
+    codexBin,
   );
   const accountLimits = new Map<string, { key: string; reader: PlanLimitsReader }>();
   /** Whose plan `c` sees: their own, on an account with its own Claude sign-in; else the office's. */
@@ -89,6 +91,7 @@ export function createServices(ctx: Ctx): BuildingServices {
         (state) => {
           for (const o of clients.values()) if (o.accountId === id) ctx.sendTo(o, { t: 'limits', state });
         },
+        codexBin,
       );
       a = { key, reader };
       accountLimits.set(id, a);

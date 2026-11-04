@@ -34,6 +34,18 @@ function windowRow(w: PlanWindow, now: number): HTMLElement[] {
   ];
 }
 
+/** The Codex (ChatGPT) plan's 5-hour session and weekly limits, as `codex app-server` reports them on this machine. */
+export function renderCodexLimits() {
+  const s = store.limits.codex;
+  const el = $('codex-limits');
+  el.classList.toggle('hidden', !s?.windows.length);
+  if (!s?.windows.length) return;
+  const now = Date.now();
+  const plan = s.plan ? s.plan.charAt(0).toUpperCase() + s.plan.slice(1) : '';
+  el.replaceChildren(h('h3', {}, 'Codex limits', plan ? h('span.plan', {}, plan) : null, panelHide('codexLimits')), ...s.windows.flatMap((w) => windowRow(w, now)));
+  if (now - s.at > STALE_MS) el.append(h('div.row.muted', {}, `As of ${new Date(s.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`));
+}
+
 /** The Claude plan's 5-hour session and weekly limits, under the workers. Click to read them again. */
 export function renderLimits() {
   const s = store.limits;

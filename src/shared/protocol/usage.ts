@@ -84,6 +84,8 @@ export interface PlanLimits {
   windows: PlanWindow[];
   /** When the numbers were read (ms since epoch); 0 before the first read. */
   at: number;
+  /** The same for Codex (ChatGPT) on this machine, read from `codex app-server`; absent when Codex isn't installed or signed in. */
+  codex?: { plan?: string; windows: PlanWindow[]; at: number };
 }
 
 export type UsageClientMsg =

@@ -37,9 +37,9 @@ export function saveProfile(p: Omit<Profile, 'look'> & { look?: Look }) {
 export type ViewMode = 'first' | 'third';
 
 /** The panels you can show or hide on screen, from the ☰ menu. */
-export type HudPanel = 'workers' | 'people' | 'spend' | 'limits' | 'chat' | 'floor';
+export type HudPanel = 'workers' | 'people' | 'spend' | 'limits' | 'codexLimits' | 'chat' | 'floor';
 /** Out of the way by default: only the chat shows until you turn the rest on. */
-export const HUD_DEFAULTS: Record<HudPanel, boolean> = { workers: false, people: false, spend: false, limits: false, chat: true, floor: false };
+export const HUD_DEFAULTS: Record<HudPanel, boolean> = { workers: false, people: false, spend: false, limits: false, codexLimits: false, chat: true, floor: false };
 
 /** How the office rings when a worker needs you: not at all, once, or again and again until someone's at its terminal. */
 export const NEEDS_YOU_SOUNDS = ['off', 'once', 'remind'] as const;
