@@ -11,7 +11,12 @@ function ownerWorker(ctx: Ctx, url: URL) {
 /** The office puts the person's role reminder in front of what they typed; the conversation shows only what they typed. */
 function tidy<M extends { role: string; text: string }>(m: M): M[] {
   if (m.role !== 'user') return [m];
-  const text = m.text.replace(/^یادآوری نقش شما:[^\n]*\n\n/, '').trim();
+  // Claude Code wraps a pasted prompt (which is how the office types one) in <pasted_content> tags in its transcript.
+  const text = m.text
+    .replace(/^\s*<pasted_content[^>]*>\s*/, '')
+    .replace(/\s*<\/pasted_content>\s*$/, '')
+    .replace(/^یادآوری نقش شما:[^\n]*\n\n/, '')
+    .trim();
   return text ? [{ ...m, text }] : [];
 }
 
