@@ -8,6 +8,13 @@ function ownerWorker(ctx: Ctx, url: URL) {
   return floor && workerId && floor.workers.get(workerId) ? { floor, workerId } : undefined;
 }
 
+/** The office puts the person's role reminder in front of what they typed; the conversation shows only what they typed. */
+function tidy<M extends { role: string; text: string }>(m: M): M[] {
+  if (m.role !== 'user') return [m];
+  const text = m.text.replace(/^یادآوری نقش شما:[^\n]*\n\n/, '').trim();
+  return text ? [{ ...m, text }] : [];
+}
+
 export const workerChatRoutes = {
   transcript: {
     method: 'GET',
@@ -18,7 +25,8 @@ export const workerChatRoutes = {
       if (!found) return send(res, 404, { error: 'No such worker' });
       const raw = url.searchParams.get('after') ?? '0';
       const after = /^\d{1,16}$/.test(raw) ? Number(raw) : 0;
-      return send(res, 200, found.floor.workers.conversation(found.workerId, Number.isSafeInteger(after) ? after : 0), { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      const chat = found.floor.workers.conversation(found.workerId, Number.isSafeInteger(after) ? after : 0);
+      return send(res, 200, { ...chat, messages: chat.messages.flatMap(tidy) }, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
     },
   },
 } satisfies Record<string, Route>;

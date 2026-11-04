@@ -578,7 +578,7 @@ export class WorkerManager {
     const assigned = w.info.role ? `یادآوری نقش شما: ${w.info.role}.\n\n${clean}` : clean;
     // Bracketed paste keeps multi-line prompts in one message, then Enter submits.
     w.pty.write(`\x1b[200~${assigned}\x1b[201~`);
-    setTimeout(() => w.pty?.write('\r'), 120);
+    setTimeout(() => w.pty?.write('\r'), w.info.provider === 'codex' ? 350 : 120);
     w.info.activity = truncate(clean, 80);
     this.tasks.notePrompt(w, clean);
     if (by) w.info.lastInput = { by, at: Date.now() };

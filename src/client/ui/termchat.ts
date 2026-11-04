@@ -12,14 +12,70 @@ export interface TermChat {
   dispose(): void;
 }
 
-export function termChat(workerId: string, sendPrompt: (prompt: string) => boolean): TermChat {
-  const list = h('div.term-chat-list', { role: 'log', 'aria-live': 'polite', 'aria-label': 'Agent conversation' });
-  const state = h('p.term-chat-state', { role: 'status' }, 'Loading conversation…');
-  const input = h('textarea', { rows: '2', maxlength: '20000', placeholder: 'پیام فارسی یا انگلیسی بنویس…', 'aria-label': 'پیام به ایجنت', dir: 'auto' }) as HTMLTextAreaElement;
+/** A sent message the agent's own session hasn't echoed back for this long is worth a look at the terminal. */
+const UNCONFIRMED_MS = 20_000;
+const STATUS_FA: Record<string, string> = { working: 'در حال کار', idle: 'آماده', done: 'پاسخ داده', needs_input: 'منتظر پاسخ شما', starting: 'در حال شروع', exited: 'خاموش' };
+
+/** Terminals drop half-spaces (ZWNJ) and fold line breaks, so a sent message is matched to its echo without them. */
+const squash = (t: string) => t.replace(/[‌‍\s]+/g, '');
+const same = (echo: string, sent: string) => squash(echo).endsWith(squash(sent));
+
+/** `code` and **bold** inside a line, as DOM: agents answer in light markdown, and nothing here is trusted as HTML. */
+function inline(text: string): (Node | string)[] {
+  return text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/).filter(Boolean).map((part) => {
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) return h('code', {}, part.slice(1, -1));
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return h('strong', {}, part.slice(2, -2));
+    return part;
+  });
+}
+
+/** An answer as paragraphs, lists, headings and code blocks, instead of one wall of text. */
+function rich(text: string): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  let list: HTMLElement | undefined;
+  let code: string[] | undefined;
+  let para: string[] = [];
+  const flush = () => {
+    if (para.length) out.push(h('p', { dir: 'auto' }, ...inline(para.join('\n'))));
+    para = [];
+  };
+  for (const line of text.split('\n')) {
+    if (/^\s*```/.test(line)) {
+      if (code) { out.push(h('pre', { dir: 'ltr' }, h('code', {}, code.join('\n')))); code = undefined; } else { flush(); list = undefined; code = []; }
+      continue;
+    }
+    if (code) { code.push(line); continue; }
+    const item = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+    if (item) {
+      flush();
+      const ordered = /^\s*\d/.test(line);
+      if (!list || list.tagName !== (ordered ? 'OL' : 'UL')) out.push((list = h(ordered ? 'ol' : 'ul')));
+      list.append(h('li', { dir: 'auto' }, ...inline(item[1])));
+      continue;
+    }
+    list = undefined;
+    const head = /^#{1,4}\s+(.*)$/.exec(line);
+    if (head) { flush(); out.push(h('div.term-chat-h', { dir: 'auto' }, ...inline(head[1]))); continue; }
+    if (!line.trim()) { flush(); continue; }
+    para.push(line);
+  }
+  if (code) out.push(h('pre', { dir: 'ltr' }, h('code', {}, code.join('\n'))));
+  flush();
+  return out.length ? out : [h('p', {}, text)];
+}
+
+export function termChat(workerId: string, sendPrompt: (prompt: string) => boolean, agentName = 'ایجنت'): TermChat {
+  const list = h('div.term-chat-list', { role: 'log', 'aria-live': 'polite', 'aria-label': `گفت‌وگو با ${agentName}` });
+  const state = h('p.term-chat-state', { role: 'status' }, 'در حال بارگذاری گفت‌وگو…');
+  const input = h('textarea', { rows: '2', maxlength: '20000', placeholder: `پیام به ${agentName} (Enter ارسال، Shift+Enter خط تازه)`, 'aria-label': `پیام به ${agentName}`, dir: 'auto' }) as HTMLTextAreaElement;
   const send = h('button.btn.primary', { type: 'submit' }, 'ارسال ↵');
   const form = h('form.term-chat-compose', {}, input, send);
-  const live = h('span.term-chat-live', {}, '● زنده');
-  const panel = h('section.term-chat', { 'aria-label': 'گفت‌وگوی ایجنت' }, h('header.term-chat-head', {}, h('div', {}, h('strong', {}, 'گفت‌وگوی ایجنت'), h('span', {}, 'پیام‌ها از نشست خود ایجنت خوانده می‌شوند')), live), state, list, form);
+  const live = h('span.term-chat-live', {}, '● در انتظار');
+  const agentState = h('span.term-chat-agent', {});
+  const typing = h('div.term-chat-typing.hidden', { 'aria-hidden': 'true' }, h('span', {}, `${agentName} در حال پاسخ`), h('i'), h('i'), h('i'));
+  const panel = h('section.term-chat', { 'aria-label': `گفت‌وگو با ${agentName}` },
+    h('header.term-chat-head', {}, h('div', {}, h('strong', {}, `گفت‌وگو با ${agentName}`), h('span', {}, 'پیام‌ها و پاسخ‌های نهایی از نشست خود ایجنت خوانده می‌شوند؛ جزئیات کار در تب ترمینال است.')), h('div.term-chat-badges', {}, agentState, live)),
+    state, list, form);
   const nodes = new Map<string, HTMLElement>();
   let visible = false;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -34,56 +90,72 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
   let session = '';
   let localSequence = 0;
 
+  const worker = () => store.workers.get(workerId);
+  const working = () => ['working', 'starting'].includes(worker()?.status ?? '');
+
+  const renderAgent = () => {
+    const status = worker()?.status ?? 'exited';
+    agentState.textContent = STATUS_FA[status] ?? status;
+    agentState.className = `term-chat-agent ${status}`;
+    typing.classList.toggle('hidden', !working());
+    if (!typing.classList.contains('hidden') && list.lastElementChild !== typing) list.append(typing);
+  };
+
   const renderState = (page: ChatPage) => {
-    const hasMessages = page.messages.length > 0 || list.childElementCount > 0;
+    const hasMessages = page.messages.length > 0 || list.querySelector('.term-chat-message') !== null;
+    const stale = pendingMessages.some((p) => p.at && Date.now() - Date.parse(p.at) > UNCONFIRMED_MS);
     live.classList.toggle('waiting', page.status === 'waiting');
     live.classList.toggle('unsupported', page.status === 'unsupported');
     live.classList.toggle('error', requestError);
-    live.textContent = requestError ? '● خطا' : page.status === 'ready' ? '● آماده' : page.status === 'unsupported' ? '● پشتیبانی‌نشده' : '● در انتظار';
+    live.textContent = requestError ? '● خطا' : page.status === 'ready' ? '● همگام' : page.status === 'unsupported' ? '● پشتیبانی‌نشده' : '● در انتظار اتصال';
     if (requestError) state.textContent = 'گفت‌وگو فعلاً بارگذاری نشد. دوباره تلاش می‌کنم…';
-    else if (draftPending) state.textContent = 'اتصال برقرار شد؛ متن شما در کادر مانده و هنوز ارسال نشده. برای ارسال دوباره بزن.';
-    else if (pendingMessages.length) state.textContent = 'پیام به نشست ایجنت فرستاده شد؛ پاسخ وقتی اتصال گفت‌وگوی ایجنت برقرار باشد اینجا نمایش داده می‌شود.';
-    else if (page.status === 'waiting') state.textContent = 'اتصال گفت‌وگو با نشست ایجنت هنوز آماده نیست؛ فعلاً پیام‌ها و پاسخ‌ها ممکن است در ترمینال دیده شوند.';
+    else if (draftPending) state.textContent = 'ارسال نشد: ترمینال ایجنت آماده‌ی دریافت نیست. متن شما در کادر مانده؛ کمی بعد دوباره بزنید.';
+    else if (stale) state.textContent = `هنوز تأییدی از ${agentName} نرسیده. اگر منتظر مجوز یا تأیید است، تب ترمینال را باز کنید.`;
+    else if (pendingMessages.length) state.textContent = 'پیام به ترمینال فرستاده شد؛ به‌محض ثبت در نشست ایجنت اینجا تأیید می‌شود.';
+    else if (page.status === 'waiting') state.textContent = 'اتصال به نشست ایجنت هنوز برقرار نیست. بعد از اولین پیام یا اولین گزارش ایجنت برقرار می‌شود؛ تا آن موقع پیام‌ها فقط در ترمینال دیده می‌شوند.';
     else if (page.status === 'unsupported') state.textContent = 'برای این ایجنت گفت‌وگوی جداگانه در دسترس نیست.';
-    else if (!page.messages.length && !list.childElementCount) state.textContent = 'هنوز پیامی ثبت نشده. از پایین به ایجنت پیام بده.';
+    else if (!hasMessages) state.textContent = `هنوز پیامی ثبت نشده. از پایین به ${agentName} پیام بده.`;
     state.classList.toggle('hidden', page.status === 'ready' && hasMessages && !requestError && !draftPending && !pendingMessages.length);
+    state.classList.toggle('warn', requestError || draftPending || stale);
   };
 
+  const timeOf = (at?: string) => (at && Number.isFinite(Date.parse(at)) ? h('time', { datetime: at }, new Date(at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })) : null);
+
   const makeBubble = (message: ChatMessage) => {
-    const time = message.at && Number.isFinite(Date.parse(message.at))
-      ? h('time', { datetime: message.at }, new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-      : null;
-    const bubble = h('article.term-chat-message', { class: message.role, dir: 'auto', 'data-message-id': message.id },
-      h('div.term-chat-meta', {}, message.role === 'assistant' ? 'ایجنت' : message.id.startsWith('local-') ? 'شما · ارسال به نشست' : 'شما', time), h('p', {}, message.text));
+    const local = message.id.startsWith('local-');
+    const bubble = h('article.term-chat-message', { class: `${message.role}${local ? ' sending' : ''}`, 'data-message-id': message.id, 'data-text': message.text },
+      h('div.term-chat-meta', {}, h('span', {}, message.role === 'assistant' ? agentName : 'شما'), timeOf(message.at), local ? h('span.term-chat-delivery', {}, 'در حال ارسال به ترمینال…') : null),
+      h('div.term-chat-body', {}, ...rich(message.text)));
     nodes.set(message.id, bubble);
     return bubble;
   };
 
   const renderMessages = (messages: ChatMessage[]) => {
     const nextSession = messages.find((message) => !message.id.startsWith('local-'))?.id.split(':', 1)[0] ?? '';
-    if (nextSession && session && nextSession !== session) {
-      list.replaceChildren();
-      nodes.clear();
-    }
+    // A new session (the agent was restarted, or moved to another engine) goes under a divider; what came before stays.
+    if (nextSession && session && nextSession !== session) list.append(h('div.term-chat-divider', {}, h('span', {}, 'نشست تازه‌ی ایجنت')));
     if (nextSession) session = nextSession;
     const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 72;
     let removedHeight = 0;
     for (const message of messages) {
       const existing = nodes.get(message.id);
       if (existing) {
-        const body = existing.querySelector('p');
-        if (body && body.textContent !== message.text) body.textContent = message.text;
+        if (existing.dataset.text !== message.text) {
+          existing.dataset.text = message.text;
+          existing.querySelector('.term-chat-body')?.replaceChildren(...rich(message.text));
+        }
         continue;
       }
       list.append(makeBubble(message));
     }
-    while (list.children.length > 160) {
-      const oldest = list.firstElementChild as HTMLElement | null;
+    while (list.querySelectorAll('.term-chat-message').length > 200) {
+      const oldest = list.querySelector<HTMLElement>('.term-chat-message');
       if (!oldest) break;
       if (!nearBottom) removedHeight += oldest.getBoundingClientRect().height + 14;
       nodes.delete(oldest.dataset.messageId ?? '');
       oldest.remove();
     }
+    renderAgent();
     if (nearBottom) list.scrollTop = list.scrollHeight;
     else if (removedHeight) list.scrollTop = Math.max(0, list.scrollTop - removedHeight);
   };
@@ -92,7 +164,7 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
     const unmatched = [...pendingMessages];
     for (const message of remote) {
       if (message.role !== 'user') continue;
-      const index = unmatched.findIndex((pending) => pending.text === message.text
+      const index = unmatched.findIndex((pending) => same(message.text, pending.text)
         && (!pending.at || !message.at || Date.parse(message.at) >= Date.parse(pending.at) - 5_000));
       if (index >= 0) unmatched.splice(index, 1);
     }
@@ -103,13 +175,14 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
         pendingMessages.splice(i, 1);
       }
     }
-    return [...unmatched, ...remote];
+    return [...remote, ...unmatched];
   };
 
   const poll = async () => {
     if (!visible || disposed) return;
     const floor = store.floor;
     if (!floor) return;
+    renderAgent();
     const current = ++sequence;
     try {
       const q = new URLSearchParams({ floor, worker: workerId, after: String(cursor) });
@@ -123,7 +196,7 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
       if (page.status === 'unsupported') remoteMessages = [];
       else if (page.status === 'ready' && !page.unchanged) remoteMessages = page.messages;
       renderState(page); // Also clears a transient network error when the response is unchanged.
-      if (page.status === 'ready' && page.unchanged) return;
+      if (page.status === 'ready' && page.unchanged && !pendingMessages.length) return;
       renderMessages(visibleMessages(remoteMessages));
       renderState(page);
     } catch {
@@ -138,6 +211,7 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
     visible = true;
     void poll();
     if (!timer) timer = setInterval(() => void poll(), 1500);
+    setTimeout(() => input.focus(), 0);
   };
   const hide = () => {
     visible = false;
@@ -162,11 +236,12 @@ export function termChat(workerId: string, sendPrompt: (prompt: string) => boole
     input.value = '';
     pendingMessages.push({ id: `local-${++localSequence}`, role: 'user', text: prompt, at: new Date().toISOString() });
     renderMessages(visibleMessages(remoteMessages));
-    if (lastPage) renderState(lastPage);
+    renderState(lastPage ?? { status: 'waiting', cursor, messages: [] });
+    list.scrollTop = list.scrollHeight;
     input.focus();
   });
   input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       form.requestSubmit();
     }

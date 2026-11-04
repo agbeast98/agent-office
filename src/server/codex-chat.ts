@@ -98,6 +98,29 @@ export class CodexChatReader {
     } catch { return; }
   }
 
+  /** This session's own rollout, found by the session id in its file name: the one way to it when no hook has named it (yet). */
+  findBySession(home: string, sessionId: string): string | undefined {
+    if (!SESSION_ID.test(sessionId)) return;
+    try {
+      const root = realpathSync(home);
+      let visited = 0;
+      let found: string | undefined;
+      const walk = (directory: string, depth: number) => {
+        if (found || depth > 4 || visited >= MAX_DIR_ENTRIES) return;
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+          if (found || ++visited > MAX_DIR_ENTRIES) return;
+          const candidate = path.join(directory, entry.name);
+          if (entry.isDirectory() && !entry.isSymbolicLink()) walk(candidate, depth + 1);
+          else if (entry.isFile() && entry.name.endsWith(`-${sessionId}.jsonl`) && safeSessionPath(candidate, sessionId, root)) found = candidate;
+        }
+      };
+      for (const name of ['sessions', 'archived_sessions']) {
+        try { walk(path.join(root, name), 0); } catch { /* Not created yet. */ }
+      }
+      return found;
+    } catch { return; }
+  }
+
   read(file: string, sessionId: string, home: string, after = 0): ProviderConversation {
     let fd: number | undefined;
     try {

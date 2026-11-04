@@ -108,10 +108,17 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   // The chat tab: its prompts and answers off the root rollout its hooks named. Without a hook report yet
   // there is no telling which rollout is this worker's (workers can share a folder), so it waits.
   conversation(h, after = 0) {
-    const { transcript, home } = h.state;
-    const sessionId = h.info.sessionId ?? transcript?.match(/-([a-zA-Z0-9-]{1,160})\.jsonl$/)?.[1];
-    if (!transcript || !home || !sessionId) return { status: 'waiting', cursor: 0, messages: [] };
-    return chatReader.read(transcript, sessionId, home, after);
+    const { home } = h.state;
+    // Windows hooks name the rollout as \\?\C:\…; the reader wants the plain path.
+    const named = h.state.transcript?.replace(/^\\\\\?\\/, '');
+    const sessionId = h.info.sessionId ?? named?.match(/-([a-zA-Z0-9-]{1,160})\.jsonl$/)?.[1];
+    if (!home || !sessionId) return { status: 'waiting', cursor: 0, messages: [] };
+    // Without a usable name from a hook (before one reported, or after a restart of the office) it is found by the session id.
+    const read = (file?: string) => (file ? chatReader.read(file, sessionId, home, after) : undefined);
+    const chat = read(named);
+    if (chat && chat.status !== 'waiting') return chat;
+    const found = chatReader.findBySession(home, sessionId);
+    return read(found) ?? { status: 'waiting', cursor: 0, messages: [] };
   },
   bootHint: 'Open the terminal: complete login and review Office hooks in /hooks',
   hook: { strictJson: true, handle: codexHook },
