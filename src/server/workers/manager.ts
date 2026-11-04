@@ -895,7 +895,7 @@ export class WorkerManager {
     // blocked on a human: folder trust dialog, login, first-run onboarding. Flag it so it jumps.
     setTimeout(() => {
       if (info.status !== 'starting' || w.pty !== proc) return;
-      if (adapter?.bootHint) {
+      if (adapter?.bootHint && !(resumeSessionId && adapter.quietResume)) {
         w.bootBlocked = true;
         info.activity = adapter.bootHint;
         this.setStatus(w, 'needs_input');

@@ -99,6 +99,8 @@ export interface ProviderAdapter<S = undefined, P = undefined> {
    * 12s in, its desk shows this and needs a human. Without it, it's idle as soon as it runs.
    */
   bootHint?: string;
+  /** A resumed session says nothing until its first prompt (no SessionStart), so a resume that stays silent is just idle, not blocked. */
+  quietResume?: boolean;
   /** A terminal title that's only its own name, not worth showing on its card. */
   titleNoise?: RegExp;
   /** Resuming a conversation it no longer has exits before it ever starts: a fresh one is started instead. */

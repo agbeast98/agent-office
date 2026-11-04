@@ -120,6 +120,7 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
     const found = chatReader.findBySession(home, sessionId);
     return read(found) ?? { status: 'waiting', cursor: 0, messages: [] };
   },
+  quietResume: true,
   bootHint: 'Open the terminal: complete login and review Office hooks in /hooks',
   hook: { strictJson: true, handle: codexHook },
   usage: {
