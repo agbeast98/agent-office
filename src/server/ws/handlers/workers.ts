@@ -127,6 +127,7 @@ export const workerHandlers = {
     const who = c.peer.name;
     const w = workerOf(ctx, msg.workerId);
     const err = w ? w.floor.workers.prompt(w.wid, str(msg.prompt, 20000), who) : 'No such worker';
+    if (w && !err) w.floor.comms.humanSpoke(w.wid);
     ctx.warn(c, err);
     const issue = w?.info.kind === 'agent' ? issueNumber(msg.issue) : undefined;
     if (w && !err && issue) {

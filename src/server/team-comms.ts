@@ -68,6 +68,8 @@ export class TeamComms {
   readonly log: CommMsg[] = [];
   private next = 1;
   private timer: NodeJS.Timeout | undefined;
+  /** When the person last said something to each member: a chain of calls starts over after that. */
+  private human = new Map<string, number>();
   private saving = false;
 
   constructor(private dataDir: string, private deps: CommsDeps) {
@@ -116,6 +118,11 @@ export class TeamComms {
     const team = this.deps.team(id);
     const scope: Scope = !team || team.manager === id ? 'all' : 'team';
     return { send: scope, sendTo: [], receive: scope, receiveFrom: [], set: false };
+  }
+
+  /** The person spoke to this member: whatever chain of calls led here ends. */
+  humanSpoke(id: string, now = Date.now()) {
+    this.human.set(id, now);
   }
 
   setRule(id: string, patch: Record<string, unknown>): string | undefined {
@@ -184,7 +191,7 @@ export class TeamComms {
     const mine = this.log.filter((m) => m.from === from && m.status !== 'refused');
     if (mine.filter((m) => m.to === to && now - m.at < 3_600_000).length >= PAIR_PER_HOUR) return refuse(`در یک ساعت به ${toName} بیش از ${PAIR_PER_HOUR} پیام فرستاده‌ای؛ صبر کن یا از مدیرعامل بپرس`);
     if (mine.filter((m) => now - m.at < 600_000).length >= SENDER_PER_10_MIN) return refuse('در ده دقیقه پیام‌های زیادی فرستاده‌ای؛ کمی صبر کن');
-    const cause = [...this.log].reverse().find((m) => m.to === from && (m.status === 'sent' || m.status === 'delivered') && now - m.at < CHAIN_MS);
+    const cause = [...this.log].reverse().find((m) => m.to === from && (m.status === 'sent' || m.status === 'delivered') && now - m.at < CHAIN_MS && m.at > (this.human.get(from) ?? 0));
     msg.depth = cause ? cause.depth + 1 : 0;
     if (msg.depth > MAX_DEPTH) return refuse('زنجیره‌ی پیام‌ها بین همکاران بیش از حد بلند شد؛ نتیجه را به مدیرعامل بگو و منتظر او بمان');
     this.add(msg);

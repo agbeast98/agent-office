@@ -136,3 +136,17 @@ test('rules for one are copied to the whole team and survive a restart', () => {
   assert.equal(t.comms.setRule('ghost', { send: 'all' }), 'No such person');
   t.done();
 });
+
+test('what the person says to a member ends the chain of calls that led to them', () => {
+  const t = setup();
+  for (const id of ['arsalan', 'habib', 'elmira', 'sara']) t.comms.setRule(id, { send: 'all', receive: 'all' });
+  const now = Date.now();
+  assert.ok(t.comms.send('arsalan', 'habib', 'یک', now).ok);
+  assert.ok(t.comms.send('habib', 'arsalan', 'دو', now + 1000).ok);
+  assert.ok(t.comms.send('arsalan', 'habib', 'سه', now + 2000).ok);
+  assert.ok(t.comms.send('habib', 'arsalan', 'چهار', now + 3000).ok);
+  assert.equal(t.comms.send('arsalan', 'sara', 'پنج', now + 4000).ok, false, 'four deep with nobody in between');
+  t.comms.humanSpoke('arsalan', now + 5000);
+  assert.equal(t.comms.send('arsalan', 'sara', 'شش', now + 6000).ok, true, 'the person spoke: a new chain');
+  t.done();
+});
