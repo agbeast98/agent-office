@@ -183,7 +183,7 @@ export function openManager(floor: string) {
     const person = panel?.kind === 'person' ? team.people.find((x) => x.id === (panel as { id: string }).id) : undefined;
     const extra = panel?.kind === 'schedule' ? scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, back) : person ? personBox(person, call, back) : null;
     const labels = [['overview', 'نمای کلی', '⌂'], ['tasks', 'کارها', '▤'], ['people', 'اعضای تیم', '♙'], ['meetings', 'جلسه‌ها', '◷'], ['schedule', 'زمان‌بندی', '◷'], ['settings', 'تنظیمات تیم', '⚙']];
-    nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)), hireBtn, flowBtn, secBtn);
+    nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)), hireBtn, secBtn);
     const heading = labels.find(([id]) => id === page)?.[1] ?? 'نمای کلی';
     const overview = page === 'overview';
     const taskPage = page === 'tasks';

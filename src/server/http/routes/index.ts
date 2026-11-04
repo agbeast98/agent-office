@@ -9,6 +9,7 @@ import { flowRoutes } from './flows.js';
 import { githubRoutes } from './github.js';
 import { hiringRoutes } from './hiring.js';
 import { membersRoutes } from './members.js';
+import { commsRoutes } from './comms.js';
 import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
 import { teamRoutes } from './team.js';
@@ -44,6 +45,8 @@ export const routes: readonly Route[] = [
   teamRoutes.action,
   teamRoutes.schedule,
   membersRoutes.list,
+  commsRoutes.state,
+  commsRoutes.action,
   membersRoutes.profile,
   membersRoutes.action,
   hiringRoutes.state,

@@ -36,6 +36,7 @@ import { Security } from './security.js';
 import { Flows } from './team-flows.js';
 import { Interviews } from './team-interviews.js';
 import { Teams } from './team-teams.js';
+import { TeamComms } from './team-comms.js';
 import { tell as tellWorkers } from './hooks/office-tasks.js';
 import { browserGate, syncGuards } from './security-glue.js';
 
@@ -143,6 +144,7 @@ export class Floor {
   readonly flows: Flows;
   readonly interviews: Interviews;
   readonly teams: Teams;
+  readonly comms: TeamComms;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -341,6 +343,23 @@ export class Floor {
     this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
     this.teamTasks.blocked = (id) => this.interviews.blocking(id);
     this.teams = new Teams(dataDir);
+    this.comms = new TeamComms(dataDir, {
+      name: (id) => this.workers.get(id)?.name,
+      post: (id) => (this.workers.get(id)?.role ?? '').split(':')[0].trim(),
+      status: (id) => {
+        const w = this.workers.get(id);
+        return w && w.kind === 'agent' ? w.status : undefined;
+      },
+      team: (id) => {
+        const t = this.teams.teamOf(id);
+        return t && { id: t.id, manager: t.manager, members: t.members };
+      },
+      deliver: (id, text, by) => {
+        const err = this.workers.prompt(id, text, by);
+        return err === 'Worker is not running' ? this.workers.resume(id, text) : err;
+      },
+      alert: (text) => void this.notifier.send(text),
+    });
     this.teamTasks.isManager = (id) => this.teams.isManager(id);
     this.flows = new Flows(dataDir, { blocked: (id) => this.interviews.blocking(id), tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));
     this.teamTasks.onChange = () => this.flows.sync();

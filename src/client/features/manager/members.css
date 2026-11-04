@@ -61,3 +61,14 @@ html[dir="rtl"] .mbwin > header .close { order: -1; margin: 0 0 0 4px; }
 .mbwin .provider-choice > small, .mbwin .provider-choice > .provider-model, .mbwin .provider-model > small { grid-column: 1 / -1; }
 .mbwin .provider-choice label { font-size: 13px; font-weight: 700; color: #3a4b5c; }
 @media (max-width: 700px) { .mbwin { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; } .mb-body { padding: 14px; } .mb-grid { grid-template-columns: 1fr; } }
+
+/* ارتباط: who may call whom, and the messages */
+.mb-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; padding: 10px 12px; background: #f6f9fb; border: 1px solid #e3e9ee; border-radius: 10px; }
+.mb-people.hidden { display: none; }
+.mb-pickrow { display: flex; align-items: center; gap: 8px; font-size: 13px; } .mb-pickrow small { color: #758394; font-size: 11px; }
+.mb-pickrow input { width: auto; }
+.mb-msg { padding: 10px 14px; background: #fff; border: 1px solid #e0e6ec; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; }
+.mb-msg.refused, .mb-msg.failed { border-color: #f1c4bd; background: #fff8f6; }
+.mb-msg-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .mb-msg-head small { color: #758394; margin-inline-start: auto; }
+.mb-msg p { margin: 0; font-size: 13px; line-height: 1.8; white-space: pre-wrap; } .mb-msg-why { color: #b3402a; }
+.mb-chip.cm-queued { background: #fff1cf; } .mb-chip.cm-sent { background: #dcebff; } .mb-chip.cm-delivered { background: #dff3ec; } .mb-chip.cm-failed, .mb-chip.cm-refused { background: #ffd9d3; }

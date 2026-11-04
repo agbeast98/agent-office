@@ -1,6 +1,7 @@
 import './members.css';
 import { h } from '../../ui/dom';
 import { openMember } from './member-modal';
+import { openCommsLog } from './member-comms';
 import { avatar, engineKind, engineText, faNum, roleShort, STATUS_FA, type Member, type MemberCtx } from './members-types';
 
 // The 👥 اعضای تیم page: a card for every agent (who they are, which engine and model they run on, their team,
@@ -29,7 +30,7 @@ export function createMembers(opts: Opts) {
   const inviteBtn = h('button.btn.primary', { type: 'button', onclick: () => opts.onInvite() }, '');
   const el = h('section.mg-panel.mb-page', {},
     h('div.mg-panel-head', {}, h('div', {}, h('h3', {}, 'اعضای تیم'), h('p', {}, 'روی هر عضو بزنید تا مهارت‌ها، حافظه، مدل و کارهایش را ببینید و ویرایش کنید.')),
-      h('div.mg-row', {}, h('button.btn.primary', { type: 'button', onclick: () => opts.onHire() }, '＋ افزودن عضو'), inviteBtn)),
+      h('div.mg-row', {}, h('button.btn.primary', { type: 'button', onclick: () => opts.onHire() }, '＋ افزودن عضو'), h('button.btn', { type: 'button', title: 'هر پیامی که اعضا به هم داده‌اند', onclick: () => void openCommsLog(opts.floor) }, '📨 پیام‌های اعضا'), inviteBtn)),
     h('div.mb-tools', {}, search, filter), summary, grid);
 
   const draw = () => {

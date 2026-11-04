@@ -1,6 +1,7 @@
 import { h, openModal, toast } from '../../ui/dom';
 import { store } from '../../state';
 import { agentFields, resolvedProvider } from '../../ui/provider';
+import { commsTab } from './member-comms';
 import { avatar, engineText, faDate, faNum, mdLite, roleShort, STATUS_FA, TASK_FA, type Member, type MemberCtx } from './members-types';
 
 // One member's window, opened from a card on the 👥 اعضای تیم page: a summary (name, post, engine, team, usage)
@@ -8,8 +9,8 @@ import { avatar, engineText, faDate, faNum, mdLite, roleShort, STATUS_FA, TASK_F
 // engine and model they run on, and their tasks. Skills and memory are the files agents read at the start
 // of every task, so what is saved here is what they know next time (server/http/routes/members.ts).
 
-type Tab = 'overview' | 'skill' | 'memory' | 'engine' | 'tasks';
-const TABS: [Tab, string][] = [['overview', 'نمای کلی'], ['skill', '🎯 مهارت‌ها'], ['memory', '🧠 حافظه'], ['engine', '🤖 مدل و موتور'], ['tasks', '▤ کارها']];
+type Tab = 'overview' | 'skill' | 'memory' | 'comms' | 'engine' | 'tasks';
+const TABS: [Tab, string][] = [['overview', 'نمای کلی'], ['skill', '🎯 مهارت‌ها'], ['memory', '🧠 حافظه'], ['comms', '📡 ارتباط'], ['engine', '🤖 مدل و موتور'], ['tasks', '▤ کارها']];
 const FILE_NAME = { skill: 'skill.md', memory: 'memory.md' } as const;
 
 interface Profile { slug: string | null; skill: string | null; memory: string | null }
@@ -155,6 +156,12 @@ export function openMember(m: Member, ctx: MemberCtx) {
       const p = await loadProfile();
       if (tab !== 'skill' && tab !== 'memory') return;
       body.replaceChildren(p.slug ? fileView(tab, p) : h('p.mg-empty', {}, 'این نفر پروفایلی ندارد؛ فقط کسانی که از پنجره‌ی «استخدام» آمده‌اند مهارت و حافظه‌ی ثبت‌شده دارند.'));
+      return;
+    }
+    if (tab === 'comms') {
+      body.replaceChildren(h('p.mg-empty', {}, 'در حال خواندن…'));
+      const view = await commsTab(m, ctx.floor, post, () => void show());
+      if (tab === 'comms') body.replaceChildren(view);
       return;
     }
     body.replaceChildren(tab === 'overview' ? overview() : tab === 'engine' ? engine() : tasks());

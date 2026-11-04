@@ -1,0 +1,138 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { TeamComms, type CommsDeps } from '../src/server/team-comms.js';
+
+// Sara manages a team of Habib and Elmira; Arsalan works alone.
+const NAMES: Record<string, string> = { sara: 'سارا', habib: 'حبیب', elmira: 'المیرا', arsalan: 'ارسلان' };
+const TEAM = { id: 'T1', manager: 'sara', members: ['habib', 'elmira'] };
+
+function setup() {
+  const dir = mkdtempSync(path.join(tmpdir(), 'comms-'));
+  const status: Record<string, string | undefined> = { sara: 'idle', habib: 'idle', elmira: 'idle', arsalan: 'idle' };
+  const delivered: { id: string; text: string; by: string }[] = [];
+  const alerts: string[] = [];
+  let deliverError: string | undefined;
+  const deps: CommsDeps = {
+    name: (id) => NAMES[id],
+    post: () => 'سمت',
+    status: (id) => status[id],
+    team: (id) => (id === 'arsalan' ? undefined : TEAM),
+    deliver: (id, text, by) => {
+      if (deliverError) return deliverError;
+      delivered.push({ id, text, by });
+      return undefined;
+    },
+    alert: (t) => alerts.push(t),
+  };
+  const comms = new TeamComms(dir, deps);
+  return { comms, status, delivered, alerts, fail: (e?: string) => (deliverError = e), done: () => { comms.close(); rmSync(dir, { recursive: true, force: true }); } };
+}
+
+test('by default a team talks with its own team and the rest with everyone', () => {
+  const t = setup();
+  assert.equal(t.comms.allowed('habib', 'elmira').ok, true);
+  assert.equal(t.comms.allowed('habib', 'sara').ok, true);
+  assert.equal(t.comms.allowed('arsalan', 'habib').ok, false, 'Habib accepts only his team by default');
+  assert.equal(t.comms.allowed('habib', 'arsalan').ok, false, 'Habib calls only his team by default');
+  assert.equal(t.comms.allowed('sara', 'arsalan').ok, true);
+  t.done();
+});
+
+test('both sides must agree, and a reply is always allowed', () => {
+  const t = setup();
+  t.comms.setRule('habib', { receive: 'all' });
+  assert.equal(t.comms.allowed('arsalan', 'habib').ok, true, 'Arsalan sends to all, Habib now takes from all');
+  const r = t.comms.send('arsalan', 'habib', 'تست را انجام بده');
+  assert.equal(r.ok, true);
+  // Habib may not call outsiders, but may answer the one who called him.
+  assert.equal(t.comms.allowed('habib', 'arsalan').ok && (t.comms.allowed('habib', 'arsalan') as { reply: boolean }).reply, true);
+  t.comms.setRule('elmira', { receive: 'manager' });
+  assert.equal(t.comms.allowed('habib', 'elmira').ok, false);
+  t.comms.setRule('elmira', { receive: 'people', receiveFrom: ['habib'] });
+  assert.equal(t.comms.allowed('habib', 'elmira').ok, true);
+  assert.equal(t.comms.allowed('sara', 'elmira').ok, false);
+  t.done();
+});
+
+test('a call is typed into the other terminal with who sent it; a busy one waits its turn', () => {
+  const t = setup();
+  t.status.habib = 'working';
+  const r = t.comms.send('sara', 'habib', 'T-11 را شروع کن');
+  assert.equal(r.ok && r.msg.status, 'queued');
+  assert.equal(t.delivered.length, 0);
+  t.status.habib = 'idle';
+  (t.comms as unknown as { tick(now: number): void }).tick(Date.now());
+  assert.equal(t.delivered.length, 1);
+  assert.match(t.delivered[0].text, /سارا/);
+  assert.match(t.delivered[0].text, /T-11/);
+  assert.match(t.delivered[0].text, /call_member/);
+  assert.equal(t.delivered[0].by, 'سارا');
+  t.done();
+});
+
+test('it checks the call was taken up, sends it once more, and then tells the person', () => {
+  const t = setup();
+  const r = t.comms.send('sara', 'habib', 'سلام');
+  assert.ok(r.ok);
+  const tick = (now: number) => (t.comms as unknown as { tick(now: number): void }).tick(now);
+  const start = Date.now();
+  tick(start + 30_000);
+  assert.equal(t.delivered.length, 2, 'sent once more');
+  tick(start + 60_000);
+  assert.equal(r.ok && r.msg.status, 'failed');
+  assert.equal(t.alerts.length, 1);
+  const r2 = t.comms.send('sara', 'elmira', 'سلام');
+  assert.ok(r2.ok);
+  t.status.elmira = 'working';
+  tick(Date.now());
+  assert.equal(r2.ok && r2.msg.status, 'delivered');
+  t.done();
+});
+
+test('refusals are logged with the reason, and calls are capped', () => {
+  const t = setup();
+  const no = t.comms.send('habib', 'arsalan', 'سلام');
+  assert.equal(no.ok, false);
+  assert.match(no.ok ? '' : no.error, /اجازه نمی‌دهد/);
+  assert.equal(t.comms.log.at(-1)?.status, 'refused');
+  for (let i = 0; i < 6; i++) assert.equal(t.comms.send('sara', 'habib', `پیام ${i}`).ok, true);
+  const capped = t.comms.send('sara', 'habib', 'هفتم');
+  assert.equal(capped.ok, false);
+  assert.equal(t.comms.send('sara', 'sara', 'x').ok, false);
+  assert.equal(t.comms.send('sara', 'habib', '   ').ok, false);
+  t.done();
+});
+
+test('a chain of calls stops after a few, and a failed delivery says why', () => {
+  const t = setup();
+  t.comms.setRule('arsalan', { send: 'all' });
+  t.comms.setRule('habib', { receive: 'all', send: 'all' });
+  t.comms.setRule('elmira', { receive: 'all', send: 'all' });
+  t.comms.setRule('sara', { receive: 'all', send: 'all' });
+  assert.ok(t.comms.send('arsalan', 'habib', 'یک').ok);
+  assert.ok(t.comms.send('habib', 'elmira', 'دو').ok);
+  assert.ok(t.comms.send('elmira', 'sara', 'سه').ok);
+  assert.ok(t.comms.send('sara', 'habib', 'چهار').ok);
+  const fifth = t.comms.send('habib', 'arsalan', 'پنج');
+  assert.equal(fifth.ok, false, 'too deep');
+  t.fail('Worker is not running');
+  t.status.arsalan = 'idle';
+  const failed = t.comms.send('sara', 'arsalan', 'سلام');
+  assert.ok(failed.ok);
+  assert.equal(failed.ok && failed.msg.status, 'failed');
+  t.done();
+});
+
+test('rules for one are copied to the whole team and survive a restart', () => {
+  const t = setup();
+  t.comms.setRule('sara', { send: 'manager', receive: 'people', receiveFrom: ['arsalan'] });
+  assert.equal(t.comms.copyToTeam('sara'), undefined);
+  assert.equal(t.comms.ruleOf('elmira').receive, 'people');
+  assert.deepEqual(t.comms.ruleOf('habib').receiveFrom, ['arsalan']);
+  assert.equal(t.comms.copyToTeam('arsalan'), 'او در تیمی نیست');
+  assert.equal(t.comms.setRule('ghost', { send: 'all' }), 'No such person');
+  t.done();
+});

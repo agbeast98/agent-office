@@ -52,7 +52,7 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
     const agents = workers.filter((w) => w.kind === 'agent');
     const inTeam = new Set(floor.teams.teams.flatMap((t) => [t.manager, ...t.members]));
     return send(res, 200, {
-      you: { name: me.name, team: floor.teams.teamOf(me.id)?.name, manager: floor.teams.isManager(me.id) || undefined },
+      you: { name: me.name, team: floor.teams.teamOf(me.id)?.name, manager: floor.teams.isManager(me.id) || undefined, can_call: floor.comms.reach(me.id, agents.map((w) => w.id)).canCall.map(name) },
       teams: floor.teams.teams.map((t) => ({ name: t.name, manager: name(t.manager), members: t.members.map((m) => ({ name: name(m), post: (floor.workers.get(m)?.role ?? '').split(':')[0] })) })),
       alone: agents.filter((w) => !inTeam.has(w.id)).map((w) => ({ name: w.name, post: (w.role ?? '').split(':')[0] })),
       file: 'freelance-team/people/ROSTER.md',
@@ -91,6 +91,16 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
     case 'note':
       result = tasks.note(by, id, body.text, workers);
       break;
+    case 'call_member': {
+      const to = typeof body.to === 'string' ? findWorker(workers.filter((x) => x.kind === 'agent'), body.to) : 'Say whom to call';
+      if (typeof to === 'string') return send(res, 400, { error: to });
+      const r = floor.comms.send(me.id, to.id, typeof body.text === 'string' ? body.text : '');
+      if (!r.ok) return send(res, 403, { error: r.error });
+      const note = r.msg.status === 'queued'
+        ? `${to.name} الان سرش شلوغ است؛ پیام در صف می‌ماند و وقتی کارش تمام شد به او می‌رسد.`
+        : `پیام به ${to.name} داده شد؛ جوابش را وقتی داد خودش با call_member برای تو می‌فرستد. منتظر نمان؛ کار دیگرت را ادامه بده.`;
+      return send(res, 200, { ok: true, id: r.msg.id, status: r.msg.status, note });
+    }
     case 'interview_say':
     case 'interview_finish': {
       const r = body.action === 'interview_say' ? floor.interviews.say(me.id, body.text) : floor.interviews.finish(me.id, body);
