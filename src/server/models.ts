@@ -38,7 +38,9 @@ const runModelCommand: ModelCommandRunner = async (file, args, options) => {
   const fd = openSync(out, 'w', 0o600);
   try {
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(file, args, { cwd: options.cwd, timeout: options.timeout, stdio: ['ignore', fd, 'ignore'] });
+      // npm's codex.cmd shim on Windows can't be spawned without a shell; the arguments here are the office's own fixed ones.
+      const shim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(file);
+      const child = spawn(shim ? `"${file}"` : file, args, { cwd: options.cwd, timeout: options.timeout, stdio: ['ignore', fd, 'ignore'], shell: shim, windowsHide: true });
       child.on('error', reject);
       child.on('close', (code, signal) => (code === 0 ? resolve() : reject(new Error(`ended with ${signal ?? code}`))));
     });

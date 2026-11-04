@@ -5,6 +5,7 @@ import { Accounts } from '../accounts.js';
 import { providerCommand } from '../agents.js';
 import type { AgentProvider } from '../../shared/providers.js';
 import { createModelCatalogues } from '../models.js';
+import { resolveCommand } from '../workers/process.js';
 import { Building } from '../building.js';
 import type { Floor } from '../floor.js';
 import { ChatLog } from '../history.js';
@@ -33,7 +34,8 @@ export function createCore(ctx: Ctx, cfg: Config, publicDir: string): Core {
   // The model lists come from the provider's own CLI: the office's --agent when it's that one.
   const cli = (provider: AgentProvider) => {
     const command = providerCommand(provider, cfg.agentCmd);
-    return command.includes('/') ? path.resolve(command) : command;
+    // A bare name is looked up on PATH: Windows can't run `codex` without its .cmd, and the list is asked for without a shell.
+    return command.includes('/') ? path.resolve(command) : (resolveCommand(command) ?? command);
   };
   const models = createModelCatalogues(cli, cfg.dir);
 
