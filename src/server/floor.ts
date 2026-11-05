@@ -367,6 +367,10 @@ export class Floor {
         const err = this.workers.prompt(id, text, by);
         return err === 'Worker is not running' ? this.workers.resume(id, text) : err;
       },
+      lastAnswer: (id, since) => {
+        const chat = this.workers.conversation(id, 0);
+        return [...chat.messages].reverse().find((m) => m.role === 'assistant' && (!m.at || Date.parse(m.at) >= since - 2_000))?.text;
+      },
       alert: (text) => void this.notifier.send(text),
     });
     this.requests = new TeamRequests(dataDir);

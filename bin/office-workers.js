@@ -325,7 +325,7 @@ export const TOOLS = [
   {
     name: 'tell_worker',
     title: 'Tell a worker',
-    description: "Types a message into another agent's (worker's) terminal as its next prompt; one that stopped starts again with it. " + WORKER_NOTE,
+    description: "Sends a message to another agent (worker); it is a call between colleagues, exactly like call_member: the office's rules for who may call whom, a queue if they are busy, a check that it arrived, and their answer is brought back to you. One that stopped starts again with it. Prefer call_member for teammates. " + WORKER_NOTE,
     inputSchema: {
       type: 'object',
       properties: {

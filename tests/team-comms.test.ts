@@ -14,6 +14,7 @@ function setup() {
   const status: Record<string, string | undefined> = { sara: 'idle', habib: 'idle', elmira: 'idle', arsalan: 'idle' };
   const delivered: { id: string; text: string; by: string }[] = [];
   const alerts: string[] = [];
+  const answers: Record<string, string | undefined> = {};
   let deliverError: string | undefined;
   const deps: CommsDeps = {
     name: (id) => NAMES[id],
@@ -25,10 +26,11 @@ function setup() {
       delivered.push({ id, text, by });
       return undefined;
     },
+    lastAnswer: (id) => answers[id],
     alert: (t) => alerts.push(t),
   };
   const comms = new TeamComms(dir, deps);
-  return { comms, status, delivered, alerts, fail: (e?: string) => (deliverError = e), done: () => { comms.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { comms, status, delivered, alerts, answers, fail: (e?: string) => (deliverError = e), done: () => { comms.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 test('by default a team talks with its own team and the rest with everyone', () => {
@@ -148,5 +150,59 @@ test('what the person says to a member ends the chain of calls that led to them'
   assert.equal(t.comms.send('arsalan', 'sara', 'پنج', now + 4000).ok, false, 'four deep with nobody in between');
   t.comms.humanSpoke('arsalan', now + 5000);
   assert.equal(t.comms.send('arsalan', 'sara', 'شش', now + 6000).ok, true, 'the person spoke: a new chain');
+  t.done();
+});
+
+test('when the other finishes without calling back, the office brings their answer to the one who asked', () => {
+  const t = setup();
+  const tick = (now: number) => (t.comms as unknown as { tick(now: number): void }).tick(now);
+  const start = Date.now();
+  const r = t.comms.send('sara', 'habib', 'یک مقاله بنویس', start);
+  assert.ok(r.ok);
+  t.status.habib = 'working';
+  tick(start + 1_000);
+  assert.equal(r.ok && r.msg.status, 'delivered');
+  t.answers.habib = 'مانع: پنل مقاله در دسترس نیست؛ پیش‌نویسی ذخیره نشد.';
+  t.status.habib = 'done';
+  tick(start + 3_000);
+  assert.equal(t.delivered.length, 1, 'too soon: a turn that has only just ended is not yet the answer');
+  tick(start + 12_000);
+  assert.equal(t.delivered.length, 2, 'the answer went to Sara');
+  assert.equal(t.delivered[1].id, 'sara');
+  assert.match(t.delivered[1].text, /پنل مقاله در دسترس نیست/);
+  assert.match(t.delivered[1].text, /ask_ceo/);
+  assert.match(t.delivered[1].text, /از دفتر/);
+  tick(start + 30_000);
+  assert.equal(t.delivered.length, 2, 'once only');
+  t.done();
+});
+
+test('no second copy when the other called back themselves, and a stuck one is reported once', () => {
+  const t = setup();
+  const tick = (now: number) => (t.comms as unknown as { tick(now: number): void }).tick(now);
+  const start = Date.now();
+  const r = t.comms.send('sara', 'habib', 'سلام', start);
+  assert.ok(r.ok);
+  t.status.habib = 'working';
+  tick(start + 1_000);
+  assert.ok(t.comms.send('habib', 'sara', 'نتیجه: انجام شد', start + 2_000).ok, 'a reply is allowed');
+  t.status.sara = 'working';
+  tick(start + 3_000);
+  t.answers.habib = 'متن گفت‌وگوی من';
+  t.status.habib = 'done';
+  tick(start + 20_000);
+  assert.equal(t.delivered.filter((d) => d.id === 'sara' && /از دفتر/.test(d.text)).length, 0, 'he answered: nothing to bring back');
+
+  const stuck = t.comms.send('sara', 'elmira', 'بازبینی', start + 40_000);
+  assert.ok(stuck.ok);
+  t.status.elmira = 'working';
+  tick(start + 41_000);
+  t.status.elmira = 'needs_input';
+  tick(start + 60_000);
+  assert.equal(t.alerts.length, 0, 'not yet');
+  tick(start + 140_000);
+  tick(start + 150_000);
+  assert.equal(t.alerts.length, 1, 'reported once');
+  assert.match(t.alerts[0], /گیر کرده/);
   t.done();
 });

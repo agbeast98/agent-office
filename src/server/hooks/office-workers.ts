@@ -123,11 +123,11 @@ export async function officeWorkers(ctx: Ctx, req: http.IncomingMessage, res: ht
     if (w.kind !== 'agent') return send(res, 400, { error: `${w.name} is a shell, not an agent` });
     const text = str(b.prompt, 20000).replace(/\r\n?/g, '\n').trim();
     if (!text) return send(res, 400, { error: 'Say what to tell it: prompt' });
-    let err = floor.workers.prompt(w.id, text, who);
-    // Stopped or asleep: it wakes up with this as its next message.
-    if (err === 'Worker is not running') err = floor.workers.resume(w.id, text);
-    if (err) return send(res, 400, { error: err });
-    return send(res, 200, { ok: true, worker: row(w.id) });
+    // An agent telling an agent is a call between members: the office's rules for who may, its log, a queue for a busy one,
+    // a check that it arrived, and the answer coming back to the one who asked (see team-comms.ts).
+    const call = floor.comms.send(me.id, w.id, text);
+    if (!call.ok) return send(res, 403, { error: call.error });
+    return send(res, 200, { ok: true, worker: row(w.id), message: call.msg.id, status: call.msg.status });
   }
 
   if (action === '/pr') {
