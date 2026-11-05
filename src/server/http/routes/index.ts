@@ -11,6 +11,7 @@ import { hiringRoutes } from './hiring.js';
 import { membersRoutes } from './members.js';
 import { commsRoutes } from './comms.js';
 import { ledgerRoutes } from './ledgers.js';
+import { chatFileRoutes } from './chat-files.js';
 import { pageRoutes } from './pages.js';
 import { searchRoutes } from './search.js';
 import { teamRoutes } from './team.js';
@@ -49,6 +50,7 @@ export const routes: readonly Route[] = [
   teamRoutes.schedule,
   membersRoutes.list,
   commsRoutes.state,
+  chatFileRoutes.image,
   ledgerRoutes.state,
   ledgerRoutes.action,
   commsRoutes.action,
