@@ -104,7 +104,7 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     nav.toggleAttribute('hidden', !m);
     const content = m ? live(m) : [start.el];
     const inChat = !!m && tab === 'chat';
-    main.classList.toggle('chat', inChat);
+    main.classList.toggle('is-chat', inChat);
     // The conversation keeps its own place; the other sections are redrawn with what is typed in them put back.
     if (inChat || !m) main.replaceChildren(...content);
     else {
