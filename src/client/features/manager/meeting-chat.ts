@@ -56,6 +56,70 @@ export function meetingChat(floor: string, act: Act) {
   });
   convo.addTool(to);
   let listed = '';
+
+  // What each at the table answers in their own chat during the meeting also shows here: an agent may answer where it was
+  // asked (its terminal) instead of with meeting_say, and none of it should be missing from the room.
+  interface Feed { msgs: ConvoMsg[]; cursor: number; busy: boolean; at: number }
+  const feeds = new Map<string, Feed>();
+  let meeting = '';
+  let latest: { m: Full; state: State } | undefined;
+  /** "I put my opinion in the meeting" and the like: not worth a bubble of its own. */
+  const ACK = /ثبت کردم|ثبت شد|در جلسه/;
+
+  const pull = async (id: string) => {
+    let feed = feeds.get(id);
+    if (!feed) feeds.set(id, (feed = { msgs: [], cursor: 0, busy: false, at: 0 }));
+    if (feed.busy || Date.now() - feed.at < 3000 || !latest) return;
+    feed.busy = true;
+    feed.at = Date.now();
+    try {
+      const res = await fetch(`/api/worker-chat?${new URLSearchParams({ floor, worker: id, after: String(feed.cursor) })}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const page = (await res.json()) as { status: string; cursor: number; unchanged?: boolean; messages: { id: string; role: string; text: string; at?: string }[] };
+      if (page.status !== 'ready' || page.unchanged) return;
+      feed.cursor = page.cursor;
+      const { m, state } = latest;
+      const who = byId(state, id);
+      const name = m.members.find((x) => x.id === id)?.name ?? who?.name ?? '';
+      feed.msgs = page.messages
+        .filter((x) => x.role === 'assistant' && x.at && Date.parse(x.at) >= m.startedAt)
+        .map((x) => ({ id: `chat:${id}:${x.id}`, side: 'them' as const, name, sub: who?.role?.split(':')[0], color: who?.color, text: x.text, at: Date.parse(x.at!), tag: '💬 در گفت‌وگوی خودش' }));
+      paint();
+    } catch {
+      // The next look tries again.
+    } finally {
+      feed.busy = false;
+    }
+  };
+
+  const paint = () => {
+    if (!latest) return;
+    const { m, state } = latest;
+    const said = m.said.filter((s) => !s.note);
+    const entries: { at: number; round?: number; msg: ConvoMsg }[] = said.map((s, i) => {
+      const who = byId(state, s.id);
+      return { at: s.at, round: s.round, msg: { id: `m:${s.at}:${i}`, side: s.id ? 'them' : 'me', name: s.by, sub: s.id ? who?.role?.split(':')[0] : undefined, color: who?.color, text: s.text, at: s.at, tag: s.to ? `← ${s.to.name}` : undefined } };
+    });
+    for (const [id, feed] of feeds) {
+      if (!m.members.some((x) => x.id === id)) continue;
+      const mine = said.filter((x) => x.id === id).map((x) => x.text);
+      for (const e of feed.msgs) {
+        const seen = mine.some((t) => t.includes(e.text.slice(0, 40)) || e.text.includes(t.slice(0, 40)));
+        if (!seen && !(ACK.test(e.text) && e.text.length < 100)) entries.push({ at: e.at!, msg: e });
+      }
+    }
+    entries.sort((a, b) => a.at - b.at);
+    const out: ConvoMsg[] = [];
+    let round = 0;
+    for (const e of entries) {
+      if (e.round !== undefined && e.round !== round) {
+        round = e.round;
+        out.push({ id: `round:${round}`, side: 'system', divider: true, text: `دور ${round}`, at: e.at });
+      }
+      out.push(e.msg);
+    }
+    convo.setMessages(out);
+  };
   return {
     convo,
     /** Adds a button beside the box (the next round, the summary). */
@@ -69,18 +133,13 @@ export function meetingChat(floor: string, act: Act) {
         to.replaceChildren(h('option', { value: 'all' }, '👥 همه‌ی حاضران'), ...m.members.map((x) => h('option', { value: x.id }, `❓ ${x.name}`)));
         to.value = [...to.options].some((o) => o.value === keep) ? keep : 'all';
       }
-      const said = m.said.filter((s) => !s.note);
-      const out: ConvoMsg[] = [];
-      let round = 0;
-      said.forEach((s, i) => {
-        if (s.round !== round) {
-          round = s.round;
-          out.push({ id: `round:${round}`, side: 'system', divider: true, text: `دور ${round}`, at: s.at });
-        }
-        const who = byId(state, s.id);
-        out.push({ id: `m:${s.at}:${i}`, side: s.id ? 'them' : 'me', name: s.by, sub: s.id ? who?.role?.split(':')[0] : undefined, color: who?.color, text: s.text, at: s.at, tag: s.to ? `← ${s.to.name}` : undefined });
-      });
-      convo.setMessages(out);
+      if (m.id !== meeting) {
+        meeting = m.id;
+        feeds.clear();
+      }
+      latest = { m, state };
+      paint();
+      for (const x of m.members) void pull(x.id);
       const writing = m.members.filter((x) => phase(m, x.id, state).cls === 'work').map((x) => x.name);
       convo.setTyping(writing);
       const spoke = m.members.filter((x) => phase(m, x.id, state).cls === 'done').length;
