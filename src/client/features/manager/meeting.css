@@ -114,3 +114,7 @@ html[dir="rtl"] .meetroom > header .close { margin-left: 0; margin-right: auto; 
 .meetroom .cv { min-height: 0; }
 .mr-acts { display: flex; gap: 6px; flex-wrap: wrap; }
 .mr-start .mr-sec textarea { min-height: 64px; line-height: 1.8; }
+
+/* a chip is a button when it picks the person to speak to */
+button.mr-chip { font: inherit; cursor: pointer; } button.mr-chip:hover { background: #fff3d6; }
+.mr-chip.quiet i { background: #d9534f; } .mr-chip.quiet small { color: #b3402a; font-weight: 700; }

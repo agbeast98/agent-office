@@ -34,10 +34,10 @@ export function modeBar(m: Full, act: Act) {
 }
 
 /** Who has spoken this round and who is still to, live. */
-export function roundStrip(m: Full, state: State) {
+export function roundStrip(m: Full, state: State, pick?: (id: string) => void) {
   return h('div.mr-strip', {}, h('span.mr-rd', {}, `${MODE_FA[m.mode]} · دور ${m.round}${m.mode === 'debate' ? ` از ${m.rounds}` : ''}`), ...m.members.map((x) => {
     const d = phase(m, x.id, state);
-    return h('span.mr-chip', { class: d.cls, title: byId(state, x.id)?.activity ?? '' }, h('i'), x.name, h('small', {}, d.text));
+    return h(pick ? 'button.mr-chip' : 'span.mr-chip', { class: d.cls, ...(pick ? { type: 'button', onclick: () => pick(x.id) } : {}), title: pick ? `پیام به ${x.name}` : byId(state, x.id)?.activity ?? '' }, h('i'), x.name, h('small', {}, d.text));
   }));
 }
 
@@ -55,14 +55,20 @@ export function meetingChat(floor: string, act: Act) {
     send: (text) => (to.value === 'all' ? act('say', { text }) : act('ask', { to: to.value, text })),
   });
   convo.addTool(to);
+  let listed = '';
   return {
     convo,
     /** Adds a button beside the box (the next round, the summary). */
     addAction: (el: HTMLElement) => convo.addTool(el),
     sync(m: Full, state: State) {
-      const keep = to.value;
-      to.replaceChildren(h('option', { value: 'all' }, '👥 همه‌ی حاضران'), ...m.members.map((x) => h('option', { value: x.id }, `❓ ${x.name}`)));
-      to.value = [...to.options].some((o) => o.value === keep) ? keep : 'all';
+      // The list of people is redrawn only when it changed: a menu that is open (or a choice made) must not be touched by a refresh.
+      const who = m.members.map((x) => `${x.id}:${x.name}`).join('|');
+      if (who !== listed) {
+        listed = who;
+        const keep = to.value;
+        to.replaceChildren(h('option', { value: 'all' }, '👥 همه‌ی حاضران'), ...m.members.map((x) => h('option', { value: x.id }, `❓ ${x.name}`)));
+        to.value = [...to.options].some((o) => o.value === keep) ? keep : 'all';
+      }
       const said = m.said.filter((s) => !s.note);
       const out: ConvoMsg[] = [];
       let round = 0;

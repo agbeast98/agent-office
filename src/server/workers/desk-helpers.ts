@@ -75,6 +75,31 @@ export function unseatVisitor(workers: Map<string, Worker>, id: string): Worker 
   return w;
 }
 
+/** The text with spaces, line breaks and half-spaces taken out: the terminal wraps lines and drops ZWNJ, so texts are compared without them. */
+const bare = (s: string) => s.replace(/[\s\u200c\u200d]+/g, '');
+
+/** Whether the end of `text` is still sitting in the agent's input box (the bottom of its screen): Enter did not send it. */
+export function stillTyped(w: Worker, text: string): boolean {
+  const buf = w.term?.buffer.active;
+  if (!buf) return false;
+  const bottom: string[] = [];
+  for (let i = buf.length - 1; i >= 0 && bottom.length < 6; i--) {
+    const line = buf.getLine(i)?.translateToString(true).trim();
+    if (line) bottom.push(line);
+  }
+  const tail = bare(text).slice(-16);
+  return tail.length >= 8 && bare(bottom.join('')).includes(tail);
+}
+
+/** Codex takes the Enter that follows a paste as part of the paste now and then: if the text is still in the box a moment later, Enter is pressed again. */
+export function retrySubmit(w: Worker, text: string, enter: () => void) {
+  for (const ms of [1800, 4500]) {
+    setTimeout(() => {
+      if (w.pty && w.info.status !== 'working' && stillTyped(w, text)) enter();
+    }, ms).unref();
+  }
+}
+
 /** Every running terminal searched for a word, with the most hits each may give. */
 export function searchWorkers(workers: Map<string, Worker>, needle: string, perWorker: number): { hits: TerminalHit[]; more: boolean } {
   const hits: TerminalHit[] = [];

@@ -75,7 +75,7 @@ export function openTeamMeeting(floor: string, special?: () => void) {
   }
 
   const live = (m: Full) => {
-    if (tab === 'chat') return [roundStrip(m, state), modeBar(m, act), chat.convo.el].filter((x): x is NonNullable<typeof x> => !!x);
+    if (tab === 'chat') return [roundStrip(m, state, (id) => chat.askOne(id)), modeBar(m, act), chat.convo.el].filter((x): x is NonNullable<typeof x> => !!x);
     if (tab === 'people') return [people(m, state, act, (id) => { tab = 'chat'; render(); chat.askOne(id); })];
     if (tab === 'agenda') return [agenda(m, act)];
     if (tab === 'results') return [results(m, state.people.filter((p) => m.members.some((x) => x.id === p.id)), act)];
@@ -95,6 +95,8 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     pill.className = `mr-pill ${m ? 'on' : ''}`;
     endBtn.toggleAttribute('hidden', !m);
     nextBtn.hidden = m?.mode === 'vote';
+    nextBtn.toggleAttribute('disabled', !!m && !m.said.some((s) => s.round === m.round && !s.note && s.id));
+    nextBtn.title = nextBtn.hasAttribute('disabled') ? 'هنوز کسی در این دور چیزی نگفته' : 'نظرهای این دور را به همه می‌دهد تا جواب بدهند';
     nextBtn.textContent = m?.mode === 'debate' ? '⏭ دور بعد (زودتر)' : '↻ دور بعد';
     if (m && tab === 'chat') chat.sync(m, state);
     if (!m) start.sync(state.people, state.past);
@@ -116,6 +118,7 @@ export function openTeamMeeting(floor: string, special?: () => void) {
   const nextBtn = h('button.btn', { type: 'button', title: 'نظرهای این دور را به همه می‌دهد تا جواب بدهند', onclick: () => void act('next') }, '↻ دور بعد');
   const actions = h('div.mr-acts', {},
     nextBtn,
+    h('button.btn', { type: 'button', title: 'پیام جلسه را دوباره برای کسانی که هنوز چیزی نگفته‌اند می‌فرستد', onclick: () => void act('nudge').then((ok) => ok && toast('یادآوری فرستاده شد')) }, '🔔 یادآوری به ساکت‌ها'),
     h('button.btn', { type: 'button', title: 'از مدیر می‌خواهد تصمیم‌ها و کارهای بعدی را بنویسد', onclick: () => void act('summarise').then((ok) => ok && toast('از مدیر جمع‌بندی خواسته شد')) }, '📝 جمع‌بندی توسط مدیر'));
   chat.addAction(actions);
 

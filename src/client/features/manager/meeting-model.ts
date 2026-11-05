@@ -48,6 +48,8 @@ export const day = (at: number) => new Date(at).toLocaleDateString('fa-IR', { mo
 
 /** How long after being called a member still shows as getting ready, before they are on their way. */
 const READY_MS = 3000;
+/** A member at the table who has said nothing for this long is shown as not having started. */
+const QUIET_MS = 45_000;
 
 /**
  * Where a member of the meeting has got to: getting ready, on their way to the table, at it and writing
@@ -62,5 +64,6 @@ export function phase(m: Full, id: string, state: State): { text: string; cls: s
   if (!x.arrivedAt) return (state.now ?? Date.now()) - (x.joinedAt ?? 0) < READY_MS ? { text: 'در حال آماده شدن…', cls: 'ready' } : { text: 'در حال آمدن…', cls: 'come' };
   if (p.status === 'working') return { text: 'در حال پاسخ دادن…', cls: 'work' };
   if (p.status === 'needs_input') return { text: 'منتظر شماست', cls: 'wait' };
-  return { text: 'منتظر نوبت', cls: 'idle' };
+  // Idle and silent a while after sitting down: the message did not take, or they answered without speaking in the meeting.
+  return (state.now ?? Date.now()) - x.arrivedAt > QUIET_MS ? { text: 'هنوز شروع نکرده', cls: 'quiet' } : { text: 'پیام به او رسید…', cls: 'idle' };
 }
