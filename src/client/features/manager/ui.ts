@@ -5,6 +5,7 @@ import { openTeamMeeting } from './meeting';
 import { openFlows } from './flows';
 import { openHiring } from './hiring';
 import { createMembers } from './members';
+import { createMistakes, createRequests } from './inbox';
 import { openSecurity } from './security';
 import { approvalsBox, dayBar, personBox, scheduleBox, type Approval, type ScheduleItem } from './extras';
 
@@ -29,7 +30,7 @@ interface Task {
   updatedAt: number;
   notes: Note[];
 }
-interface Team { flows?: { running: number; waiting: number }; security?: { waiting: number; asked: number }; manager?: { id: string; name: string }; hiringLocked?: boolean; notifyConfigured?: boolean; schedule?: ScheduleItem[]; approvals?: Approval[]; people: Person[]; tasks: Task[] }
+interface Team { requests?: number; mistakes?: number; flows?: { running: number; waiting: number }; security?: { waiting: number; asked: number }; manager?: { id: string; name: string }; hiringLocked?: boolean; notifyConfigured?: boolean; schedule?: ScheduleItem[]; approvals?: Approval[]; people: Person[]; tasks: Task[] }
 
 const COLUMNS: { status: string; title: string }[] = [
   { status: 'todo', title: '📥 انجام‌نشده' },
@@ -58,6 +59,8 @@ export function openManager(floor: string) {
   let panel: { kind: 'schedule' } | { kind: 'person'; id: string } | undefined;
 
   const people = h('div.mg-people');
+  const requestsView = createRequests({ floor, changed: () => void load() });
+  const mistakesView = createMistakes({ floor, changed: () => void load() });
   const membersView = createMembers({ floor, selected: selectedPeople, call: (action, extra) => call(action, extra), changed: () => void load(), onInvite: () => { page = 'meetings'; render(); }, onHire: () => openHiring(floor) });
   const board = h('div.mg-board');
   const side = h('div.mg-side');
@@ -182,13 +185,15 @@ export function openManager(floor: string) {
     const back = () => { panel = undefined; render(); };
     const person = panel?.kind === 'person' ? team.people.find((x) => x.id === (panel as { id: string }).id) : undefined;
     const extra = panel?.kind === 'schedule' ? scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, back) : person ? personBox(person, call, back) : null;
-    const labels = [['overview', 'نمای کلی', '⌂'], ['tasks', 'کارها', '▤'], ['people', 'اعضای تیم', '♙'], ['meetings', 'جلسه‌ها', '◷'], ['schedule', 'زمان‌بندی', '◷'], ['settings', 'تنظیمات تیم', '⚙']];
+    const labels = [['overview', 'نمای کلی', '⌂'], ['tasks', 'کارها', '▤'], ['people', 'اعضای تیم', '♙'], ['requests', `درخواست از شما${team.requests ? ` (${team.requests})` : ''}`, '📥'], ['mistakes', `اشتباهات${team.mistakes ? ` (${team.mistakes})` : ''}`, '⚠'], ['meetings', 'جلسه‌ها', '◷'], ['schedule', 'زمان‌بندی', '◷'], ['settings', 'تنظیمات تیم', '⚙']];
     nav.replaceChildren(...labels.map(([id, label, icon]) => h('button.mg-nav-item', { type: 'button', class: page === id ? 'active' : '', 'aria-current': page === id ? 'page' : undefined, onclick: () => { page = id; panel = id === 'schedule' ? { kind: 'schedule' } : undefined; render(); } }, h('span', { 'aria-hidden': 'true' }, icon), label)), hireBtn, secBtn);
     const heading = labels.find(([id]) => id === page)?.[1] ?? 'نمای کلی';
     const overview = page === 'overview';
     const taskPage = page === 'tasks';
     const peoplePage = page === 'people';
     if (peoplePage) void membersView.refresh();
+    if (page === 'requests') void requestsView.refresh();
+    if (page === 'mistakes') void mistakesView.refresh();
     const settingsPage = page === 'settings';
     const metrics = h('section.mg-metrics', {},
       ...[['در حال انجام', team.tasks.filter(x => x.status === 'doing').length, 'فعال در تیم'], ['آمادهٔ بازبینی', team.tasks.filter(x => x.status === 'review').length, 'نیازمند بررسی'], ['منتظر تصمیم', team.tasks.filter(x => x.status === 'blocked' || x.request).length, 'نیازمند پیگیری']].map(([label, value, hint]) => h('article.mg-metric', {}, h('span', {}, String(label)), h('strong', {}, String(value)), h('small', {}, String(hint)))));
@@ -198,6 +203,8 @@ export function openManager(floor: string) {
     const today = h('section.mg-panel.mg-agenda', {}, h('h3', {}, 'ترکیب تیم'), h('p', {}, `${team.people.length} عضو در این تیم`), ...team.people.slice(0, 6).map(p => h('div.mg-agenda-person', {}, h('i', { class: p.status }), h('span', {}, p.name), h('small', {}, p.role?.split(':')[0] ?? p.activity ?? 'عضو تیم'))));
     const panelBody = taskPage ? h('div.mg-task-layout', {}, board, ...(t ? [detailBox(t)] : drafting ? [newTaskBox()] : [h('section.mg-panel.mg-empty', {}, 'برای دیدن جزئیات، یک کار را انتخاب کنید.')]))
       : peoplePage ? membersView.el
+      : page === 'requests' ? requestsView.el
+      : page === 'mistakes' ? mistakesView.el
       : settingsPage ? h('section.mg-panel', {}, h('h3', {}, 'تنظیمات تیم'), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'مدیر تیم'), h('small', {}, 'مسئول هماهنگی و پیگیری اعضا')), mgr), h('label.mg-setting', {}, h('span', {}, h('b', {}, 'استخدام'), h('small', {}, team.hiringLocked ? 'استخدام برای این تیم قفل است' : 'استخدام برای این تیم باز است')), lockBtn))
       : page === 'meetings' ? h('section.mg-panel', {}, h('h3', {}, 'جلسهٔ تیم'), h('p', {}, selectedPeople.size ? `${selectedPeople.size} عضو برای دعوت انتخاب شده‌اند.` : 'همین حالا جلسهٔ تیمی را باز کنید.'), h('button.btn.primary', { type: 'button', onclick: () => openTeamMeeting(floor) }, 'باز کردن جلسهٔ تیمی'))
       : extra ? h('section.mg-panel', {}, extra) : overview ? h('div.mg-overview-layout', {}, overviewList, today) : h('section.mg-panel', {}, scheduleBox(team.schedule ?? [], !!team.notifyConfigured, call, () => { page = 'overview'; render(); }));
@@ -216,6 +223,8 @@ export function openManager(floor: string) {
       const sig = JSON.stringify(next);
       team = next;
       if (page === 'people') void membersView.refresh();
+      if (page === 'requests') void requestsView.refresh();
+      if (page === 'mistakes') void mistakesView.refresh();
       if (sig === seen) return;
       seen = sig;
       const active = document.activeElement;

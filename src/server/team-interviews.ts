@@ -5,6 +5,7 @@
 // The agent talks through the interview_say and interview_finish tools (bin/office-workers.js, hooks/office-tasks.ts).
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { noteOwnWrite } from './profile-watch.js';
 import type { Notice } from './team-tasks.js';
 
 export type InterviewStatus = 'talking' | 'review' | 'hired' | 'rejected' | 'skipped';
@@ -193,6 +194,7 @@ export class Interviews {
 
   private write(slug: string, name: 'skill.md' | 'memory.md', body: string) {
     if (!this.peopleDir) return;
+    noteOwnWrite(slug, name);
     try {
       const dir = path.join(this.peopleDir, slug);
       mkdirSync(dir, { recursive: true });

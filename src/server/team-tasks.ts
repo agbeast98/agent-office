@@ -116,6 +116,13 @@ export class TeamTasks {
     this.onChange(this.tasks);
   }
 
+  /** A worker brought back under a new id (see team-snapshot.ts): its tasks follow it. */
+  swap(from: string, to: string) {
+    for (const t of this.tasks) if (t.assignee?.id === from) t.assignee = { ...t.assignee, id: to };
+    if (this.managerId === from) this.managerId = to;
+    this.save();
+  }
+
   all(): TeamTask[] {
     return this.tasks;
   }

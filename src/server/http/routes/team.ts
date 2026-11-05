@@ -21,6 +21,8 @@ export const teamRoutes = {
       return send(res, 200, {
         manager: boss ? { id: boss.id, name: boss.name } : undefined,
         hiringLocked: ctx.ledger.hiringLocked,
+        requests: floor.requests.open().length,
+        mistakes: floor.mistakes.items.filter((m) => m.status === 'open').length,
         notifyConfigured: floor.notifier.configured,
         security: { waiting: floor.security.holds.filter((h) => h.status === 'pending').length, asked: floor.security.holds.filter((h) => h.status === 'asked').length },
         flows: { running: floor.flows.runs.filter((r) => r.status === 'running').length, waiting: floor.flows.runs.filter((r) => r.status === 'gate' || r.status === 'stuck').length },

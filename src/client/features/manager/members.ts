@@ -1,5 +1,5 @@
 import './members.css';
-import { h } from '../../ui/dom';
+import { h, toast } from '../../ui/dom';
 import { openMember } from './member-modal';
 import { openCommsLog } from './member-comms';
 import { avatar, engineKind, engineText, faNum, roleShort, STATUS_FA, type Member, type MemberCtx } from './members-types';
@@ -19,6 +19,7 @@ const ENGINE_NAME: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
 
 export function createMembers(opts: Opts) {
   let members: Member[] = [];
+  let missing: { name: string; role: string; provider?: string }[] = [];
   let seen = '';
   let loaded = false;
   let query = '';
@@ -27,13 +28,38 @@ export function createMembers(opts: Opts) {
   const filter = h('select', { 'aria-label': 'فیلتر موتور' }) as HTMLSelectElement;
   const summary = h('div.mb-summary');
   const grid = h('div.mb-grid');
+  const restore = h('div.mb-restore.hidden');
   const inviteBtn = h('button.btn.primary', { type: 'button', onclick: () => opts.onInvite() }, '');
   const el = h('section.mg-panel.mb-page', {},
     h('div.mg-panel-head', {}, h('div', {}, h('h3', {}, 'اعضای تیم'), h('p', {}, 'روی هر عضو بزنید تا مهارت‌ها، حافظه، مدل و کارهایش را ببینید و ویرایش کنید.')),
       h('div.mg-row', {}, h('button.btn.primary', { type: 'button', onclick: () => opts.onHire() }, '＋ افزودن عضو'), h('button.btn', { type: 'button', title: 'هر پیامی که اعضا به هم داده‌اند', onclick: () => void openCommsLog(opts.floor) }, '📨 پیام‌های اعضا'), inviteBtn)),
-    h('div.mb-tools', {}, search, filter), summary, grid);
+    restore, h('div.mb-tools', {}, search, filter), summary, grid);
+
+  const drawRestore = () => {
+    restore.classList.toggle('hidden', !missing.length);
+    restore.replaceChildren(...(missing.length ? [
+      h('div', {}, h('b', {}, `🧩 ${faNum(missing.length)} عضو در گیت ثبت است ولی روی این دستگاه نیست`), h('small', {}, missing.map((x) => x.name).join('، ')),
+        h('small', {}, 'بازیابی هر کدام را با همان نام، سمت، موتور و پروفایلش روی یک میز خالی می‌آورد (گفت‌وگوی قبلی‌شان روی دستگاه دیگر می‌ماند).')),
+      h('button.btn.primary', { type: 'button', onclick: async (e: Event) => {
+        const btn = e.target as HTMLButtonElement;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/members/action?${new URLSearchParams({ floor: opts.floor })}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'restore' }) });
+          const out = (await res.json()) as { restored?: string[]; failed?: string[]; error?: string };
+          if (!res.ok) throw new Error(out.error || 'انجام نشد');
+          toast(`${faNum(out.restored?.length ?? 0)} عضو برگشت${out.failed?.length ? `؛ نشد: ${out.failed.join('، ')}` : ''}`);
+          await refresh(true);
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'انجام نشد', 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      } }, '📥 بازیابی تیم'),
+    ] : []));
+  };
 
   const draw = () => {
+    drawRestore();
     inviteBtn.textContent = `دعوت به جلسه (${faNum(opts.selected.size)})`;
     const kinds = [...new Set(members.map(engineKind))];
     filter.replaceChildren(h('option', { value: '' }, 'همه‌ی موتورها'), ...kinds.map((k) => h('option', { value: k }, ENGINE_NAME[k] ?? k)));
@@ -70,7 +96,8 @@ export function createMembers(opts: Opts) {
     try {
       const res = await fetch(`/api/members?${new URLSearchParams({ floor: opts.floor })}`, { cache: 'no-store' });
       if (!res.ok) return;
-      const next = (await res.json()) as { members: Member[] };
+      const next = (await res.json()) as { members: Member[]; missing?: typeof missing };
+      missing = next.missing ?? [];
       const sig = JSON.stringify(next.members);
       loaded = true;
       if (sig === seen && !force) return;

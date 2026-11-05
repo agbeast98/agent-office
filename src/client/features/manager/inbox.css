@@ -1,0 +1,21 @@
+/* 📥 درخواست از شما and ⚠️ اشتباهات */
+.ib-page { display: flex; flex-direction: column; gap: 12px; }
+.ib-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: #fff; border: 1px solid #e0e6ec; border-radius: 12px; border-inline-start: 4px solid #31b49e; }
+.ib-card.login { border-inline-start-color: #e6a72d; } .ib-card.approve { border-inline-start-color: #4f86f7; } .ib-card.decision { border-inline-start-color: #8f6ad8; }
+.ib-card.mistake { border-inline-start-color: #e0746a; } .ib-card.mistake.learned { border-inline-start-color: #31b49e; opacity: .85; } .ib-card.mistake.wontfix { border-inline-start-color: #aab4bf; opacity: .7; }
+.ib-head { display: flex; align-items: flex-start; gap: 12px; } .ib-head > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ib-head b { font-size: 15px; line-height: 1.7; } .ib-head small { color: #758394; font-size: 12px; }
+.ib-icon { font-size: 22px; line-height: 1.4; }
+.ib-card p { margin: 0; font-size: 13px; line-height: 1.9; white-space: pre-wrap; color: #34475a; }
+.ib-lesson { background: #eef7f2; border-radius: 8px; padding: 6px 10px; }
+.ib-file, .ib-url { font-size: 12px; color: #0b7569; word-break: break-all; }
+.ib-card input { font: inherit; padding: 8px 10px; border: 1px solid #cfd8e1; border-radius: 9px; background: #fff; }
+.ib-done { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #f6f9fb; border-radius: 10px; font-size: 13px; }
+.ib-done > div { flex: 1; display: flex; flex-direction: column; gap: 2px; } .ib-done small { color: #758394; font-size: 11px; }
+.ib-done.declined > span { color: #b3402a; } .ib-done.done > span { color: #0b7569; }
+.ib-add { padding: 10px 14px; background: #f6f9fb; border: 1px dashed #c4ced8; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ib-add summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+.ib-add textarea, .ib-add input { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; font: inherit; padding: 8px 10px; border: 1px solid #cfd8e1; border-radius: 9px; background: #fff; }
+.ib-add textarea { min-height: 70px; resize: vertical; }
+.ib-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.ib-toggle { align-self: flex-start; }

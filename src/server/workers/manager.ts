@@ -25,6 +25,7 @@ import { WorkerPrs } from './pr.js';
 import { WIN, binScript, defaultShell, resolveCommand, shellRun, shq, writeOfficeCommands } from './process.js';
 import { CARRY_ON_PROMPT, WorkerTasks } from './tasks.js';
 import { flushScreens, fullScreens, newTerm, offlineBanner, screenText, type HeadlessTerminal } from './terminal.js';
+import { searchWorkers, seatVisitor, unseatVisitor, workerHandle } from './desk-helpers.js';
 import type { HookEnv, OpenedPr, RepoSource, RunAs, Worker, WorkerContext, WorkerEvents, WorkerHandle } from './types.js';
 import { clamp, safeEq, truncate } from './util.js';
 import { COLORS, NAMES, newWorker } from './worker.js';
@@ -247,27 +248,16 @@ export class WorkerManager {
 
   /** Seat an existing employee at the meeting table without starting another provider session. */
   visitMeeting(id: string): string | undefined {
-    const w = this.workers.get(id);
-    if (!w || w.info.kind !== 'agent') return 'این ایجنت در دسترس نیست.';
-    if (w.info.meeting) return 'این صندلی برای جلسهٔ کاری دیگری رزرو شده است.';
-    if (w.info.meetingOriginDesk) return `${w.info.name} از قبل در اتاق جلسه است.`;
-    const chair = MEETING_SEATS.find((seat) => ![...this.workers.values()].some((x) => x.info.deskId === seat.id));
-    if (!chair) return 'صندلی خالی در اتاق جلسه وجود ندارد.';
-    w.info.meetingOriginDesk = w.info.deskId;
-    w.info.deskId = chair.id;
+    const w = seatVisitor(this.workers, id);
+    if (typeof w === 'string') return w;
     this.emitUpdate(w);
     this.persist();
   }
 
   /** Return an invited employee to the desk reserved for them when they entered the room. */
   returnFromMeeting(id: string): string | undefined {
-    const w = this.workers.get(id);
-    const origin = w?.info.meetingOriginDesk;
-    if (!w || !origin) return 'این ایجنت مهمان جلسه نیست.';
-    const occupied = [...this.workers.values()].some((x) => x.info.id !== id && x.info.deskId === origin);
-    if (occupied) return 'میز اصلی این ایجنت فعلاً اشغال است.';
-    w.info.deskId = origin;
-    delete w.info.meetingOriginDesk;
+    const w = unseatVisitor(this.workers, id);
+    if (typeof w === 'string') return w;
     this.emitUpdate(w);
     this.persist();
   }
@@ -492,15 +482,7 @@ export class WorkerManager {
 
   /** Lines of every worker's terminal holding `needle` (a searchKey), newest first, at most `perWorker` each. */
   search(needle: string, perWorker: number): { hits: TerminalHit[]; more: boolean } {
-    const hits: TerminalHit[] = [];
-    let more = false;
-    for (const w of this.workers.values()) {
-      if (!w.term) continue;
-      const found = searchTerminal(w.term, needle, perWorker);
-      more ||= found.more;
-      for (const hit of found.hits) hits.push({ workerId: w.info.id, ...hit });
-    }
-    return { hits, more };
+    return searchWorkers(this.workers, needle, perWorker);
   }
 
   detach(id: string, clientId: string) {
@@ -617,29 +599,15 @@ export class WorkerManager {
   }
 
   /** Claude Code hook callback (a custom --agent that speaks Claude Code's hooks reports here too). */
-  handleHook(workerId: string, token: string, event: string, payload: any): boolean {
-    return this.handleProviderHook('claude', workerId, token, event, payload);
-  }
-
+  handleHook(workerId: string, token: string, event: string, payload: any): boolean { return this.handleProviderHook('claude', workerId, token, event, payload); }
   /** Native Codex lifecycle hooks register the root rollout for bounded metric reads. */
-  handleCodexHook(workerId: string, token: string, event: string, payload: unknown): boolean {
-    return this.handleProviderHook('codex', workerId, token, event, payload);
-  }
-
+  handleCodexHook(workerId: string, token: string, event: string, payload: unknown): boolean { return this.handleProviderHook('codex', workerId, token, event, payload); }
   /** Grok lifecycle hooks, isolated under the office's GROK_HOME so they never edit ~/.grok. */
-  handleGrokHook(workerId: string, token: string, event: string, payload: unknown): boolean {
-    return this.handleProviderHook('grok', workerId, token, event, payload);
-  }
-
+  handleGrokHook(workerId: string, token: string, event: string, payload: unknown): boolean { return this.handleProviderHook('grok', workerId, token, event, payload); }
   /** Muse lifecycle hooks, isolated under the office's XDG dirs so they never edit ~/.config/muse. */
-  handleMuseHook(workerId: string, token: string, event: string, payload: unknown): boolean {
-    return this.handleProviderHook('muse', workerId, token, event, payload);
-  }
-
+  handleMuseHook(workerId: string, token: string, event: string, payload: unknown): boolean { return this.handleProviderHook('muse', workerId, token, event, payload); }
   /** OpenCode plugin callback. The plugin has already filtered child sessions before this bridge. */
-  handleOpenCodeHook(workerId: string, token: string, payload: unknown): boolean {
-    return this.handleProviderHook('opencode', workerId, token, '', payload);
-  }
+  handleOpenCodeHook(workerId: string, token: string, payload: unknown): boolean { return this.handleProviderHook('opencode', workerId, token, '', payload); }
 
   /**
    * An event on the hook route /hooks/`route` (see ProviderAdapter.hook): taken only from a running
@@ -1002,43 +970,7 @@ export class WorkerManager {
 
   /** What a worker's provider adapter is handed of it (see WorkerHandle): made once, kept on the worker. */
   private handleOf(w: Worker): WorkerHandle {
-    return (w.handle ??= {
-      get info() {
-        return w.info;
-      },
-      get state() {
-        return w.state;
-      },
-      get running() {
-        return !!w.pty;
-      },
-      get bootBlocked() {
-        return !!w.bootBlocked;
-      },
-      set bootBlocked(v) {
-        w.bootBlocked = v;
-      },
-      get leftNeedsInputAt() {
-        return w.leftNeedsInputAt;
-      },
-      set leftNeedsInputAt(v) {
-        w.leftNeedsInputAt = v;
-      },
-      get failStreak() {
-        return w.failStreak;
-      },
-      set failStreak(v) {
-        w.failStreak = v;
-      },
-      get tracker() {
-        return w.tracker;
-      },
-      get pendingPrompt() {
-        return w.pendingPrompt;
-      },
-      set pendingPrompt(v) {
-        w.pendingPrompt = v;
-      },
+    return (w.handle ??= workerHandle(w, {
       setStatus: (status) => this.setStatus(w, status),
       emit: () => this.emitUpdate(w),
       persist: () => this.persist(),
@@ -1048,7 +980,7 @@ export class WorkerManager {
       clearTask: () => this.tasks.clear(w),
       scheduleScan: () => this.scheduleScan(w),
       prompt: (text) => this.prompt(w.info.id, text),
-    });
+    }));
   }
 
   /** Full screens for every running worker — sent to people as they walk in. */

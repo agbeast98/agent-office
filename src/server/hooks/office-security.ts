@@ -3,6 +3,7 @@ import type { Floor } from '../floor.js';
 import type { Ctx } from '../office/context.js';
 import { readBody, send } from '../http/util.js';
 import { announce, refusal, syncGuards, toolCheck } from '../security-glue.js';
+import { profileGate } from '../profile-gate.js';
 import { tell } from './office-tasks.js';
 
 function authenticate(ctx: Ctx, req: http.IncomingMessage, url: URL) {
@@ -65,6 +66,8 @@ export async function officeGuard(ctx: Ctx, req: http.IncomingMessage, res: http
   } catch {
     return send(res, 200, {});
   }
+  const locked = profileGate(who.floor, who.me, payload);
+  if (locked) return send(res, 200, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: locked } });
   const c = toolCheck(who.floor, who.me, payload);
   if (!c || c.verdict === 'allow') return send(res, 200, {});
   announce(who.floor, c);

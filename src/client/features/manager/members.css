@@ -72,3 +72,8 @@ html[dir="rtl"] .mbwin > header .close { order: -1; margin: 0 0 0 4px; }
 .mb-msg-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .mb-msg-head small { color: #758394; margin-inline-start: auto; }
 .mb-msg p { margin: 0; font-size: 13px; line-height: 1.8; white-space: pre-wrap; } .mb-msg-why { color: #b3402a; }
 .mb-chip.cm-queued { background: #fff1cf; } .mb-chip.cm-sent { background: #dcebff; } .mb-chip.cm-delivered { background: #dff3ec; } .mb-chip.cm-failed, .mb-chip.cm-refused { background: #ffd9d3; }
+
+.mb-restore { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; margin-bottom: 12px; background: #fff8e6; border: 1px solid #f0d9a0; border-radius: 12px; }
+.mb-restore.hidden { display: none; } .mb-restore > div { display: flex; flex-direction: column; gap: 4px; } .mb-restore small { color: #6b5b2e; font-size: 12px; line-height: 1.7; }
+.mb-eval-list ul { margin: 4px 0 8px; padding-inline-start: 22px; font-size: 13px; line-height: 1.8; }
+.mb-chip.ev-proposed { background: #fff1cf; } .mb-chip.ev-approved { background: #dcebff; } .mb-chip.ev-applied { background: #dff3ec; } .mb-chip.ev-declined { background: #ffd9d3; }

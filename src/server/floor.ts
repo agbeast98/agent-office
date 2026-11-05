@@ -37,6 +37,9 @@ import { Flows } from './team-flows.js';
 import { Interviews } from './team-interviews.js';
 import { Teams } from './team-teams.js';
 import { TeamComms } from './team-comms.js';
+import { TeamEvals, TeamMistakes, TeamRequests } from './team-ledgers.js';
+import { ProfileWatch } from './profile-watch.js';
+import { TeamSnapshot, seedFromSnapshot } from './team-snapshot.js';
 import { tell as tellWorkers } from './hooks/office-tasks.js';
 import { browserGate, syncGuards } from './security-glue.js';
 
@@ -145,6 +148,11 @@ export class Floor {
   readonly interviews: Interviews;
   readonly teams: Teams;
   readonly comms: TeamComms;
+  readonly requests: TeamRequests;
+  readonly mistakes: TeamMistakes;
+  readonly evals: TeamEvals;
+  readonly snapshot: TeamSnapshot;
+  private profileWatch?: ProfileWatch;
   private scheduleTimer?: ReturnType<typeof setInterval>;
   /** The whiteboard everyone on the floor draws on together. */
   readonly whiteboard: Whiteboard;
@@ -340,6 +348,7 @@ export class Floor {
     this.teamMeetings = new TeamMeetings(dataDir);
     this.teamSchedule = new TeamSchedule(dataDir);
     this.notifier = new Notifier(dataDir);
+    const seeded = seedFromSnapshot(def.dir, dataDir);
     this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
     this.teamTasks.blocked = (id) => this.interviews.blocking(id);
     this.teams = new Teams(dataDir);
@@ -359,6 +368,18 @@ export class Floor {
         return err === 'Worker is not running' ? this.workers.resume(id, text) : err;
       },
       alert: (text) => void this.notifier.send(text),
+    });
+    this.requests = new TeamRequests(dataDir);
+    this.mistakes = new TeamMistakes(dataDir, path.join(def.dir, 'freelance-team', 'mistakes.md'));
+    this.evals = new TeamEvals(dataDir);
+    this.snapshot = new TeamSnapshot(this, dataDir, seeded);
+    // A skill.md changed by anyone but the office: the member's manager hears of it.
+    this.profileWatch = new ProfileWatch(path.join(def.dir, 'freelance-team', 'people'), (slug, before, after) => {
+      const talk = this.interviews.all().find((i) => i.slug === slug);
+      const w = talk && this.workers.get(talk.worker);
+      const team = w && this.teams.teamOf(w.id);
+      if (!w || !team || team.manager === w.id) return;
+      this.comms.notify(team.manager, `ℹ️ skill.md «${w.name}» تغییر کرد (${before} ← ${after} نویسه). اگر از این تغییر خبر نداشتی، از مدیرعامل یا مربی بپرس.`);
     });
     this.teamTasks.isManager = (id) => this.teams.isManager(id);
     this.flows = new Flows(dataDir, { blocked: (id) => this.interviews.blocking(id), tasks: this.teamTasks, workers: () => this.workers.list(), tell: (n, by) => tellWorkers(this, n, by), notify: (t) => void this.notifier.send(t) }, path.join(def.dir, 'freelance-team', 'scenarios.md'));

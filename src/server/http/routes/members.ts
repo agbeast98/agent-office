@@ -5,6 +5,7 @@ import { str } from '../../office/input.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
+import { missingMembers, restoreMembers } from '../../team-snapshot.js';
 
 const FILES = { skill: 'skill.md', memory: 'memory.md' } as const;
 const TEXT_MAX = 20_000;
@@ -48,7 +49,7 @@ export const membersRoutes = {
           tasks: [...mine].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 30).map((t) => ({ id: t.id, title: t.title, status: t.status, updatedAt: t.updatedAt })),
         };
       });
-      return send(res, 200, { members });
+      return send(res, 200, { members, missing: missingMembers(floor).map((m) => ({ name: m.name, role: (m.role ?? '').split(':')[0].trim(), provider: m.provider })) });
     },
   },
   /** GET /api/members/profile?floor=<id>&worker=<id> */
@@ -69,7 +70,7 @@ export const membersRoutes = {
     method: 'POST',
     path: '/api/members/action',
     auth: 'session',
-    async handle(ctx, { req, res, url }) {
+    async handle(ctx, { req, res, url, session }) {
       if (!sameOrigin(req, ctx.cfg)) return send(res, 403, { error: 'Forbidden' });
       const floor = floorParam(ctx, url);
       if (!floor) return send(res, 404, { error: 'No such floor' });
@@ -80,6 +81,10 @@ export const membersRoutes = {
         body = value as Record<string, unknown>;
       } catch {
         return send(res, 400, { error: 'Bad request' });
+      }
+      if (body.action === 'restore') {
+        const out = restoreMembers(floor, session.account?.name ?? 'مدیرعامل');
+        return out.restored.length || !out.failed.length ? send(res, 200, { ok: true, ...out }) : send(res, 400, { error: out.failed.join('؛ ') });
       }
       if (body.action !== 'save') return send(res, 400, { error: 'Unknown action' });
       const file = body.file === 'skill' || body.file === 'memory' ? FILES[body.file] : undefined;

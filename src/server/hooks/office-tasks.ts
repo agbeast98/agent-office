@@ -91,6 +91,24 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
     case 'note':
       result = tasks.note(by, id, body.text, workers);
       break;
+    case 'ask_ceo': {
+      const r = floor.requests.ask(me.id, me.name, body);
+      if (!r.ok) return send(res, 400, { error: r.error });
+      if (r.fresh) void floor.notifier.send(`📥 ${me.name} از شما چیزی می‌خواهد: ${r.req.title} (${r.req.id})`);
+      return send(res, 200, { ok: true, id: r.req.id, note: 'در «📥 درخواست از شما» ثبت شد. منتظر نمان و کار دیگرت را ادامه بده؛ وقتی مدیرعامل انجامش داد یا رد کرد، خودت خبر می‌گیری.' });
+    }
+    case 'report_mistake': {
+      const r = floor.mistakes.report(body, 'agent', me.name, typeof body.who === 'string' && body.who.trim() ? undefined : { id: me.id, name: me.name });
+      if (!r.ok) return send(res, 400, { error: r.error });
+      return send(res, 200, { ok: true, id: r.mistake.id, note: 'ثبت شد و در freelance-team/mistakes.md برای همه می‌آید.' });
+    }
+    case 'record_evaluation': {
+      const member = typeof body.member === 'string' ? findWorker(workers.filter((x) => x.kind === 'agent'), body.member) : 'Say whom you evaluated';
+      if (typeof member === 'string') return send(res, 400, { error: member });
+      const r = floor.evals.record(me.id, me.name, { id: member.id, name: member.name }, body);
+      if (!r.ok) return send(res, 400, { error: r.error });
+      return send(res, 200, { ok: true, id: r.evaluation.id, note: `ارزیابی ${member.name} ثبت شد و در پروفایل او (تب 📊 ارزیابی‌ها) دیده می‌شود.` });
+    }
     case 'call_member': {
       const to = typeof body.to === 'string' ? findWorker(workers.filter((x) => x.kind === 'agent'), body.to) : 'Say whom to call';
       if (typeof to === 'string') return send(res, 400, { error: to });
