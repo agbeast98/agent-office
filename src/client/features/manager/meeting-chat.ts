@@ -1,4 +1,5 @@
 import { h, toast } from '../../ui/dom';
+import { createConvo, type ConvoMsg } from '../../ui/convo';
 import { CHAIRS, CHOICE_FA, MODE_FA, clock, phase, type Act, type Full, type Person, type State } from './meeting-model';
 
 // The meeting room's conversation and its people: who said what in each round (with who is typing, who has
@@ -10,26 +11,6 @@ const byId = (state: State, id?: string) => state.people.find((p) => p.id === id
 
 function avatar(name: string, color?: string, boss = false) {
   return h('span.mr-av', { class: boss ? 'boss' : '', style: color && !boss ? `background:${color}` : '' }, boss ? '👑' : initial(name));
-}
-
-/** Everything said, by round. */
-export function feed(m: Full, state: State) {
-  const said = m.said.filter((s) => !s.note);
-  const rounds = [...new Set(said.map((s) => s.round))].sort((a, b) => a - b);
-  // Whoever is writing their answer shows as a line of its own at the end, so the room is never silent while they work.
-  const writing = m.members.filter((x) => phase(m, x.id, state).cls === 'work');
-  const ghosts = writing.map((x) => h('div.mr-msg.ghost', {}, avatar(x.name, byId(state, x.id)?.color), h('div.mr-bub', {}, h('div.mr-who', {}, h('b', {}, x.name)), h('div.mr-text', {}, 'در حال پاسخ دادن…'))));
-  if (!rounds.length) return h('div.mr-empty', {}, h('b', {}, '🕐 هنوز کسی چیزی نگفته'), 'هر نفر که سر میز بنشیند از موضوع باخبر می‌شود و نظرش همین‌جا ظاهر می‌شود.', ...ghosts);
-  return h('div.mr-feed', {}, ...rounds.flatMap((r) => [
-    h('div.mr-round', {}, h('span', {}, `دور ${r}`)),
-    ...said.filter((s) => s.round === r).map((s) => {
-      const who = byId(state, s.id);
-      const you = !s.id;
-      return h('div.mr-msg', { class: `${you ? 'you' : ''} ${s.to ? 'ask' : ''}` }, avatar(s.by, who?.color, you),
-        h('div.mr-bub', {}, h('div.mr-who', {}, h('b', {}, s.by), s.to ? h('span.mr-to', {}, `← ${s.to.name}`) : null, !you && who?.role ? h('small', {}, who.role.split(':')[0]) : null, h('time', {}, clock(s.at))),
-          h('div.mr-text', { dir: 'auto' }, s.text)));
-    }),
-  ]).concat(ghosts));
 }
 
 /** How this meeting goes, and for a debate or a vote where it has got to. */
@@ -60,29 +41,48 @@ export function roundStrip(m: Full, state: State) {
   }));
 }
 
-/** The box to say something to everyone or ask one person, kept between refreshes so a half-typed line isn't lost. */
-export function composer(act: Act) {
-  const to = h('select', { 'aria-label': 'به چه کسی' }) as HTMLSelectElement;
-  const input = h('input', { placeholder: 'پیام شما…', maxlength: '3000', dir: 'auto', 'aria-label': 'پیام' }) as HTMLInputElement;
-  const send = async () => {
-    if (!input.value.trim()) return;
-    const ok = to.value === 'all' ? await act('say', { text: input.value }) : await act('ask', { to: to.value, text: input.value });
-    if (ok) input.value = '';
-  };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') void send(); });
-  const btn = h('button.btn.primary', { type: 'button', onclick: () => void send() }, 'ارسال');
-  const el = h('div.mr-dock', {}, to, input, btn);
+/**
+ * The conversation: what each said by round, who is writing now, and the box to say something to everyone or ask one
+ * person. It is made once and kept (see ui/convo.ts), so redrawing the window never touches what is being typed, and
+ * the list only gains the messages that are new.
+ */
+export function meetingChat(floor: string, act: Act) {
+  const to = h('select', { 'aria-label': 'به چه کسی', title: 'به همه بگویید یا از یک نفر بپرسید' }) as HTMLSelectElement;
+  const convo = createConvo({
+    draftKey: `meeting:${floor}`,
+    placeholder: 'پیام شما به همه‌ی حاضران یا به یک نفر… (Enter ارسال، Shift+Enter خط تازه)',
+    empty: 'هنوز کسی چیزی نگفته. هر نفر که سر میز بنشیند از موضوع باخبر می‌شود و نظرش همین‌جا ظاهر می‌شود.',
+    send: (text) => (to.value === 'all' ? act('say', { text }) : act('ask', { to: to.value, text })),
+  });
+  convo.addTool(to);
   return {
-    el,
-    /** Keeps the list of who to say it to current, with what was picked still picked. */
-    sync(m: Full) {
+    convo,
+    /** Adds a button beside the box (the next round, the summary). */
+    addAction: (el: HTMLElement) => convo.addTool(el),
+    sync(m: Full, state: State) {
       const keep = to.value;
       to.replaceChildren(h('option', { value: 'all' }, '👥 همه‌ی حاضران'), ...m.members.map((x) => h('option', { value: x.id }, `❓ ${x.name}`)));
       to.value = [...to.options].some((o) => o.value === keep) ? keep : 'all';
+      const said = m.said.filter((s) => !s.note);
+      const out: ConvoMsg[] = [];
+      let round = 0;
+      said.forEach((s, i) => {
+        if (s.round !== round) {
+          round = s.round;
+          out.push({ id: `round:${round}`, side: 'system', divider: true, text: `دور ${round}`, at: s.at });
+        }
+        const who = byId(state, s.id);
+        out.push({ id: `m:${s.at}:${i}`, side: s.id ? 'them' : 'me', name: s.by, sub: s.id ? who?.role?.split(':')[0] : undefined, color: who?.color, text: s.text, at: s.at, tag: s.to ? `← ${s.to.name}` : undefined });
+      });
+      convo.setMessages(out);
+      const writing = m.members.filter((x) => phase(m, x.id, state).cls === 'work').map((x) => x.name);
+      convo.setTyping(writing);
+      const spoke = m.members.filter((x) => phase(m, x.id, state).cls === 'done').length;
+      convo.setStatus(m.mode === 'vote' ? '' : m.members.length && spoke < m.members.length ? `دور ${m.round}: ${spoke.toLocaleString('fa-IR')} از ${m.members.length.toLocaleString('fa-IR')} نفر گفته‌اند` : '');
     },
     askOne(id: string) {
       to.value = id;
-      input.focus();
+      convo.focus();
     },
   };
 }

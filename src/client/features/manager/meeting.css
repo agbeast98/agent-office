@@ -106,3 +106,11 @@ html[dir="rtl"] .meetroom > header .close { margin-left: 0; margin-right: auto; 
   .mr-topic, .mr-tab { white-space: normal; }
   .meetroom > header h2 { max-width: none; }
 }
+
+/* the conversation fills the room; the other sections scroll */
+.mr-main.chat { overflow: hidden; }
+.mr-main.chat > .cv { flex: 1 1 auto; }
+.mr-main.chat > .mr-strip, .mr-main.chat > .mr-mode { flex: none; }
+.meetroom .cv { min-height: 0; }
+.mr-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.mr-start .mr-sec textarea { min-height: 64px; line-height: 1.8; }

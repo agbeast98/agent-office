@@ -1,5 +1,6 @@
 import './hiring.css';
 import { h, openModal, toast } from '../../ui/dom';
+import { createConvo, type Convo, type ConvoMsg } from '../../ui/convo';
 import { teamsTab } from './hiring-teams';
 import { ENGINES, type Desk, type Draft, type Interview, type Proposal, type State } from './hiring-types';
 
@@ -151,11 +152,9 @@ export function openHiring(floor: string, desk?: string) {
   // ---- The interview ----
 
   /** The chat last drawn, so a redraw while someone types only touches the messages. */
-  let chat: { id: string; list: HTMLElement; status: HTMLElement } | undefined;
-
-  const bubbles = (iv: Interview) => iv.messages.length
-    ? iv.messages.map((m) => h('div.hr-msg', { class: m.by }, h('b', {}, m.by === 'agent' ? iv.name : m.by === 'manager' ? `🧭 مدیر ${m.who ?? ''}` : 'شما'), h('div', { dir: 'auto' }, m.text)))
-    : [h('div.mg-empty', {}, `⏳ ${iv.name} در حال آماده‌شدن است و به‌زودی خودش را معرفی می‌کند…`)];
+  let chat: { id: string; convo: Convo } | undefined;
+  /** One conversation per interview, made once: the box keeps what is typed whatever the window redraws. */
+  const convos = new Map<string, Convo>();
 
   const statusLine = (iv: Interview) => {
     const last = [...iv.messages].reverse().find((m) => m.by !== 'manager');
@@ -164,24 +163,44 @@ export function openHiring(floor: string, desk?: string) {
     return '💬 منتظر پاسخ شما';
   };
 
+  const messagesOf = (iv: Interview): ConvoMsg[] => iv.messages.map((m, i) => ({
+    id: `${iv.id}:${i}`,
+    side: m.by === 'boss' ? 'me' : 'them',
+    name: m.by === 'agent' ? iv.name : m.by === 'manager' ? `مدیر ${m.who ?? ''}`.trim() : 'شما',
+    sub: m.by === 'agent' ? iv.role.split(':')[0] : undefined,
+    tag: m.by === 'manager' ? '🧭 نظر مدیر تیم' : undefined,
+    text: m.text,
+    at: m.at,
+  }));
+
+  /** The conversation of this interview, brought up to date: its messages, who is writing, what is waited for. */
+  const paintChat = (iv: Interview): Convo => {
+    let c = convos.get(iv.id);
+    if (!c) {
+      c = createConvo({
+        draftKey: `interview:${iv.id}`,
+        placeholder: `پاسخ یا حرف شما به ${iv.name}… (Enter ارسال، Shift+Enter خط تازه)`,
+        empty: `⏳ ${iv.name} در حال آماده‌شدن است و به‌زودی خودش را معرفی می‌کند…`,
+        send: (text) => call('say', { id: iv.id, text }),
+      });
+      convos.set(iv.id, c);
+    }
+    const last = [...iv.messages].reverse().find((m) => m.by !== 'manager');
+    c.setMessages(messagesOf(iv));
+    c.setTyping(iv.status === 'talking' && (!last || last.by === 'boss') ? [iv.name] : []);
+    c.setStatus(statusLine(iv));
+    c.setEnabled(iv.status === 'talking', 'مصاحبه تمام شده است');
+    return c;
+  };
+
   const updateChat = (iv: Interview) => {
-    if (!chat || chat.id !== iv.id) return;
-    const atEnd = chat.list.scrollHeight - chat.list.scrollTop - chat.list.clientHeight < 40;
-    chat.list.replaceChildren(...bubbles(iv));
-    chat.status.textContent = statusLine(iv);
-    if (atEnd) chat.list.scrollTop = chat.list.scrollHeight;
+    if (chat?.id === iv.id) paintChat(iv);
   };
 
   const interviewPanel = (iv: Interview) => {
     const team = state.teams.find((t) => t.id === iv.team);
-    const list = h('div.hr-chat', { role: 'log', 'aria-live': 'polite' });
-    const status = h('div.hr-status');
-    const input = h('textarea', { rows: '2', placeholder: 'پاسخ یا حرف شما…', dir: 'auto', maxlength: '2000' }) as HTMLTextAreaElement;
-    const send = async () => { const t = input.value.trim(); if (!t) return; input.value = ''; if (!(await call('say', { id: iv.id, text: t }))) input.value = t; };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } });
-    chat = { id: iv.id, list, status };
-    updateChat(iv);
-    list.scrollTop = list.scrollHeight;
+    const convo = paintChat(iv);
+    chat = { id: iv.id, convo };
     const files = iv.status === 'review'
       ? h('div.hr-result', {},
         iv.summary ? h('div.hr-card', {}, h('h4', {}, 'خلاصه'), h('p', { dir: 'auto' }, iv.summary)) : null,
@@ -191,7 +210,7 @@ export function openHiring(floor: string, desk?: string) {
       : null;
     return h('div.hr-card.interview', {},
       h('div.sec-hh', {}, h('h3', {}, `🎤 مصاحبه با ${iv.name}`), h('span.mr-chip', {}, iv.role), iv.team && team ? h('span.mr-chip', {}, iv.isManager ? `مدیر تیم ${team.name}` : `تیم ${team.name}`) : h('span.mr-chip', {}, 'مستقل'), h('small', {}, `پوشه: freelance-team/people/${iv.slug}`)),
-      list, status, h('div.hr-reply', {}, input, h('button.btn.primary', { type: 'button', onclick: () => void send() }, 'ارسال')),
+      convo.el,
       iv.team && !iv.isManager ? h('button.btn', { type: 'button', title: 'مدیر تیم گفتگو را می‌خواند و نظر واقع‌گرایانه‌اش را همین‌جا می‌نویسد', onclick: () => void call('askManager', { id: iv.id }) }, '🧭 نظر مدیر') : null,
       files,
       h('div.mg-row', {},
@@ -205,7 +224,7 @@ export function openHiring(floor: string, desk?: string) {
   /** Someone is typing here: leave it be and only bring the chat up to date. */
   const typing = () => {
     const a = document.activeElement as HTMLElement | null;
-    return !!a && el.contains(a) && ['INPUT', 'TEXTAREA'].includes(a.tagName) && !!(a as HTMLInputElement).value;
+    return !!a && el.contains(a) && ['INPUT', 'TEXTAREA'].includes(a.tagName) && (!!a.closest('.cv') || !!(a as HTMLInputElement).value);
   };
 
   // ---- The business, written once for everyone ----

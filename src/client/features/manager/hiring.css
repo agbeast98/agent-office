@@ -45,3 +45,6 @@ html[dir="rtl"] .hirewin > header .close { margin-left: 0; margin-right: auto; }
 .hr-warn.ok { background: #e6f4ea; color: #2c7a43; }
 .hr-card.company > summary { cursor: pointer; font-weight: 700; }
 .hr-card.company textarea { min-height: 140px; }
+
+/* the interview conversation fills its card */
+.hirewin .hr-card.interview .cv { flex: 1 1 340px; min-height: 300px; max-height: 480px; }

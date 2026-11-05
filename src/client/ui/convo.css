@@ -1,0 +1,49 @@
+/* The conversation of the meeting room and the interview: a light, quiet chat that fills the room it is given. */
+.cv { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; background: #f5f7f9; border: 1px solid #dde4ea; border-radius: 14px; overflow: hidden; color: #172536; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
+.cv .hidden { display: none !important; }
+.cv-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; scroll-behavior: smooth; }
+.cv-list { display: flex; flex-direction: column; gap: 10px; }
+.cv-empty { margin: auto; max-width: 420px; text-align: center; color: #6c7c8c; font-size: 13px; line-height: 2; padding: 30px 10px; }
+
+.cv-msg { display: flex; align-items: flex-end; gap: 9px; max-width: 100%; }
+.cv-msg.me { flex-direction: row-reverse; }
+.cv-av { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0b7569; color: #fff; font-size: 15px; font-weight: 800; }
+.cv-bub { min-width: 0; max-width: min(680px, 86%); padding: 9px 13px 11px; background: #fff; border: 1px solid #e0e6ec; border-radius: 4px 16px 16px 16px; box-shadow: 0 1px 2px #1d34450a; }
+.cv-msg.me .cv-bub { background: #e2f4ef; border-color: #bfe3d9; border-radius: 16px 4px 16px 16px; }
+.cv-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 4px; font-size: 12px; }
+.cv-meta b { font-size: 13px; } .cv-meta small, .cv-meta time { color: #758394; font-size: 11px; font-weight: 400; } .cv-meta time { margin-inline-start: auto; }
+.cv-tag { padding: 0 8px; border-radius: 999px; background: #dcebff; color: #1f5fb8; font-size: 11px; font-weight: 700; }
+.cv-body { font-size: 14px; line-height: 1.95; overflow-wrap: anywhere; }
+.cv-body p { margin: 0 0 8px; white-space: pre-wrap; unicode-bidi: plaintext; } .cv-body > :last-child { margin-bottom: 0; }
+.cv-body ul, .cv-body ol { margin: 0 0 8px; padding-inline-start: 22px; } .cv-body li { margin: 2px 0; unicode-bidi: plaintext; }
+.cv-body code { padding: 1px 5px; border-radius: 5px; background: #eef2f6; font-size: 12.5px; direction: ltr; unicode-bidi: isolate; }
+.cv-body pre { margin: 0 0 8px; padding: 10px 12px; overflow-x: auto; border-radius: 8px; background: #172536; color: #e6edf3; } .cv-body pre code { background: none; color: inherit; padding: 0; white-space: pre; }
+.cv-body .rt-h { margin: 6px 0 4px; font-weight: 800; color: #0b7569; }
+.cv-body .rt-link { color: #1f5fb8; text-decoration: underline; overflow-wrap: anywhere; }
+.cv-body .rt-gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.cv-body .rt-pic { display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 360px); padding: 5px; border: 1px solid #dde4ea; border-radius: 10px; background: #fff; text-decoration: none; color: inherit; }
+.cv-body .rt-pic img { display: block; max-width: 100%; max-height: 280px; border-radius: 6px; object-fit: contain; } .cv-body .rt-pic small { color: #758394; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cv-divider { display: flex; align-items: center; gap: 12px; margin: 6px 0; color: #758394; font-size: 12px; font-weight: 700; }
+.cv-divider::before, .cv-divider::after { content: ''; flex: 1; height: 1px; background: #d4dce4; }
+.cv-system { align-self: center; max-width: min(640px, 92%); padding: 6px 14px; border-radius: 12px; background: #eaf0f5; color: #3a4b5c; font-size: 12.5px; line-height: 1.9; text-align: center; }
+.cv-system p { margin: 0; }
+
+.cv-typing { display: flex; align-items: center; gap: 4px; align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid #e0e6ec; color: #566a7d; font-size: 12px; }
+.cv-typing i { width: 5px; height: 5px; border-radius: 50%; background: #31b49e; animation: cv-dot 1.2s infinite ease-in-out; } .cv-typing i:nth-of-type(2) { animation-delay: .2s; } .cv-typing i:nth-of-type(3) { animation-delay: .4s; }
+@keyframes cv-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+.cv-jump { position: absolute; inset-inline-start: 50%; bottom: 112px; transform: translateX(-50%); padding: 6px 14px; border: 0; border-radius: 999px; background: #0b7569; color: #fff; font: inherit; font-size: 12px; font-weight: 700; box-shadow: 0 4px 14px #0b756955; cursor: pointer; }
+[dir=rtl] .cv-jump { transform: translateX(50%); }
+.cv-status { padding: 7px 16px; background: #eef7f2; border-top: 1px solid #dde4ea; color: #2f6b55; font-size: 12.5px; text-align: center; }
+.cv-status.warn { background: #fff4e0; color: #8a5a00; }
+.cv-box { padding: 10px 12px 12px; background: #fff; border-top: 1px solid #dde4ea; display: flex; flex-direction: column; gap: 6px; }
+.cv-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cv-tools select { font: inherit; font-size: 12.5px; padding: 5px 9px; border: 1px solid #cfd8e1; border-radius: 9px; background: #fff; max-width: 220px; }
+.cv-row { display: flex; align-items: flex-end; gap: 8px; }
+.cv-row textarea { flex: 1 1 auto; min-width: 0; min-height: 42px; max-height: 170px; resize: none; padding: 10px 13px; font: inherit; font-size: 14px; line-height: 1.7; border: 1px solid #cfd8e1; border-radius: 12px; background: #fbfcfd; color: #172536; box-sizing: border-box; }
+.cv-row textarea:focus { outline: 2px solid #31b49e55; border-color: #31b49e; background: #fff; }
+.cv-send { flex: none; min-height: 42px; white-space: nowrap; }
+.cv-send:disabled { opacity: .5; cursor: default; }
+.cv-count { align-self: flex-end; color: #b3402a; font-size: 11px; }
+@media (max-width: 700px) { .cv-scroll { padding: 12px; } .cv-bub { max-width: 92%; } .cv-jump { bottom: 100px; } }

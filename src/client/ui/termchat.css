@@ -31,7 +31,7 @@
 .term-chat-body { color: #ece9e1; font-size: 14px; line-height: 1.8; text-align: start; }
 .term-chat-body p { margin: 0 0 8px; white-space: pre-wrap; unicode-bidi: plaintext; } .term-chat-body > :last-child { margin-bottom: 0; }
 .term-chat-body ul, .term-chat-body ol { margin: 0 0 8px; padding-inline-start: 22px; } .term-chat-body li { margin: 2px 0; unicode-bidi: plaintext; }
-.term-chat-h { margin: 6px 0 4px; font-weight: 800; color: #b6f0c8; }
+.rt-h { margin: 6px 0 4px; font-weight: 800; color: #b6f0c8; }
 .term-chat-body code { padding: 1px 5px; border-radius: 5px; background: #151816; color: #e8d9a8; font-size: 12.5px; direction: ltr; unicode-bidi: isolate; }
 .term-chat-body pre { margin: 0 0 8px; padding: 10px 12px; overflow-x: auto; border-radius: 8px; background: #121413; border: 1px solid #343a35; }
 .term-chat-body pre code { padding: 0; background: none; color: #d9dfd9; white-space: pre; }
@@ -44,9 +44,9 @@
 .term-chat-typing.hidden { display: none; }
 
 /* pictures an agent mentions */
-.term-chat-link { color: #8fd3ff; text-decoration: underline; overflow-wrap: anywhere; }
-.term-chat-gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.term-chat-pic { display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 420px); padding: 6px; border: 1px solid #343a35; border-radius: 10px; background: #151816; text-decoration: none; }
-.term-chat-pic img { display: block; max-width: 100%; max-height: 320px; border-radius: 6px; object-fit: contain; background: #fff; }
-.term-chat-pic small { color: #a9baa9; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.term-chat-pic:hover { border-color: #b6f0c8; }
+.rt-link { color: #8fd3ff; text-decoration: underline; overflow-wrap: anywhere; }
+.rt-gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.rt-pic { display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 420px); padding: 6px; border: 1px solid #343a35; border-radius: 10px; background: #151816; text-decoration: none; }
+.rt-pic img { display: block; max-width: 100%; max-height: 320px; border-radius: 6px; object-fit: contain; background: #fff; }
+.rt-pic small { color: #a9baa9; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-pic:hover { border-color: #b6f0c8; }
