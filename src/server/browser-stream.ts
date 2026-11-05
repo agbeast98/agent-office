@@ -8,6 +8,8 @@ import type { Page } from 'playwright-core';
 const BOUNDARY = 'officeframe';
 const KEEPALIVE_MS = 10_000;
 const QUALITY = 60;
+/** Chrome draws 60 times a second; every second frame is plenty to follow a page and half the bytes. */
+const EVERY_NTH = 2;
 const WIDTH = 1280;
 const HEIGHT = 800;
 
@@ -90,7 +92,7 @@ export class BrowserStream {
         for (const res of feed.viewers) this.write(res, buffer);
         void cdp.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => {});
       });
-      await cdp.send('Page.startScreencast', { format: 'jpeg', quality: QUALITY, maxWidth: WIDTH, maxHeight: HEIGHT, everyNthFrame: 1 });
+      await cdp.send('Page.startScreencast', { format: 'jpeg', quality: QUALITY, maxWidth: WIDTH, maxHeight: HEIGHT, everyNthFrame: EVERY_NTH });
       feed.stop = async () => {
         await cdp.send('Page.stopScreencast').catch(() => {});
         await cdp.detach().catch(() => {});
