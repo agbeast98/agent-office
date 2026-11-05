@@ -1,5 +1,6 @@
 import { h, toast } from '../../ui/dom';
 import { createConvo, type ConvoMsg } from '../../ui/convo';
+import { IMAGE } from '../../ui/richtext';
 import { CHAIRS, CHOICE_FA, MODE_FA, clock, phase, type Act, type Full, type Person, type State } from './meeting-model';
 
 // The meeting room's conversation and its people: who said what in each round (with who is typing, who has
@@ -50,6 +51,8 @@ export function meetingChat(floor: string, act: Act) {
   const to = h('select', { 'aria-label': 'به چه کسی', title: 'به همه بگویید یا از یک نفر بپرسید' }) as HTMLSelectElement;
   const convo = createConvo({
     draftKey: `meeting:${floor}`,
+    // A picture an agent names by path (its own folder or Codex's generated_images) is shown as the picture.
+    source: (target) => (!/^[a-z][a-z0-9+.-]*:\/\//i.test(target) || /^file:/i.test(target)) && IMAGE.test(target) ? `/api/chat-image?${new URLSearchParams({ floor, path: target })}` : undefined,
     placeholder: 'پیام شما به همه‌ی حاضران یا به یک نفر… (Enter ارسال، Shift+Enter خط تازه)',
     empty: 'هنوز کسی چیزی نگفته. هر نفر که سر میز بنشیند از موضوع باخبر می‌شود و نظرش همین‌جا ظاهر می‌شود.',
     send: (text) => (to.value === 'all' ? act('say', { text }) : act('ask', { to: to.value, text })),
