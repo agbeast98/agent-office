@@ -42,6 +42,7 @@ export const routes: readonly Route[] = [
   workerBrowserRoutes.view,
   workerBrowserRoutes.screenshot,
   workerBrowserRoutes.stream,
+  workerBrowserRoutes.activity,
   workerBrowserRoutes.input,
   workerBrowserRoutes.action,
   workerChatRoutes.transcript,

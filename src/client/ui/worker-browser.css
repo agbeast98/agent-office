@@ -60,3 +60,15 @@
 .wb-light { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .wb-light input { width: auto; }
 .worker-browser.person-control .wb-viewport { cursor: crosshair; }
+
+/* what the browser did, and copying a login */
+.wb-activity, .wb-login { margin: 8px 0 0; padding: 8px 12px; border: 1px solid #343a35; border-radius: 10px; background: #181a1b; color: #d8d4c8; font-size: 12.5px; }
+.wb-activity summary, .wb-login summary { cursor: pointer; font-weight: 700; }
+.wb-act-list { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow-y: auto; margin-top: 6px; }
+.wb-act { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; padding: 3px 6px; border-radius: 6px; } .wb-act:nth-child(odd) { background: #1f2223; }
+.wb-act time { color: #888f89; font-variant-numeric: tabular-nums; } .wb-act b { color: #9fe0b4; } .wb-act.person b { color: #f2cd7c; }
+.wb-act small { color: #a9baa9; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .wb-act-url { color: #8fd3ff !important; }
+.wb-act-empty { color: #888f89; padding: 6px; }
+.wb-login p { margin: 6px 0; color: #a9baa9; line-height: 1.8; } .wb-login-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.wb-login-row select { font: inherit; padding: 5px 9px; border-radius: 8px; background: #232725; color: #e9e5dc; border: 1px solid #45504a; }
+.wb-login.hidden, .wb-empty .hidden { display: none; }

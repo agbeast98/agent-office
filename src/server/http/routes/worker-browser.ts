@@ -36,6 +36,20 @@ export const workerBrowserRoutes = {
       }
     },
   },
+  /** GET /api/worker-browser/activity?floor&worker: what this browser did lately (even when it is closed), and which other workers' logins could be copied. */
+  activity: {
+    method: 'GET',
+    path: '/api/worker-browser/activity',
+    auth: 'session',
+    handle(ctx, { res, url }) {
+      const found = ownerFloor(ctx, url);
+      if (!found) return send(res, 404, { error: 'No such worker' });
+      const browsers = found.floor.workerBrowsers;
+      const others = found.floor.workers.list().filter((w) => w.kind === 'agent' && w.id !== found.workerId);
+      const sources = browsers.loginSources(others.map((w) => w.id)).map((s) => ({ ...s, name: others.find((w) => w.id === s.id)?.name ?? s.id }));
+      return send(res, 200, { activity: browsers.activity(found.workerId, 120).reverse(), sources }, { 'cache-control': 'no-store' });
+    },
+  },
   /** GET /api/worker-browser/stream?floor&worker: the page as a live picture (multipart/x-mixed-replace JPEG). */
   stream: {
     method: 'GET',
@@ -95,6 +109,8 @@ export const workerBrowserRoutes = {
         if (body.action === 'mode') return send(res, 200, await browser.setMode(found.workerId, body.mode));
         if (body.action === 'light') return send(res, 200, await browser.setLight(found.workerId, body.on === true));
         if (body.action === 'real') return send(res, 200, await browser.openReal(found.workerId, body.url));
+        if (body.action === 'resume') return send(res, 200, await browser.resume(found.workerId));
+        if (body.action === 'copyLogin') return send(res, 200, await browser.copyLogin(typeof body.from === 'string' ? body.from : '', found.workerId, body.host));
         if (body.action === 'take') return send(res, 200, await browser.control(found.workerId, 'person'));
         if (body.action === 'release') return send(res, 200, await browser.control(found.workerId, 'agent'));
         if (body.action === 'open') {

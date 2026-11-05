@@ -3,7 +3,9 @@ import { h, toast } from './dom';
 import { fa } from './fa-locale';
 import { store } from '../state';
 
-interface BrowserState { open: boolean; url?: string; title?: string; control: 'agent' | 'person'; mode?: 'ask' | 'auto'; pending?: { action: 'click' | 'press'; label: string; url: string }; error?: string; real?: boolean; light?: boolean }
+interface BrowserState { open: boolean; url?: string; title?: string; control: 'agent' | 'person'; mode?: 'ask' | 'auto'; pending?: { action: 'click' | 'press'; label: string; url: string }; error?: string; real?: boolean; light?: boolean; last?: { url: string; at: number } }
+interface Row { at: string; actor: 'agent' | 'person'; action: string; detail?: string; url?: string }
+interface Source { id: string; name: string; hosts: string[] }
 type RawInput = { t: 'move' | 'down' | 'up' | 'wheel' | 'key' | 'text'; x?: number; y?: number; button?: 'left' | 'right' | 'middle'; dx?: number; dy?: number; key?: string; text?: string };
 
 /** The page is 1280×800 in the browser; the picture is scaled to fit, and clicks are scaled back. */
@@ -13,6 +15,10 @@ const PAGE_H = 800;
 const STATUS_MS = 2500;
 /** If the live picture can't be had (a proxy that holds it back), one screenshot at this pace instead. */
 const FALLBACK_MS = 1200;
+const ACTION_FA: Record<string, string> = {
+  open: 'باز کرد', click: 'کلیک کرد', type: 'تایپ کرد', select: 'انتخاب کرد', press: 'کلید زد', scroll: 'اسکرول کرد', back: 'برگشت', 'took-control': 'کنترل را گرفت', 'released-control': 'کنترل را برگرداند',
+  'waiting-for-approval': 'منتظر تأیید ماند', approved: 'تأیید شد', refused: 'رد شد', mode: 'حالت ارسال را عوض کرد', resumed: 'به آخرین صفحه برگشت', 'login-copied': 'ورود از ایجنت دیگر گرفت', 'real-window-opened': 'پنجره‌ی واقعی را باز کرد', 'real-window-closed': 'پنجره‌ی واقعی را بست', 'idle-closed': 'بسته شد (بی‌استفاده)',
+};
 const SPECIAL_KEYS = ['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
 
 /** The owner-facing window into the private browser session belonging to one worker. */
@@ -36,10 +42,17 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
   const title = h('span.wb-title', {}, 'Private worker browser');
   const image = h('img.wb-page', { alt: 'Live picture of this worker’s private browser page', draggable: 'false' }) as HTMLImageElement;
   const emptyText = h('p', {}, 'The page the agent opens appears here. Its browsing session is isolated from your personal Chrome profile.');
-  const empty = h('div.wb-empty', {}, h('div.wb-globe', {}, '◉'), h('h3', {}, 'A browser for this desk'), emptyText, h('button.btn.primary', { type: 'button' }, 'Open browser'));
+  const resumeBtn = h('button.btn.primary', { type: 'button' }, 'باز کردن دوباره‌ی آخرین صفحه');
+  const empty = h('div.wb-empty', {}, h('div.wb-globe', {}, '◉'), h('h3', {}, 'A browser for this desk'), emptyText, resumeBtn, h('button.btn.primary.wb-open', { type: 'button' }, 'Open browser'));
   const frame = h('div.wb-viewport', { role: 'application', tabindex: '0', 'aria-label': 'Browser preview. Take control to click or type.' }, empty, image);
+  const activityList = h('div.wb-act-list');
+  const activity = h('details.wb-activity', { open: true }, h('summary', {}, '📜 آخرین کارهای این مرورگر'), activityList);
+  const loginFrom = h('select', { 'aria-label': 'ورود از کدام ایجنت' }) as HTMLSelectElement;
+  const loginHost = h('select', { 'aria-label': 'برای کدام سایت' }) as HTMLSelectElement;
+  const loginBtn = h('button.btn', { type: 'button' }, '🔗 گرفتن ورود');
+  const loginBox = h('details.wb-login', {}, h('summary', {}, '🔗 ورود از ایجنت دیگر'), h('p.muted', {}, 'اگر در مرورگر یک ایجنت دیگر به سایتی وارد شده‌اید، همان ورود (کوکی‌ها و توکن صفحه، فقط برای همان یک سایت) به مرورگر این ایجنت هم داده می‌شود؛ لازم نیست دوباره وارد شوید.'), h('div.wb-login-row', {}, loginFrom, loginHost, loginBtn));
   const form = h('form.wb-toolbar', {}, back, forward, reload, address, go, take, realBtn);
-  const panel = h('section.worker-browser', { 'aria-label': 'Worker browser' }, form, h('div.wb-meta', {}, title, lightLabel, mode, status), ask, frame, h('footer.wb-footer', {}, h('span', {}, '🔒 Isolated profile · shared with the people in this office'), h('span', {}, 'Human and agent controls take turns')));
+  const panel = h('section.worker-browser', { 'aria-label': 'Worker browser' }, form, h('div.wb-meta', {}, title, lightLabel, mode, status), ask, frame, activity, loginBox, h('footer.wb-footer', {}, h('span', {}, '🔒 Isolated profile · shared with the people in this office'), h('span', {}, 'Human and agent controls take turns')));
   const qs = () => new URLSearchParams({ floor: store.floor ?? '', worker: workerId });
   const endpoint = (name: string) => `/api/worker-browser/${name}?${qs().toString()}`;
   let shown = false;
@@ -51,6 +64,9 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
   let live = false;
   let fallback = false;
   let failures = 0;
+  /** A closed browser with a last page is opened again once each time the tab is shown. */
+  let resumed = false;
+  let activityKey = '';
 
   const request = async (action: string, extra: Record<string, unknown> = {}) => {
     if (busy) return;
@@ -74,6 +90,10 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     title.textContent = state.title || state.url || fa('Private worker browser');
     paintState();
     syncPicture();
+    if (shown && !state.open && state.last && !state.real && !resumed) {
+      resumed = true;
+      setTimeout(() => void request('resume'), 60);
+    }
   };
 
   /** The picture follows the browser: the stream while it is open and shown, nothing otherwise. */
@@ -104,6 +124,7 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
       const response = await fetch(endpoint('view'), { cache: 'no-store' });
       if (!response.ok) throw new Error('The browser status could not be loaded.');
       apply(await response.json() as BrowserState);
+      void loadActivity();
       if (state.open && fallback) {
         const imageResponse = await fetch(endpoint('screenshot'), { cache: 'no-store' });
         if (!imageResponse.ok) throw new Error('The browser preview is not available yet.');
@@ -118,6 +139,39 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     }
   };
 
+  const relTime = (iso: string) => new Date(iso).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  /** What this browser did lately, and whose login could be copied: read with the status, drawn only when it changed. */
+  const loadActivity = async () => {
+    try {
+      const res = await fetch(endpoint('activity'), { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { activity: Row[]; sources: Source[] };
+      const key = JSON.stringify(data);
+      if (key === activityKey) return;
+      activityKey = key;
+      activityList.replaceChildren(...(data.activity.length ? data.activity.map((r) => h('div.wb-act', { class: r.actor }, h('time', {}, relTime(r.at)), h('b', {}, r.actor === 'person' ? 'شما' : 'ایجنت'), h('span', {}, ACTION_FA[r.action] ?? r.action), r.detail && !/^main >|^div:/.test(r.detail) ? h('small', { dir: 'ltr' }, r.detail) : null, r.url ? h('small.wb-act-url', { dir: 'ltr' }, r.url) : null)) : [h('div.wb-act-empty', {}, 'هنوز کاری در این مرورگر ثبت نشده.')]));
+      const keep = loginFrom.value;
+      loginFrom.replaceChildren(h('option', { value: '' }, 'از کدام ایجنت؟'), ...data.sources.map((x) => h('option', { value: x.id }, x.name)));
+      loginFrom.value = data.sources.some((x) => x.id === keep) ? keep : '';
+      fillHosts(data.sources);
+      sources = data.sources;
+      loginBox.classList.toggle('hidden', !data.sources.length);
+    } catch {
+      // The next status read tries again.
+    }
+  };
+  let sources: Source[] = [];
+  const fillHosts = (list: Source[]) => {
+    const hosts = list.find((x) => x.id === loginFrom.value)?.hosts ?? [];
+    loginHost.replaceChildren(...hosts.map((hst) => h('option', { value: hst }, hst)));
+  };
+  loginFrom.addEventListener('change', () => fillHosts(sources));
+  loginBtn.addEventListener('click', () => {
+    if (!loginFrom.value || !loginHost.value) return;
+    if (!confirm(`ورود ${loginHost.value} از مرورگر «${loginFrom.selectedOptions[0].textContent}» به این مرورگر هم داده شود؟`)) return;
+    void request('copyLogin', { from: loginFrom.value, host: loginHost.value }).then(() => toast('ورود گرفته شد؛ صفحه را دوباره باز کنید'));
+  });
+
   const paintState = () => {
     const isOpen = state.open;
     frame.classList.toggle('open', isOpen);
@@ -128,7 +182,8 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     take.setAttribute('aria-pressed', String(state.control === 'person'));
     status.textContent = state.real ? 'پنجره‌ی واقعی Chrome روی صفحه‌ی این کامپیوتر باز است؛ وارد شوید و آن را ببندید' : state.error ? fa(state.error) : isOpen ? state.control === 'person' ? fa('The browser is under human control') : fa('The agent is using this browser') : fa('Browser is ready when you are');
     status.classList.toggle('error', !!state.error && !state.real);
-    emptyText.textContent = state.real ? 'پنجره‌ی Chrome روی صفحه‌ی این کامپیوتر باز شده. وارد سایت شوید یا چالش را خودتان حل کنید و بعد پنجره را ببندید؛ مرورگر ایجنت با همان ورود دوباره باز می‌شود.' : 'The page the agent opens appears here. Its browsing session is isolated from your personal Chrome profile.';
+    resumeBtn.classList.toggle('hidden', !(state.last && !state.real && !isOpen));
+    emptyText.textContent = state.last && !state.real && !isOpen ? `مرورگر بسته است. آخرین صفحه: ${state.last.url}` : state.real ? 'پنجره‌ی Chrome روی صفحه‌ی این کامپیوتر باز شده. وارد سایت شوید یا چالش را خودتان حل کنید و بعد پنجره را ببندید؛ مرورگر ایجنت با همان ورود دوباره باز می‌شود.' : 'The page the agent opens appears here. Its browsing session is isolated from your personal Chrome profile.';
     mode.value = state.mode ?? 'ask';
     light.checked = !!state.light;
     realBtn.disabled = !!state.real;
@@ -165,7 +220,8 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
   const person = () => state.open && state.control === 'person';
   const button = (event: MouseEvent): 'left' | 'right' | 'middle' => (event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left');
 
-  empty.querySelector('button')!.addEventListener('click', () => {
+  resumeBtn.addEventListener('click', () => void request('resume'));
+  empty.querySelector('.wb-open')!.addEventListener('click', () => {
     const url = address.value.trim() || 'https://www.google.com';
     void request('open', { url });
   });
@@ -244,6 +300,7 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     panel,
     visible(on) {
       shown = on;
+      if (!on) resumed = false;
       startTimer();
       syncPicture();
       if (on) void refresh();

@@ -1,8 +1,10 @@
-import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
 import { BrowserStream } from './browser-stream.js';
+import { BrowserFiles, type Activity, type Last } from './browser-files.js';
+import { applyLogin, hostsFromLog, keepLogin, loadLogins, readLogin } from './browser-login.js';
+import { bounded, checkedSelector, checkedUrl, chromePath, delta, errorMessage, snapshotPage } from './browser-util.js';
 import { hasScreen, openRealWindow, type RealWindow } from './browser-window.js';
 
 /** 'ask': the agent needs the person's say-so before anything that sends or confirms; 'auto': it doesn't. */
@@ -33,6 +35,8 @@ export interface BrowserView {
   real?: boolean;
   /** Pictures, video and fonts are not loaded while the agent drives: faster, lighter. */
   light?: boolean;
+  /** The browser is closed; this is the page it was last on, which 'resume' opens again. */
+  last?: Last;
 }
 
 /** One input of the person on the live picture: the mouse, the wheel, a key or typed text. */
@@ -48,8 +52,8 @@ export interface RawInput {
 }
 
 const KEYS = ['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
-/** A browser nobody has used or looked at for this long is closed (its profile and logins stay) and opens again when needed. */
-const IDLE_MS = 15 * 60_000;
+/** Browsers stay open, on the page they were on, however long nobody uses them. AGENT_OFFICE_BROWSER_IDLE_MIN=<minutes> closes the ones idle that long (profile and logins stay) to save memory. */
+const IDLE_MS = Math.max(0, Number(process.env.AGENT_OFFICE_BROWSER_IDLE_MIN) || 0) * 60_000;
 const SWEEP_MS = 60_000;
 /** Chrome flags that make a hidden browser lighter and quicker to start. */
 const LEAN_ARGS = ['--disable-background-networking', '--disable-extensions', '--disable-features=Translate,MediaRouter', '--mute-audio', '--no-first-run'];
@@ -83,6 +87,7 @@ export class WorkerBrowsers {
   /** The live picture, pushed as the page changes (see browser-stream.ts). */
   readonly stream = new BrowserStream(async (workerId) => (await this.sessions.get(workerId)?.catch(() => undefined))?.page as never);
   private root: string;
+  private files: BrowserFiles;
   private closing = false;
   private modes = new Map<string, BrowserMode>();
   private pending = new Map<string, BrowserRequest>();
@@ -94,8 +99,8 @@ export class WorkerBrowsers {
   private decisions = new Map<string, { verdict: 'allow' | 'deny'; until: number }>();
 
   constructor(dataDir: string) {
-    this.root = path.join(dataDir, 'worker-browsers');
-    mkdirSync(this.root, { recursive: true, mode: 0o700 });
+    this.files = new BrowserFiles(path.join(dataDir, 'worker-browsers'));
+    this.root = this.files.root;
     try {
       const saved = JSON.parse(readFileSync(path.join(this.root, 'modes.json'), 'utf8')) as Record<string, unknown>;
       for (const [id, mode] of Object.entries(saved)) if (mode === 'auto' || mode === 'ask') this.modes.set(id, mode);
@@ -107,8 +112,16 @@ export class WorkerBrowsers {
     } catch {
       // Nothing is light yet.
     }
-    const sweeper = setInterval(() => void this.sweep(), SWEEP_MS);
-    sweeper.unref();
+    if (IDLE_MS > 0) setInterval(() => void this.sweep(), SWEEP_MS).unref();
+    // The browsers that were open when the office last ran open again, one after the other, on the page they were on.
+    setTimeout(() => void this.restoreOpen(), 8_000).unref();
+  }
+
+  private async restoreOpen() {
+    for (const id of this.files.wasOpen()) {
+      if (this.closing) return;
+      if (this.files.has(id) && this.files.last(id)) await this.resume(id).catch(() => undefined);
+    }
   }
 
   /** Closes the browsers nobody has needed for a while. */
@@ -151,24 +164,21 @@ export class WorkerBrowsers {
 
   /** One line of what happened in this browser, for whoever wants to check on it later. Typed text is never written down. */
   private note(workerId: string, actor: 'agent' | 'person', action: string, detail = '', url = '') {
-    try {
-      appendFileSync(`${this.profile(workerId)}.log.jsonl`, `${JSON.stringify({ at: new Date().toISOString(), actor, action, detail: detail.slice(0, 200), url: url.slice(0, 300) })}\n`, { mode: 0o600 });
-    } catch {
-      // A log that can't be written is not a reason to stop the page.
-    }
+    this.files.note(workerId, actor, action, detail, url);
   }
 
   /** The last lines of this browser's log. */
   history(workerId: string, lines = 100): string[] {
-    try {
-      return readFileSync(`${this.profile(workerId)}.log.jsonl`, 'utf8').trim().split('\n').slice(-lines);
-    } catch {
-      return [];
-    }
+    return this.files.lines(workerId, lines);
+  }
+
+  /** What this browser did lately, as rows, for the 🌐 tab. */
+  activity(workerId: string, count = 100): Activity[] {
+    return this.files.activity(workerId, count);
   }
 
   private cookieFile(workerId: string) {
-    return `${this.profile(workerId)}.cookies.json`;
+    return this.files.cookieFile(workerId);
   }
 
   /** Writes down this browser's cookies, the ones that would otherwise be lost when Chrome closes included. */
@@ -238,7 +248,7 @@ export class WorkerBrowsers {
   }
 
   private profile(workerId: string) {
-    return path.join(this.root, createHash('sha256').update(workerId).digest('hex').slice(0, 32));
+    return this.files.profile(workerId);
   }
 
   private async session(workerId: string): Promise<Session> {
@@ -263,9 +273,14 @@ export class WorkerBrowsers {
         // Functions sent to the page are compiled in the office; a build step that wraps them in a __name helper must not break there.
         await context.addInitScript('window.__name = window.__name || ((f) => f);');
         await this.restoreCookies(workerId, context);
+        for (const login of loadLogins(this.files.loginFile(workerId))) await applyLogin(context, login).catch(() => undefined);
         const page = context.pages()[0] ?? (await context.newPage());
         const session: Session = { context, page, control: 'agent' };
         this.live.set(workerId, session);
+        this.files.markOpen(workerId, true);
+        page.on('framenavigated', (frame) => {
+          if (frame === page.mainFrame()) this.files.remember(workerId, frame.url());
+        });
         context.on('close', () => {
           if (this.live.get(workerId) === session) this.live.delete(workerId);
           this.stream.end(workerId);
@@ -296,7 +311,7 @@ export class WorkerBrowsers {
   async view(workerId: string): Promise<BrowserView> {
     const opening = this.sessions.get(workerId);
     if (this.real.has(workerId)) return { workerId, open: false, real: true, control: 'person', mode: this.mode(workerId), light: this.light.has(workerId) };
-    if (!opening) return { workerId, open: false, control: 'agent', mode: this.mode(workerId), light: this.light.has(workerId) };
+    if (!opening) return { workerId, open: false, control: 'agent', mode: this.mode(workerId), light: this.light.has(workerId), ...(this.files.last(workerId) ? { last: this.files.last(workerId) } : {}) };
     try {
       const s = await opening;
       const pending = this.pending.get(workerId);
@@ -362,32 +377,7 @@ export class WorkerBrowsers {
   async snapshot(workerId: string, actor: 'agent' | 'person' = 'agent') {
     const s = await this.session(workerId);
     if (s.control !== actor) throw new Error('The browser is currently under human control.');
-    const items = await s.page.evaluate(() => {
-      const path = (el: Element): string => {
-        if (el.id && document.querySelectorAll(`#${CSS.escape(el.id)}`).length === 1) return `#${CSS.escape(el.id)}`;
-        const parts: string[] = [];
-        for (let node: Element | null = el; node && node !== document.body && parts.length < 6; node = node.parentElement) {
-          const same: Element[] = node.parentElement ? [...node.parentElement.children].filter((c) => c.tagName === node!.tagName) : [];
-          parts.unshift(`${node.tagName.toLowerCase()}${same.length > 1 ? `:nth-of-type(${same.indexOf(node) + 1})` : ''}`);
-        }
-        return parts.join(' > ');
-      };
-      const visible = (el: Element) => {
-        const r = (el as HTMLElement).getBoundingClientRect();
-        const st = getComputedStyle(el);
-        return r.width > 0 && r.height > 0 && st.visibility !== 'hidden' && st.display !== 'none';
-      };
-      return [...document.querySelectorAll('a[href], button, input, select, textarea, [role="button"], [role="link"], [role="tab"], [onclick]')]
-        .filter(visible)
-        .slice(0, 80)
-        .map((el) => {
-          const input = el as HTMLInputElement;
-          const type = (el.getAttribute('type') ?? '').toLowerCase();
-          const label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || (el.textContent ?? '') || input.value || el.getAttribute('name') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-          return { kind: el.tagName.toLowerCase() + (type ? `[${type}]` : ''), label, selector: path(el), ...(el.tagName === 'A' ? { href: (el as HTMLAnchorElement).href.slice(0, 200) } : {}) };
-        });
-    });
-    return { url: s.page.url(), title: await s.page.title().catch(() => ''), items };
+    return snapshotPage(s.page);
   }
 
   async press(workerId: string, key: unknown, actor: 'agent' | 'person' = 'agent') {
@@ -457,6 +447,35 @@ export class WorkerBrowsers {
     return this.view(workerId);
   }
 
+  /** A closed browser opens again on the page it was last on. */
+  async resume(workerId: string) {
+    const last = this.files.last(workerId);
+    if (!last) throw new Error('There is no page to go back to.');
+    if (!this.live.has(workerId)) {
+      const s = await this.session(workerId);
+      await s.page.goto(last.url, { waitUntil: 'commit', timeout: 30_000 }).catch(() => undefined);
+      this.note(workerId, 'person', 'resumed', last.url);
+    }
+    return this.view(workerId);
+  }
+
+  /** Where each other worker's login could be taken from: the sites it has been to. */
+  loginSources(workerIds: string[]): { id: string; hosts: string[] }[] {
+    return workerIds.filter((id) => this.files.has(id)).map((id) => ({ id, hosts: hostsFromLog(this.files.lines(id, 400)).slice(0, 8) })).filter((x) => x.hosts.length);
+  }
+
+  /** One worker's browser gets another's login for one site (cookies and localStorage): the person asked for it. */
+  async copyLogin(from: string, to: string, host: unknown) {
+    if (typeof host !== 'string' || !host.trim() || from === to) throw new Error('Say which site, and from another worker.');
+    const login = await readLogin((await this.session(from)).context, host.trim());
+    if (!login.cookies.length && !login.origins.length) throw new Error(`That browser has no login for ${host} (it is not logged in there).`);
+    keepLogin(this.files.loginFile(to), login);
+    const target = this.live.get(to);
+    if (target) await applyLogin(target.context, login);
+    this.note(to, 'person', 'login-copied', `${host.trim()} from another worker`);
+    return this.view(to);
+  }
+
   /** What the person does on the live picture, one event at a time and without waiting for the page to answer. */
   async rawInput(workerId: string, ev: RawInput): Promise<void> {
     const s = await this.session(workerId);
@@ -523,6 +542,7 @@ export class WorkerBrowsers {
     this.sessions.delete(workerId);
     this.live.delete(workerId);
     this.stream.end(workerId);
+    if (!this.closing) this.files.markOpen(workerId, false);
     if (opening) {
       await opening
         .then(async (s) => {
@@ -552,40 +572,4 @@ export class WorkerBrowsers {
       await session.context.close();
     }));
   }
-}
-
-function checkedUrl(input: unknown): string {
-  if (typeof input !== 'string' || input.length > 2048) throw new Error('Give an http:// or https:// address (up to 2048 characters).');
-  // "karlancer.com" with no scheme is meant as https.
-  const address = /^[a-z][a-z0-9+.-]*:/i.test(input.trim()) ? input.trim() : `https://${input.trim()}`;
-  let url: URL;
-  try { url = new URL(address); } catch { throw new Error('That is not a valid web address.'); }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only http:// and https:// addresses are allowed.');
-  if (url.username || url.password) throw new Error('Addresses with embedded passwords are not allowed.');
-  return url.href;
-}
-
-function checkedSelector(input: unknown): string {
-  if (typeof input !== 'string' || !input.trim() || input.length > 500) throw new Error('Give a CSS selector up to 500 characters.');
-  return input;
-}
-
-/** A scroll amount from the person: a number within reason, else none. */
-function delta(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.min(2000, Math.max(-2000, value)) : 0;
-}
-
-function bounded(value: unknown, min: number, max: number) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
-
-function errorMessage(error: unknown) { return error instanceof Error ? error.message.slice(0, 300) : 'Could not start the browser.'; }
-
-function chromePath(): string | undefined {
-  const env = process.env.AGENT_OFFICE_CHROME;
-  const candidates = env ? [env] : process.platform === 'win32'
-    ? [path.join(process.env.PROGRAMFILES ?? 'C:\\Program Files', 'Google/Chrome/Application/chrome.exe'), path.join(process.env['PROGRAMFILES(X86)'] ?? 'C:\\Program Files (x86)', 'Google/Chrome/Application/chrome.exe'), path.join(process.env.LOCALAPPDATA ?? '', 'Google/Chrome/Application/chrome.exe')]
-    : process.platform === 'darwin' ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'] : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  return candidates.find((candidate) => candidate && existsSync(candidate));
 }
