@@ -9,6 +9,7 @@ import { officeQueue } from './office-queue.js';
 import { officeWorkers } from './office-workers.js';
 import { officeTasks } from './office-tasks.js';
 import { officeGuard, officeSecurity } from './office-security.js';
+import { profileGate } from '../profile-gate.js';
 import { providerHook } from '../providers/index.js';
 import type { AgentProvider } from '../../shared/providers.js';
 
@@ -78,6 +79,22 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
     const workers = ctx.workerFloor(workerId)?.workers;
     if (!workers) return send(res, 401, {});
     const event = url.searchParams.get('event') ?? '';
+    // Codex asks before each tool too (PreToolUse): the profile lock answers in its own words.
+    if (route === 'codex' && event === 'PreToolUse') {
+      const floor = ctx.workerFloor(workerId);
+      const me = floor?.workers.authenticate(workerId, token);
+      const raw = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
+      let input = raw.tool_input;
+      if (typeof input === 'string') {
+        try {
+          input = JSON.parse(input);
+        } catch {
+          // a patch sent as plain text
+        }
+      }
+      const locked = floor && me ? profileGate(floor, me, { tool_name: raw.tool_name, tool_input: input, cwd: raw.cwd }) : undefined;
+      if (locked) return send(res, 200, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: locked } });
+    }
     const ok = workers.handleProviderHook(route as AgentProvider, workerId, token, event, payload);
     send(res, ok ? 200 : 401, {});
   });

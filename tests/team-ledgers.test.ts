@@ -92,3 +92,63 @@ test('a fresh clone takes the team from the snapshot, and a floor that has a tea
   assert.equal(seedFromSnapshot(floor, data), false, 'it already has a team now');
   rmSync(floor, { recursive: true, force: true });
 });
+
+test('another member\'s profile and the policy are locked until the person says yes; a member\'s own are not', async () => {
+  const { profileGate } = await import('../src/server/profile-gate.js');
+  const d = dir();
+  const requests = new TeamRequests(d);
+  const told: string[] = [];
+  const floor = {
+    dir: path.join(d, 'floor'),
+    interviews: {
+      latestFor: (id: string) => (id === 'h' ? { slug: 'habib' } : id === 'a' ? { slug: 'arsalan' } : undefined),
+      all: () => [{ slug: 'habib', name: 'حبیب' }, { slug: 'arsalan', name: 'ارسلان' }],
+    },
+    requests,
+    notifier: { send: async (t: string) => void told.push(t) },
+  } as never;
+  const arsalan = { id: 'a', name: 'ارسلان' } as never;
+  const habib = { id: 'h', name: 'حبیب' } as never;
+  const write = (file: string, tool = 'Write') => ({ tool_name: tool, cwd: path.join(d, 'floor'), tool_input: { file_path: file } });
+  const shell = (command: string) => ({ tool_name: 'Bash', cwd: path.join(d, 'floor'), tool_input: { command } });
+  const habibMemory = path.join(d, 'floor', 'freelance-team', 'people', 'habib', 'memory.md');
+
+  assert.equal(profileGate(floor, habib, write(habibMemory)), undefined, 'his own');
+  assert.equal(profileGate(floor, arsalan, write(path.join(d, 'floor', 'src', 'x.ts'))), undefined, 'an ordinary file');
+  assert.equal(profileGate(floor, arsalan, { tool_name: 'Read', tool_input: { file_path: habibMemory } }), undefined, 'reading is free');
+  const denied = profileGate(floor, arsalan, write(habibMemory, 'Edit'));
+  assert.match(denied ?? '', /R-1/);
+  assert.equal(requests.open().length, 1);
+  assert.equal(profileGate(floor, arsalan, write(habibMemory)), denied, 'asked again: the same request, not a second');
+  assert.equal(requests.open().length, 1);
+  assert.match(profileGate(floor, arsalan, shell('echo "x" >> freelance-team/people/habib/memory.md')) ?? '', /R-1/, 'a shell redirect is caught too');
+  assert.match(profileGate(floor, arsalan, shell('sed -i s/a/b/ C:\\u\\freelance-team\\people\\habib\\skill.md')) ?? '', /R-/, 'a Windows path too');
+  assert.equal(profileGate(floor, arsalan, shell('cat freelance-team/people/habib/memory.md 2>&1')), undefined, 'reading by shell is free');
+  assert.equal(profileGate(floor, arsalan, shell('echo hi > notes.txt')), undefined);
+  assert.match(profileGate(floor, arsalan, write(path.join(d, 'floor', 'freelance-team', 'policy.md'))) ?? '', /policy\.md/);
+  requests.resolve('R-1', 'done', '');
+  assert.equal(profileGate(floor, arsalan, write(habibMemory)), undefined, 'the person said yes: for that file');
+  assert.equal(profileGate(floor, arsalan, write(path.join(d, 'floor', 'freelance-team', 'people', 'habib', 'skill.md'))) === undefined, false, 'not for his skill.md');
+  assert.ok(told.length >= 1);
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('Codex edits are locked too: apply_patch names its files, and its shell takes a command list', async () => {
+  const { profileGate } = await import('../src/server/profile-gate.js');
+  const d = dir();
+  const requests = new TeamRequests(d);
+  const floor = {
+    dir: path.join(d, 'floor'),
+    interviews: { latestFor: (id: string) => (id === 'a' ? { slug: 'arsalan' } : undefined), all: () => [{ slug: 'habib', name: 'حبیب' }] },
+    requests,
+    notifier: { send: async () => undefined },
+  } as never;
+  const me = { id: 'a', name: 'ارسلان' } as never;
+  const cwd = path.join(d, 'floor');
+  const patch = (file: string) => ({ tool_name: 'apply_patch', cwd, tool_input: { command: `*** Begin Patch\n*** Update File: ${file}\n@@\n-a\n+b\n*** End Patch` } });
+  assert.match(profileGate(floor, me, patch('freelance-team/people/habib/memory.md')) ?? '', /R-1/);
+  assert.equal(profileGate(floor, me, patch('freelance-team/people/arsalan/memory.md')), undefined, 'his own');
+  assert.equal(profileGate(floor, me, patch('src/index.ts')), undefined);
+  assert.match(profileGate(floor, me, { tool_name: 'shell', cwd, tool_input: { command: ['powershell', '-Command', "Add-Content 'freelance-team/people/habib/skill.md' 'x'"] } }) ?? '', /R-\d/);
+  rmSync(d, { recursive: true, force: true });
+});

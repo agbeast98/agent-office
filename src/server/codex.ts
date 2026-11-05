@@ -170,12 +170,17 @@ process.stdin.on('end', async () => {
   const prompt = event === 'UserPromptSubmit' ? allowed(input.prompt, MAX_TEXT) : undefined;
   const tool = event === 'PreToolUse' || event === 'PostToolUse' || event === 'PermissionRequest' ? allowed(input.tool_name, MAX_ID) : undefined;
   const toolUseId = event === 'PreToolUse' || event === 'PostToolUse' || event === 'PermissionRequest' ? allowed(input.tool_use_id, MAX_ID) : undefined;
+  // What a tool is about to do, so the office can refuse it (profile lock): a command or a patch, bounded.
+  const toolInput = event === 'PreToolUse' && input.tool_input !== undefined ? JSON.stringify(input.tool_input).slice(0, 12000) : undefined;
+  const cwd = event === 'PreToolUse' ? allowed(input.cwd, 4096) : undefined;
   const transcript = allowed(input.transcript_path, 4096);
   const turn = allowed(input.turn_id, MAX_ID);
   if (source) body.source = source;
   if (prompt) body.prompt = prompt;
   if (tool) body.tool_name = tool;
   if (toolUseId) body.tool_use_id = toolUseId;
+  if (toolInput) body.tool_input = toolInput;
+  if (cwd) body.cwd = cwd;
   if (turn) body.turn_id = turn;
   if (transcript) body.transcript_path = transcript;
   const base = process.env.AGENT_OFFICE_HOOK_URL;
@@ -192,6 +197,13 @@ process.stdin.on('end', async () => {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(2000),
     });
+    if (response.ok && event === 'PreToolUse') {
+      // The office may answer with a refusal in Codex's own words; pass it on as it is.
+      try {
+        const answer = await response.json();
+        if (answer && answer.hookSpecificOutput) return process.stdout.write(JSON.stringify(answer));
+      } catch { /* an empty answer means go ahead */ }
+    }
     finish(response.ok);
   } catch { finish(false); }
 });

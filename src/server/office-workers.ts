@@ -214,7 +214,8 @@ export function writeClaudeMcpConfig(dataDir: string, script: string): string {
 export function codexMcpArgs(script: string): string[] {
   // TOML basic strings and arrays read JSON's.
   const key = `mcp_servers.${MCP_NAME}`;
-  return ['-c', `${key}.command=${JSON.stringify(process.execPath)}`, '-c', `${key}.args=${JSON.stringify([script, 'mcp'])}`, '-c', `${key}.env_vars=${JSON.stringify(MCP_ENV)}`];
+  // The office's own tools run without asking in each Codex terminal (a new tool would otherwise wait for a person to approve it there).
+  return ['-c', `${key}.command=${JSON.stringify(process.execPath)}`, '-c', `${key}.args=${JSON.stringify([script, 'mcp'])}`, '-c', `${key}.env_vars=${JSON.stringify(MCP_ENV)}`, '-c', `${key}.default_tools_approval_mode="approve"`];
 }
 
 /** OpenCode's `mcp` config entry for the MCP server; OpenCode hands it its environment. */
