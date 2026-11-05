@@ -152,3 +152,60 @@ test('Codex edits are locked too: apply_patch names its files, and its shell tak
   assert.match(profileGate(floor, me, { tool_name: 'shell', cwd, tool_input: { command: ['powershell', '-Command', "Add-Content 'freelance-team/people/habib/skill.md' 'x'"] } }) ?? '', /R-\d/);
   rmSync(d, { recursive: true, force: true });
 });
+
+test('a team that is missing is brought back member by member, and every store learns the new ids', async () => {
+  const { missingMembers, restoreMembers, snapshotPath } = await import('../src/server/team-snapshot.js');
+  const floorDir = dir();
+  mkdirSync(path.dirname(snapshotPath(floorDir)), { recursive: true });
+  writeFileSync(snapshotPath(floorDir), JSON.stringify({
+    version: 1, savedAt: 1, files: {},
+    members: [
+      { id: 'old1', name: 'سارا', role: 'مدیر تیم سئو: بخوان', desk: 'desk-1', provider: 'claude', model: 'sonnet', effort: 'medium' },
+      { id: 'old2', name: 'آرمین', role: 'تصویرساز', desk: 'desk-1', provider: 'codex' },
+      { id: 'old3', name: 'حبیب', role: 'سئو فنی', desk: 'desk-2' },
+    ],
+  }));
+  const here = [{ id: 'new3', name: 'حبیب', kind: 'agent' }];
+  const spawned: { desk: string; provider?: string; model?: string; prompt: string }[] = [];
+  const swaps: string[] = [];
+  const swap = (store: string) => (from: string, to: string) => void swaps.push(`${store}:${from}>${to}`);
+  const taken = new Set<string>(['desk-2']);
+  let snapshotWritten = false;
+  const floor = {
+    dir: floorDir,
+    workers: {
+      list: () => here,
+      wing: () => 99,
+      deskOccupied: (id: string) => taken.has(id),
+      spawn: (desk: string, _by: string, prompt: string, _wt: boolean, _kind: string, provider?: string, model?: string) => {
+        if (taken.has(desk)) return 'taken';
+        taken.add(desk);
+        spawned.push({ desk, provider, model, prompt });
+        return { id: `new${spawned.length}` };
+      },
+      describe: () => true,
+    },
+    teams: { teamOf: (id: string) => (id === 'old1' ? { name: 'سئو' } : undefined), isManager: (id: string) => id === 'old1', swap: swap('teams') },
+    interviews: { all: () => [{ worker: 'old1', slug: 'sara' }], swap: swap('interviews'), peopleDir: undefined },
+    teamTasks: { swap: swap('tasks') },
+    comms: { swap: swap('comms') },
+    requests: { swap: swap('requests') },
+    mistakes: { swap: swap('mistakes') },
+    evals: { swap: swap('evals') },
+    snapshot: { write: () => void (snapshotWritten = true) },
+  } as never;
+  assert.deepEqual(missingMembers(floor).map((m) => m.name), ['سارا', 'آرمین'], 'Habib is already here, by name');
+  const out = restoreMembers(floor, 'مدیرعامل');
+  assert.deepEqual(out.restored, ['سارا', 'آرمین']);
+  assert.deepEqual(out.failed, []);
+  assert.equal(spawned[0].provider, 'claude');
+  assert.equal(spawned[0].model, 'sonnet');
+  assert.equal(spawned[1].provider, 'codex');
+  assert.notEqual(spawned[1].desk, spawned[0].desk, 'a taken desk is not used twice');
+  assert.match(spawned[0].prompt, /مدیر تیم «سئو»/);
+  assert.match(spawned[0].prompt, /freelance-team\/people\/sara\/skill\.md/);
+  assert.match(spawned[0].prompt, /mistakes\.md/);
+  for (const store of ['teams', 'interviews', 'tasks', 'comms', 'requests', 'mistakes', 'evals']) assert.ok(swaps.includes(`${store}:old1>new1`), `${store} follows Sara`);
+  assert.ok(snapshotWritten);
+  rmSync(floorDir, { recursive: true, force: true });
+});

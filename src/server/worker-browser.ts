@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { BrowserStream } from './browser-stream.js';
+import { hasScreen, openRealWindow, type RealWindow } from './browser-window.js';
 
 /** 'ask': the agent needs the person's say-so before anything that sends or confirms; 'auto': it doesn't. */
 export type BrowserMode = 'ask' | 'auto';
@@ -27,7 +29,30 @@ export interface BrowserView {
   mode: BrowserMode;
   pending?: BrowserRequest;
   error?: string;
+  /** The agent's browser is closed while the person logs in, in an ordinary Chrome window on the office's screen. */
+  real?: boolean;
+  /** Pictures, video and fonts are not loaded while the agent drives: faster, lighter. */
+  light?: boolean;
 }
+
+/** One input of the person on the live picture: the mouse, the wheel, a key or typed text. */
+export interface RawInput {
+  t: 'move' | 'down' | 'up' | 'wheel' | 'key' | 'text';
+  x?: number;
+  y?: number;
+  button?: 'left' | 'right' | 'middle';
+  dx?: number;
+  dy?: number;
+  key?: string;
+  text?: string;
+}
+
+const KEYS = ['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+/** A browser nobody has used or looked at for this long is closed (its profile and logins stay) and opens again when needed. */
+const IDLE_MS = 15 * 60_000;
+const SWEEP_MS = 60_000;
+/** Chrome flags that make a hidden browser lighter and quicker to start. */
+const LEAN_ARGS = ['--disable-background-networking', '--disable-extensions', '--disable-features=Translate,MediaRouter', '--mute-audio', '--no-first-run'];
 
 /** How long an approval (or a refusal) of one action on one page holds. */
 const DECISION_MS = 2 * 60_000;
@@ -51,6 +76,12 @@ interface Session {
 /** A dedicated, persistent browser profile per worker. No user's regular Chrome profile is reused. */
 export class WorkerBrowsers {
   private sessions = new Map<string, Promise<Session>>();
+  private live = new Map<string, Session>();
+  private used = new Map<string, number>();
+  private light = new Set<string>();
+  private real = new Map<string, RealWindow>();
+  /** The live picture, pushed as the page changes (see browser-stream.ts). */
+  readonly stream = new BrowserStream(async (workerId) => (await this.sessions.get(workerId)?.catch(() => undefined))?.page as never);
   private root: string;
   private closing = false;
   private modes = new Map<string, BrowserMode>();
@@ -71,6 +102,34 @@ export class WorkerBrowsers {
     } catch {
       // No choices made yet: every browser asks.
     }
+    try {
+      for (const id of JSON.parse(readFileSync(path.join(this.root, 'light.json'), 'utf8')) as string[]) this.light.add(String(id));
+    } catch {
+      // Nothing is light yet.
+    }
+    const sweeper = setInterval(() => void this.sweep(), SWEEP_MS);
+    sweeper.unref();
+  }
+
+  /** Closes the browsers nobody has needed for a while. */
+  private async sweep(now = Date.now()) {
+    for (const [workerId, s] of this.live) {
+      if (s.control === 'agent' && !this.pending.has(workerId) && !this.stream.viewers(workerId) && now - (this.used.get(workerId) ?? now) > IDLE_MS) {
+        this.note(workerId, 'agent', 'idle-closed');
+        await this.close(workerId, false);
+      }
+    }
+  }
+
+  setLight(workerId: string, on: unknown) {
+    if (on) this.light.add(workerId);
+    else this.light.delete(workerId);
+    try {
+      writeFileSync(path.join(this.root, 'light.json'), JSON.stringify([...this.light]), { mode: 0o600 });
+    } catch {
+      // The choice still holds until the office restarts.
+    }
+    return this.view(workerId);
   }
 
   mode(workerId: string): BrowserMode {
@@ -115,11 +174,15 @@ export class WorkerBrowsers {
   /** Writes down this browser's cookies, the ones that would otherwise be lost when Chrome closes included. */
   private async saveCookies(workerId: string, context: BrowserContext) {
     try {
-      const cookies = (await context.cookies()).map((c) => (c.expires > 0 ? c : { ...c, expires: Math.floor(Date.now() / 1000) + SESSION_COOKIE_DAYS * 86_400 }));
-      writeFileSync(this.cookieFile(workerId), JSON.stringify(cookies), { mode: 0o600 });
+      this.storeCookies(workerId, await context.cookies());
     } catch {
       // The browser may be closing: the last save stands.
     }
+  }
+
+  private storeCookies(workerId: string, all: Awaited<ReturnType<BrowserContext['cookies']>>) {
+    const cookies = all.map((c) => (c.expires > 0 ? c : { ...c, expires: Math.floor(Date.now() / 1000) + SESSION_COOKIE_DAYS * 86_400 }));
+    writeFileSync(this.cookieFile(workerId), JSON.stringify(cookies), { mode: 0o600 });
   }
 
   private async restoreCookies(workerId: string, context: BrowserContext) {
@@ -180,6 +243,8 @@ export class WorkerBrowsers {
 
   private async session(workerId: string): Promise<Session> {
     if (this.closing) throw new Error('The office is shutting down; try again after it restarts.');
+    if (this.real.has(workerId)) throw new Error('The person is logging in to a site in a real Chrome window on the office\'s screen. Wait: the browser is yours again when they close it. Do other work meanwhile.');
+    this.used.set(workerId, Date.now());
     let opening = this.sessions.get(workerId);
     if (!opening) {
       opening = (async () => {
@@ -191,13 +256,20 @@ export class WorkerBrowsers {
           viewport: { width: 1280, height: 800 },
           acceptDownloads: false,
           permissions: [],
-          args: process.platform === 'linux' ? ['--no-sandbox'] : [],
+          args: process.platform === 'linux' ? ['--no-sandbox', ...LEAN_ARGS] : LEAN_ARGS,
         });
+        // Light: while the agent drives, no pictures, video or fonts (the person's own control shows the page whole).
+        await context.route('**/*', (route) => (this.light.has(workerId) && this.live.get(workerId)?.control !== 'person' && ['image', 'media', 'font'].includes(route.request().resourceType()) ? route.abort() : route.continue()));
         // Functions sent to the page are compiled in the office; a build step that wraps them in a __name helper must not break there.
         await context.addInitScript('window.__name = window.__name || ((f) => f);');
         await this.restoreCookies(workerId, context);
         const page = context.pages()[0] ?? (await context.newPage());
         const session: Session = { context, page, control: 'agent' };
+        this.live.set(workerId, session);
+        context.on('close', () => {
+          if (this.live.get(workerId) === session) this.live.delete(workerId);
+          this.stream.end(workerId);
+        });
         // A login that is only a "session" cookie dies with Chrome, so the logins are kept and put back at the next start.
         session.saver = setInterval(() => void this.saveCookies(workerId, context), COOKIE_SAVE_MS);
         session.saver.unref();
@@ -223,11 +295,12 @@ export class WorkerBrowsers {
 
   async view(workerId: string): Promise<BrowserView> {
     const opening = this.sessions.get(workerId);
-    if (!opening) return { workerId, open: false, control: 'agent', mode: this.mode(workerId) };
+    if (this.real.has(workerId)) return { workerId, open: false, real: true, control: 'person', mode: this.mode(workerId), light: this.light.has(workerId) };
+    if (!opening) return { workerId, open: false, control: 'agent', mode: this.mode(workerId), light: this.light.has(workerId) };
     try {
       const s = await opening;
       const pending = this.pending.get(workerId);
-      return { workerId, open: true, url: s.page.url(), title: await s.page.title().catch(() => ''), control: s.control, mode: this.mode(workerId), ...(pending ? { pending } : {}), ...(s.error ? { error: s.error } : {}) };
+      return { workerId, open: true, url: s.page.url(), title: await s.page.title().catch(() => ''), control: s.control, mode: this.mode(workerId), ...(pending ? { pending } : {}), ...(s.error ? { error: s.error } : {}), light: this.light.has(workerId) };
     } catch (error) {
       return { workerId, open: false, control: 'agent', mode: this.mode(workerId), error: errorMessage(error) };
     }
@@ -384,6 +457,59 @@ export class WorkerBrowsers {
     return this.view(workerId);
   }
 
+  /** What the person does on the live picture, one event at a time and without waiting for the page to answer. */
+  async rawInput(workerId: string, ev: RawInput): Promise<void> {
+    const s = await this.session(workerId);
+    if (s.control !== 'person') throw new Error('Take control of the browser before interacting with the page.');
+    const { page } = s;
+    const x = bounded(ev.x, 0, 1280);
+    const y = bounded(ev.y, 0, 800);
+    const button = ev.button === 'right' || ev.button === 'middle' ? ev.button : 'left';
+    if (ev.t === 'move') await page.mouse.move(x, y);
+    else if (ev.t === 'down') {
+      await page.mouse.move(x, y);
+      await page.mouse.down({ button });
+    } else if (ev.t === 'up') {
+      await page.mouse.move(x, y);
+      await page.mouse.up({ button });
+    } else if (ev.t === 'wheel') await page.mouse.wheel(delta(ev.dx), delta(ev.dy));
+    else if (ev.t === 'text') await page.keyboard.insertText(typeof ev.text === 'string' ? ev.text.slice(0, 1000) : '');
+    else if (ev.t === 'key') {
+      if (!ev.key || !KEYS.includes(ev.key)) throw new Error('That key is not available.');
+      await page.keyboard.press(ev.key);
+    } else throw new Error('Unknown input.');
+  }
+
+  /** The agent's browser is closed and the same profile opened in a real Chrome window, for the person to log in by hand. */
+  async openReal(workerId: string, address?: unknown) {
+    if (this.real.has(workerId)) throw new Error('The real window is already open.');
+    if (!hasScreen()) throw new Error('This machine has no screen to show a window on: a real window can only be opened on the computer the office runs on.');
+    const executable = chromePath() ?? chromium.executablePath();
+    if (!executable || !existsSync(executable)) throw new Error('No Chrome was found to open.');
+    const current = this.live.get(workerId)?.page.url();
+    const url = typeof address === 'string' && address.trim() ? checkedUrl(address) : current && /^https?:/.test(current) ? current : 'https://www.google.com';
+    await this.close(workerId, false);
+    const win = await openRealWindow({
+      executable,
+      profile: this.profile(workerId),
+      url,
+      onCookies: (cookies) => {
+        try {
+          this.storeCookies(workerId, cookies);
+        } catch {
+          // The last write stands.
+        }
+      },
+      onClosed: () => {
+        this.real.delete(workerId);
+        this.note(workerId, 'person', 'real-window-closed');
+      },
+    });
+    this.real.set(workerId, win);
+    this.note(workerId, 'person', 'real-window-opened', url);
+    return this.view(workerId);
+  }
+
   private async sessionPage(workerId: string) { return (await this.session(workerId)).page; }
   private async step(workerId: string, actor: 'agent' | 'person', action: () => Promise<unknown>) {
     const s = await this.session(workerId);
@@ -395,6 +521,8 @@ export class WorkerBrowsers {
   async close(workerId: string, removeProfile = true) {
     const opening = this.sessions.get(workerId);
     this.sessions.delete(workerId);
+    this.live.delete(workerId);
+    this.stream.end(workerId);
     if (opening) {
       await opening
         .then(async (s) => {
@@ -413,6 +541,7 @@ export class WorkerBrowsers {
   /** Close Chrome before the office exits so a restarted office can safely reopen these profiles. */
   async shutdown() {
     this.closing = true;
+    for (const win of this.real.values()) win.stop();
     const sessions = [...this.sessions.entries()];
     this.sessions.clear();
     await Promise.allSettled(sessions.map(async ([workerId, opening]) => {
@@ -439,6 +568,11 @@ function checkedUrl(input: unknown): string {
 function checkedSelector(input: unknown): string {
   if (typeof input !== 'string' || !input.trim() || input.length > 500) throw new Error('Give a CSS selector up to 500 characters.');
   return input;
+}
+
+/** A scroll amount from the person: a number within reason, else none. */
+function delta(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(2000, Math.max(-2000, value)) : 0;
 }
 
 function bounded(value: unknown, min: number, max: number) {

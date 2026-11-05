@@ -40,6 +40,8 @@ export const routes: readonly Route[] = [
   agentRoutes.models,
   workerBrowserRoutes.view,
   workerBrowserRoutes.screenshot,
+  workerBrowserRoutes.stream,
+  workerBrowserRoutes.input,
   workerBrowserRoutes.action,
   workerChatRoutes.transcript,
   teamRoutes.team,

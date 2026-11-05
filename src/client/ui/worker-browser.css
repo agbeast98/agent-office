@@ -53,3 +53,10 @@
   .wb-ask-text { flex-basis: 100%; }
   .wb-viewport { min-height: 80px; }
 }
+
+/* live picture, the real window and light mode */
+.wb-page { user-select: none; -webkit-user-drag: none; image-rendering: auto; }
+.wb-real { white-space: nowrap; }
+.wb-light { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.wb-light input { width: auto; }
+.worker-browser.person-control .wb-viewport { cursor: crosshair; }
