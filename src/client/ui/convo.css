@@ -1,7 +1,7 @@
 /* The conversation of the meeting room and the interview: a light, quiet chat that fills the room it is given. */
 .cv { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; background: #f5f7f9; border: 1px solid #dde4ea; border-radius: 14px; overflow: hidden; color: #172536; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
 .cv .hidden { display: none !important; }
-.cv-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; scroll-behavior: smooth; }
+.cv-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; overflow-anchor: auto; }
 .cv-list { display: flex; flex-direction: column; gap: 10px; }
 .cv-empty { margin: auto; max-width: 420px; text-align: center; color: #6c7c8c; font-size: 13px; line-height: 2; padding: 30px 10px; }
 

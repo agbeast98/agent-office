@@ -103,7 +103,19 @@ export function createConvo(opts: ConvoOpts): Convo {
     jump.classList.toggle('hidden', unread === 0);
     jump.textContent = unread > 1 ? `↓ ${unread.toLocaleString('fa-IR')} پیام تازه` : '↓ پیام تازه';
   };
-  scroller.addEventListener('scroll', () => { if (near() && unread) { unread = 0; syncJump(); } });
+  // A browser puts a scrolled box back to the top when it is taken out of the page and put in again, which is what a
+  // window that redraws itself does to the conversation. Where it was left (at the end, or this far up) is remembered,
+  // and put back as soon as it is shown again.
+  let saved = { top: 0, stick: true };
+  scroller.addEventListener('scroll', () => {
+    saved = { top: scroller.scrollTop, stick: near() };
+    if (saved.stick && unread) { unread = 0; syncJump(); }
+  });
+  new ResizeObserver(() => {
+    if (!el.isConnected || !scroller.clientHeight) return;
+    if (saved.stick) toEnd();
+    else if (Math.abs(scroller.scrollTop - saved.top) > 1) scroller.scrollTop = saved.top;
+  }).observe(scroller);
   jump.addEventListener('click', () => { toEnd(); unread = 0; syncJump(); input.focus(); });
 
   const fit = () => {

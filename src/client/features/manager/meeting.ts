@@ -106,7 +106,11 @@ export function openTeamMeeting(floor: string, special?: () => void) {
     const inChat = !!m && tab === 'chat';
     main.classList.toggle('is-chat', inChat);
     // The conversation keeps its own place; the other sections are redrawn with what is typed in them put back.
-    if (inChat || !m) main.replaceChildren(...content);
+    if (inChat && main.contains(chat.convo.el)) {
+      // The conversation stays in the page (taking it out would put it back at the top); only what is around it changes.
+      for (const c of [...main.children]) if (c !== chat.convo.el) c.remove();
+      for (const n of content.slice(0, -1)) main.insertBefore(n, chat.convo.el);
+    } else if (inChat || !m) main.replaceChildren(...content);
     else {
       keepFields(main, () => main.replaceChildren(...content));
       main.scrollTop = keep;
