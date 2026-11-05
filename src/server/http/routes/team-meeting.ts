@@ -122,7 +122,7 @@ export const teamMeetingRoutes = {
           const m = meetings.current;
           if (!m) return send(res, 400, { error: 'جلسه‌ای در جریان نیست' });
           const quiet = m.members.filter((x) => !m.said.some((s) => s.id === x.id && s.round === m.round && !s.note) && ['idle', 'done'].includes(floor.workers.get(x.id)?.status ?? ''));
-          for (const x of quiet) tell(floor, meetings.arrived(x.id), name);
+          for (const x of quiet) tell(floor, meetings.reminder(x.id), name);
           return send(res, 200, { ok: true, nudged: quiet.map((x) => x.name) });
         }
         case 'closevote':

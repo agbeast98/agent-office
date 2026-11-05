@@ -257,6 +257,14 @@ export class TeamMeetings {
     return out;
   }
 
+  /** A reminder for a member who has said nothing in this round: what the meeting is about and the tool to answer with. */
+  reminder(id: string): Notice[] {
+    const m = this.current;
+    if (!m || !m.members.some((x) => x.id === id)) return [];
+    const tool = m.mode === 'vote' ? 'با ابزار meeting_vote رأی بده (yes موافق، no مخالف، abstain ممتنع) و دلیلت را بنویس' : 'نظرت را کوتاه و روشن (حداکثر ۱۰ خط) با ابزار meeting_say ثبت کن';
+    return [{ to: id, text: `یادآوری: در جلسه‌ی تیمی «${m.topic}» (دور ${m.round}) هنوز چیزی نگفته‌ای. همین حالا ${tool}، یک بار. بقیه‌ی گفته‌ها را با meeting_read می‌بینی. در جلسه کاری انجام نده.` }];
+  }
+
   /** `id` has sat down at the table: they are told what the meeting is about. */
   arrived(id: string): Notice[] {
     const x = this.current?.members.find((m) => m.id === id);

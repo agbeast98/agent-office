@@ -274,3 +274,23 @@ test('what the person says to the room can be answered by each of them, even aft
     assert.ok(new TeamMeetings(dir).current?.members.every((m) => m.arrivedAt));
   } finally { done(); }
 });
+
+test('a reminder tells one member what the meeting is about and how to answer, in the meeting\'s own way', () => {
+  const { meetings, done } = fresh();
+  try {
+    assert.deepEqual(meetings.reminder('a'), [], 'no meeting is on');
+    const started = meetings.start('مدیرعامل', 'قیمت‌گذاری پروژه‌ها', MEMBERS);
+    assert.ok(started.ok);
+    const [note] = meetings.reminder('b');
+    assert.equal(note.to, 'b');
+    assert.match(note.text, /قیمت‌گذاری پروژه‌ها/);
+    assert.match(note.text, /meeting_say/);
+    assert.deepEqual(meetings.reminder('stranger'), [], 'not in the meeting');
+    meetings.end([]);
+    const vote = meetings.start('مدیرعامل', 'تصویب بودجه؟', MEMBERS, '', { mode: 'vote' });
+    assert.ok(vote.ok);
+    assert.match(meetings.reminder('a')[0].text, /meeting_vote/);
+  } finally {
+    done();
+  }
+});
