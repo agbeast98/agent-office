@@ -16,7 +16,7 @@ const STATUS_MS = 2500;
 /** If the live picture can't be had (a proxy that holds it back), one screenshot at this pace instead. */
 const FALLBACK_MS = 1200;
 const ACTION_FA: Record<string, string> = {
-  open: 'باز کرد', click: 'کلیک کرد', type: 'تایپ کرد', select: 'انتخاب کرد', press: 'کلید زد', scroll: 'اسکرول کرد', back: 'برگشت', 'took-control': 'کنترل را گرفت', 'released-control': 'کنترل را برگرداند',
+  open: 'باز کرد', click: 'کلیک کرد', type: 'تایپ کرد', select: 'انتخاب کرد', press: 'کلید زد', scroll: 'اسکرول کرد', upload: 'فایل را در سایت بارگذاری کرد', download: 'فایلی دانلود شد', back: 'برگشت', 'took-control': 'کنترل را گرفت', 'released-control': 'کنترل را برگرداند',
   'waiting-for-approval': 'منتظر تأیید ماند', approved: 'تأیید شد', refused: 'رد شد', mode: 'حالت ارسال را عوض کرد', resumed: 'به آخرین صفحه برگشت', 'login-copied': 'ورود از ایجنت دیگر گرفت', 'real-window-opened': 'پنجره‌ی واقعی را باز کرد', 'real-window-closed': 'پنجره‌ی واقعی را بست', 'idle-closed': 'بسته شد (بی‌استفاده)',
 };
 const SPECIAL_KEYS = ['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];

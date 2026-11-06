@@ -5,6 +5,7 @@ import { BrowserStream } from './browser-stream.js';
 import { BrowserFiles, type Activity, type Last } from './browser-files.js';
 import { applyLogin, hostsFromLog, keepLogin, loadLogins, readLogin } from './browser-login.js';
 import { bounded, checkedSelector, checkedUrl, chromePath, delta, errorMessage, snapshotPage } from './browser-util.js';
+import { downloaded, keepDownloads, putFile, uploadable } from './browser-transfer.js';
 import { hasScreen, openRealWindow, type RealWindow } from './browser-window.js';
 
 /** 'ask': the agent needs the person's say-so before anything that sends or confirms; 'auto': it doesn't. */
@@ -98,7 +99,7 @@ export class WorkerBrowsers {
   /** What the person approved ('allow') or turned down ('deny'), by worker, action and page, until it expires. */
   private decisions = new Map<string, { verdict: 'allow' | 'deny'; until: number }>();
 
-  constructor(dataDir: string) {
+  constructor(private dataDir: string) {
     this.files = new BrowserFiles(path.join(dataDir, 'worker-browsers'));
     this.root = this.files.root;
     try {
@@ -278,6 +279,7 @@ export class WorkerBrowsers {
         const session: Session = { context, page, control: 'agent' };
         this.live.set(workerId, session);
         this.files.markOpen(workerId, true);
+        keepDownloads(context, this.downloadDir(workerId), (file) => this.note(workerId, 'agent', 'download', file));
         page.on('framenavigated', (frame) => {
           if (frame === page.mainFrame()) this.files.remember(workerId, frame.url());
         });
@@ -424,6 +426,26 @@ export class WorkerBrowsers {
     return this.view(workerId);
   }
 
+  private downloadDir(workerId: string) {
+    return path.join(this.dataDir, 'downloads', path.basename(this.files.profile(workerId)));
+  }
+
+  /** Puts a file of the project (or a picture Codex made) into a site's upload box, or the file picker a button opens. It is not sent until the form is. */
+  async upload(workerId: string, selector: unknown, file: unknown, actor: 'agent' | 'person' = 'agent') {
+    const s = await this.session(workerId);
+    if (s.control !== actor) throw new Error('The browser is currently under human control.');
+    const target = checkedSelector(selector);
+    const local = uploadable(path.dirname(this.dataDir), file);
+    await putFile(s.page, target, local);
+    this.note(workerId, actor, 'upload', local, s.page.url());
+    return this.view(workerId);
+  }
+
+  /** What this browser has downloaded: the files are in the project's .agent-office/downloads, and can be uploaded again. */
+  downloads(workerId: string) {
+    return { files: downloaded(this.downloadDir(workerId)) };
+  }
+
   async control(workerId: string, value: 'agent' | 'person') {
     const s = await this.session(workerId);
     s.control = value;
@@ -474,17 +496,6 @@ export class WorkerBrowsers {
     if (target) await applyLogin(target.context, login);
     this.note(to, 'person', 'login-copied', `${host.trim()} from another worker`);
     return this.view(to);
-  }
-
-  /** The login of one site, given to every other worker's browser at once: the way to stay logged in when the site lets only the newest login of an account live (each new login ends the others'). */
-  async shareLogin(from: string, to: string[], host: unknown) {
-    const given: string[] = [];
-    for (const id of to) {
-      if (id === from) continue;
-      await this.copyLogin(from, id, host);
-      given.push(id);
-    }
-    return { given };
   }
 
   /** What the person does on the live picture, one event at a time and without waiting for the page to answer. */

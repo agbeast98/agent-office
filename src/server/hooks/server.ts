@@ -56,6 +56,8 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
         if (body.action === 'scroll') return send(res, 200, await browsers.scroll(workerId, body.direction, 'agent'));
         if (body.action === 'wait') return send(res, 200, await browsers.wait(workerId, body.seconds, 'agent'));
         if (body.action === 'select') return send(res, 200, await browsers.select(workerId, body.selector, body.value, 'agent'));
+        if (body.action === 'upload') return send(res, 200, await browsers.upload(workerId, body.selector, body.path, 'agent'));
+        if (body.action === 'downloads') return send(res, 200, browsers.downloads(workerId));
         if (body.action === 'screenshot') return send(res, 200, { data: (await browsers.screenshot(workerId)).toString('base64') });
         return send(res, 400, { error: 'Unknown browser action' });
       } catch (error) {

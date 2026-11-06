@@ -114,7 +114,8 @@ export const workerBrowserRoutes = {
         if (body.action === 'copyLogin') return send(res, 200, await browser.copyLogin(typeof body.from === 'string' ? body.from : '', found.workerId, body.host));
         if (body.action === 'shareLogin') {
           const everyone = found.floor.workers.list().filter((w) => w.kind === 'agent' && w.id !== found.workerId).map((w) => w.id);
-          return send(res, 200, await browser.shareLogin(found.workerId, everyone, body.host));
+          for (const id of everyone) await browser.copyLogin(found.workerId, id, body.host);
+          return send(res, 200, await browser.view(found.workerId));
         }
         if (body.action === 'take') return send(res, 200, await browser.control(found.workerId, 'person'));
         if (body.action === 'release') return send(res, 200, await browser.control(found.workerId, 'agent'));
