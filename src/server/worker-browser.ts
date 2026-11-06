@@ -265,8 +265,8 @@ export class WorkerBrowsers {
           headless: true,
           ...(executablePath ? { executablePath } : {}),
           viewport: { width: 1280, height: 800 },
-          acceptDownloads: false,
           permissions: [],
+          acceptDownloads: true,
           args: process.platform === 'linux' ? ['--no-sandbox', ...LEAN_ARGS] : LEAN_ARGS,
         });
         // Light: while the agent drives, no pictures, video or fonts (the person's own control shows the page whole).
