@@ -65,7 +65,7 @@ export function installHud(ctx: Ctx, core: CoreState, parts: HudParts) {
         title: () => 'Call a meeting: workers work through a question or a task together',
         run: () => parts.meeting.showMeeting(),
       },
-      { id: 'manager', icon: '👑', label: 'کامپیوتر مدیر', section: 'Open', title: () => 'کارهای تیم، مدیر و دستور به همه', run: parts.manager.showManager },
+      { id: 'manager', icon: '👑', label: 'کامپیوتر مدیر', section: 'Open', key: 'U', title: () => 'کارهای تیم، مدیر و دستور به همه (U)', run: parts.manager.showManager },
       { id: 'search', icon: '🔎', label: 'Search', section: 'Open', key: '/', title: () => 'Search the chat and every terminal', run: waiting.showSearch },
       // The office has its bookshelf for them; a map of its own may not.
       { id: 'docs', icon: '📚', label: 'Docs', section: 'Open', shown: () => !inOffice(), title: () => 'Read the project’s docs', run: parts.bookshelf.showBookshelf },
@@ -132,6 +132,12 @@ export function installHud(ctx: Ctx, core: CoreState, parts: HudParts) {
     preventDefault: true,
     run: () => {
       hud.toggleMenu();
+    },
+  });
+  ctx.keys.bind({
+    code: 'KeyU',
+    run: () => {
+      parts.manager.showManager();
     },
   });
   ctx.keys.bind({

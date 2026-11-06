@@ -9,6 +9,8 @@ import type { BrowserContext } from 'playwright-core';
 type Cookie = Awaited<ReturnType<BrowserContext['cookies']>>[number];
 export interface LoginState {
   host: string;
+  /** When this login was taken: a page of the site gets its token written once per login, and never again over what the site refreshed. */
+  at?: number;
   cookies: Cookie[];
   origins: { origin: string; items: { name: string; value: string }[] }[];
 }
@@ -25,6 +27,7 @@ export async function readLogin(context: BrowserContext, host: string): Promise<
   const state = await context.storageState();
   return {
     host,
+    at: Date.now(),
     cookies: state.cookies.filter((c) => covers(c.domain, host)),
     origins: state.origins
       .filter((o) => {
@@ -38,18 +41,22 @@ export async function readLogin(context: BrowserContext, host: string): Promise<
   };
 }
 
-/** Puts a login into a browser: the cookies now, and the localStorage whenever a page of that site loads (never over what the page has set). */
+/** Puts a login into a browser: the cookies now, and the localStorage of that site written once per login (a site whose token an older login made useless is given the new one), after that never over what the site itself refreshed. */
 export async function applyLogin(context: BrowserContext, login: LoginState): Promise<void> {
   if (login.cookies.length) await context.addCookies(login.cookies);
   for (const { origin, items } of login.origins) {
-    const put = ({ origin: o, items: kv }: { origin: string; items: { name: string; value: string }[] }) => {
+    const put = ({ origin: o, items: kv, at }: { origin: string; items: { name: string; value: string }[]; at: string }) => {
       if (location.origin !== o) return;
-      for (const { name, value } of kv) if (localStorage.getItem(name) === null) localStorage.setItem(name, value);
+      const marker = '__agent_office_login';
+      const fresh = localStorage.getItem(marker) !== at;
+      for (const { name, value } of kv) if (fresh || localStorage.getItem(name) === null) localStorage.setItem(name, value);
+      if (fresh) localStorage.setItem(marker, at);
     };
-    await context.addInitScript(put, { origin, items });
+    const arg = { origin, items, at: String(login.at ?? 0) };
+    await context.addInitScript(put, arg);
     // A page of that site that is already open gets it too.
     for (const page of context.pages()) {
-      if (page.url().startsWith(origin)) await page.evaluate(put, { origin, items }).catch(() => {});
+      if (page.url().startsWith(origin)) await page.evaluate(put, arg).catch(() => {});
     }
   }
 }

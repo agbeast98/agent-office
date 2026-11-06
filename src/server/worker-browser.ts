@@ -476,6 +476,17 @@ export class WorkerBrowsers {
     return this.view(to);
   }
 
+  /** The login of one site, given to every other worker's browser at once: the way to stay logged in when the site lets only the newest login of an account live (each new login ends the others'). */
+  async shareLogin(from: string, to: string[], host: unknown) {
+    const given: string[] = [];
+    for (const id of to) {
+      if (id === from) continue;
+      await this.copyLogin(from, id, host);
+      given.push(id);
+    }
+    return { given };
+  }
+
   /** What the person does on the live picture, one event at a time and without waiting for the page to answer. */
   async rawInput(workerId: string, ev: RawInput): Promise<void> {
     const s = await this.session(workerId);

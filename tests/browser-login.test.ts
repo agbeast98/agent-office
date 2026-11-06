@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { BrowserFiles } from '../src/server/browser-files.js';
-import { covers, hostsFromLog, keepLogin, loadLogins, readLogin } from '../src/server/browser-login.js';
+import { applyLogin, covers, hostsFromLog, keepLogin, loadLogins, readLogin } from '../src/server/browser-login.js';
 
 test('a cookie domain covers its host and subdomains only', () => {
   assert.ok(covers('.example.com', 'admin.example.com'));
@@ -75,5 +75,27 @@ test('BrowserFiles remembers the last page, what was open, and the activity', ()
     assert.deepEqual(files.activity('w', 10).map((a) => a.action), ['open', 'click']);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a copied token replaces an older one once, and a refreshed one is left alone after that', async () => {
+  let script: ((a: unknown) => void) | undefined;
+  const context = { addCookies: async () => {}, addInitScript: async (fn: (a: unknown) => void) => { script = fn; }, pages: () => [] };
+  const store = new Map<string, string>([['token', 'old']]);
+  (globalThis as Record<string, unknown>).location = { origin: 'https://a.com' };
+  (globalThis as Record<string, unknown>).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+  try {
+    await applyLogin(context as never, { host: 'a.com', at: 5, cookies: [], origins: [{ origin: 'https://a.com', items: [{ name: 'token', value: 'new' }] }] });
+    const arg = { origin: 'https://a.com', items: [{ name: 'token', value: 'new' }], at: '5' };
+    script!(arg);
+    assert.equal(store.get('token'), 'new');
+    store.set('token', 'refreshed by the site');
+    script!(arg);
+    assert.equal(store.get('token'), 'refreshed by the site');
+    script!({ ...arg, at: '6', items: [{ name: 'token', value: 'newer' }] });
+    assert.equal(store.get('token'), 'newer');
+  } finally {
+    delete (globalThis as Record<string, unknown>).location;
+    delete (globalThis as Record<string, unknown>).localStorage;
   }
 });

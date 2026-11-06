@@ -50,7 +50,10 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
   const loginFrom = h('select', { 'aria-label': 'ورود از کدام ایجنت' }) as HTMLSelectElement;
   const loginHost = h('select', { 'aria-label': 'برای کدام سایت' }) as HTMLSelectElement;
   const loginBtn = h('button.btn', { type: 'button' }, '🔗 گرفتن ورود');
-  const loginBox = h('details.wb-login', {}, h('summary', {}, '🔗 ورود از ایجنت دیگر'), h('p.muted', {}, 'اگر در مرورگر یک ایجنت دیگر به سایتی وارد شده‌اید، همان ورود (کوکی‌ها و توکن صفحه، فقط برای همان یک سایت) به مرورگر این ایجنت هم داده می‌شود؛ لازم نیست دوباره وارد شوید.'), h('div.wb-login-row', {}, loginFrom, loginHost, loginBtn));
+  const shareNote = h('p.muted', {}, 'سایت‌هایی که فقط آخرین ورود هر حساب را معتبر نگه می‌دارند (مثل پنل خط وب)، با هر ورود تازه ورود بقیه را می‌بندند. راه درست: یک بار وارد شوید، بعد ورود همین مرورگر را به همه‌ی ایجنت‌ها بدهید و دیگر کسی دوباره وارد نشود.');
+  const shareHost = h('select', { 'aria-label': 'ورود کدام سایت' }) as HTMLSelectElement;
+  const shareBtn = h('button.btn.primary', { type: 'button' }, '📣 ورود این مرورگر را به همه‌ی ایجنت‌ها بده');
+  const loginBox = h('details.wb-login', {}, h('summary', {}, '🔗 ورود از ایجنت دیگر'), h('p.muted', {}, 'اگر در مرورگر یک ایجنت دیگر به سایتی وارد شده‌اید، همان ورود (کوکی‌ها و توکن صفحه، فقط برای همان یک سایت) به مرورگر این ایجنت هم داده می‌شود؛ لازم نیست دوباره وارد شوید.'), h('div.wb-login-row', {}, loginFrom, loginHost, loginBtn), shareNote, h('div.wb-login-row', {}, shareHost, shareBtn));
   const form = h('form.wb-toolbar', {}, back, forward, reload, address, go, take, realBtn);
   const panel = h('section.worker-browser', { 'aria-label': 'Worker browser' }, form, h('div.wb-meta', {}, title, lightLabel, mode, status), ask, frame, activity, loginBox, h('footer.wb-footer', {}, h('span', {}, '🔒 Isolated profile · shared with the people in this office'), h('span', {}, 'Human and agent controls take turns')));
   const qs = () => new URLSearchParams({ floor: store.floor ?? '', worker: workerId });
@@ -145,7 +148,7 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     try {
       const res = await fetch(endpoint('activity'), { cache: 'no-store' });
       if (!res.ok) return;
-      const data = (await res.json()) as { activity: Row[]; sources: Source[] };
+      const data = (await res.json()) as { activity: Row[]; sources: Source[]; own: string[] };
       const key = JSON.stringify(data);
       if (key === activityKey) return;
       activityKey = key;
@@ -155,7 +158,12 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
       loginFrom.value = data.sources.some((x) => x.id === keep) ? keep : '';
       fillHosts(data.sources);
       sources = data.sources;
-      loginBox.classList.toggle('hidden', !data.sources.length);
+      const keepHost = shareHost.value;
+      shareHost.replaceChildren(...data.own.map((hst) => h('option', { value: hst }, hst)));
+      if (data.own.includes(keepHost)) shareHost.value = keepHost;
+      shareHost.classList.toggle('hidden', !data.own.length);
+      shareBtn.classList.toggle('hidden', !data.own.length);
+      loginBox.classList.toggle('hidden', !data.sources.length && !data.own.length);
     } catch {
       // The next status read tries again.
     }
@@ -170,6 +178,12 @@ export function workerBrowser(workerId: string): { panel: HTMLElement; visible(o
     if (!loginFrom.value || !loginHost.value) return;
     if (!confirm(`ورود ${loginHost.value} از مرورگر «${loginFrom.selectedOptions[0].textContent}» به این مرورگر هم داده شود؟`)) return;
     void request('copyLogin', { from: loginFrom.value, host: loginHost.value }).then(() => toast('ورود گرفته شد؛ صفحه را دوباره باز کنید'));
+  });
+
+  shareBtn.addEventListener('click', () => {
+    if (!shareHost.value) return;
+    if (!confirm(`ورود ${shareHost.value} از این مرورگر به مرورگر همه‌ی ایجنت‌های دیگر هم داده شود؟ (ورودهای قبلی آن‌ها جایگزین می‌شود)`)) return;
+    void request('shareLogin', { host: shareHost.value }).then(() => toast('ورود به همه‌ی ایجنت‌ها داده شد'));
   });
 
   const paintState = () => {

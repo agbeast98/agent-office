@@ -72,3 +72,4 @@
 .wb-login p { margin: 6px 0; color: #a9baa9; line-height: 1.8; } .wb-login-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .wb-login-row select { font: inherit; padding: 5px 9px; border-radius: 8px; background: #232725; color: #e9e5dc; border: 1px solid #45504a; }
 .wb-login.hidden, .wb-empty .hidden { display: none; }
+.wb-login .hidden { display: none; }
