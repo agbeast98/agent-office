@@ -1,5 +1,5 @@
 .pjwin { width: min(1100px, 96vw); }
-.pj-body { display: grid; grid-template-columns: 240px 1fr; gap: 12px; align-items: start; }
+.pj-body { display: grid; grid-template-columns: 240px 1fr; gap: 12px; align-items: start; flex: 1; min-height: 0; overflow: auto; padding: 14px; overscroll-behavior: contain; }
 .pj-list { display: flex; flex-direction: column; gap: 6px; }
 .pj-detail { min-width: 0; }
 .pj-folders { display: flex; flex-direction: column; gap: 4px; }
