@@ -9,6 +9,7 @@ import { officeQueue } from './office-queue.js';
 import { officeWorkers } from './office-workers.js';
 import { officeTasks } from './office-tasks.js';
 import { officeGuard, officeSecurity } from './office-security.js';
+import { folderGate } from '../folder-gate.js';
 import { profileGate } from '../profile-gate.js';
 import { providerHook } from '../providers/index.js';
 import type { AgentProvider } from '../../shared/providers.js';
@@ -94,7 +95,8 @@ export async function startHookServer(ctx: Ctx): Promise<{ hookServer: http.Serv
           // a patch sent as plain text
         }
       }
-      const locked = floor && me ? profileGate(floor, me, { tool_name: raw.tool_name, tool_input: input, cwd: raw.cwd }) : undefined;
+      const gated = { tool_name: raw.tool_name, tool_input: input, cwd: raw.cwd };
+      const locked = floor && me ? profileGate(floor, me, gated) ?? folderGate(floor, me, gated) : undefined;
       if (locked) return send(res, 200, { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: locked } });
     }
     const ok = workers.handleProviderHook(route as AgentProvider, workerId, token, event, payload);

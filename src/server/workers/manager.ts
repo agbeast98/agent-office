@@ -52,6 +52,8 @@ export class WorkerManager {
   readonly defaultProvider: AgentProvider;
   /** What each provider set up on this floor, for its launches (see ProviderAdapter.prepare). */
   private setups: Partial<Record<AgentProvider, unknown>> = {};
+  /** The project folders a worker was granted, added to its command line (see projects.ts). */
+  extraDirs?: (workerId: string) => { read: string[]; write: string[] };
   /** Where the office-queue and office-workers commands are, for the workers' PATH (see writeOfficeCommands). */
   private officeBin: string | undefined;
   private screenTimer: NodeJS.Timeout;
@@ -696,7 +698,7 @@ export class WorkerManager {
     const commandPath = isShell ? undefined : configured ? this.agentPath : resolveCommand(command);
     const base = isShell ? (WIN && !process.env.SHELL ? [] : ['-l']) : configured ? [...this.agentArgs] : [];
     // Its provider's command line, and anything it sets for this run (see ProviderAdapter.launch).
-    const plan: LaunchPlan = adapter ? adapter.launch({ h: this.handleOf(w), args: base, prompt, resumeSessionId, station: DESK_BY_ID.get(info.deskId)?.station, cwd, setup: this.setups[adapter.id] }) : { args: base };
+    const plan: LaunchPlan = adapter ? adapter.launch({ h: this.handleOf(w), args: base, prompt, resumeSessionId, station: DESK_BY_ID.get(info.deskId)?.station, cwd, setup: this.setups[adapter.id], dirs: this.extraDirs?.(info.id) }) : { args: base };
     const { args } = plan;
     if (plan.rotateToken) w.hookToken = randomBytes(16).toString('hex');
     const env = childEnv();

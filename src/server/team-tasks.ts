@@ -36,6 +36,8 @@ export interface TeamTask {
   notes: TaskNote[];
   /** The scenario run it is a step of (see team-flows.ts): that, not the manager worker, takes it from review. */
   flow?: string;
+  /** The project it is about (see projects.ts): a floor with projects asks every task it hands out which one, so two are never mixed up. */
+  project?: string;
 }
 
 /** Who is acting: a worker, or the person at the manager's computer. */
@@ -62,6 +64,7 @@ export interface TaskInput {
   due?: unknown;
   status?: unknown;
   flow?: unknown;
+  project?: unknown;
 }
 
 export const MAX_TASKS = 500;
@@ -81,6 +84,10 @@ export class TeamTasks {
   blocked?: (workerId: string) => string | undefined;
   /** Whether a worker manages a team of its own (see team-teams.ts): it hands out work as the manager does. */
   isManager?: (workerId: string) => boolean;
+  /** The project a name or id means (see projects.ts), and whether this floor has any: if it does, the tasks it hands out say which. */
+  projectOf?: (key: string) => { id: string; name: string } | undefined;
+  projectName?: (id: string) => string | undefined;
+  needsProject?: () => boolean;
   private tasks: TeamTask[] = [];
   private managerId?: string;
   private next = 1;
@@ -177,6 +184,14 @@ export class TeamTasks {
     };
     if (typeof input.due === 'string' && DAY.test(input.due)) task.due = input.due;
     if (by.boss && typeof input.flow === 'string' && input.flow) task.flow = input.flow;
+    const asked = typeof input.project === 'string' ? input.project.trim() : '';
+    if (asked) {
+      const p = this.projectOf?.(asked);
+      if (!p) return fail(`پروژه‌ای به نام «${asked}» نیست (فهرست پروژه‌ها در 📁 پروژه‌ها)`);
+      task.project = p.id;
+    } else if (by.boss && this.needsProject?.() && !task.flow) {
+      return fail('این طبقه پروژه دارد: بگو کار برای کدام پروژه است (project)، تا دو پروژه قاطی نشود');
+    }
     if (by.boss) {
       const who = typeof input.assignee === 'string' && input.assignee.trim() ? findWorker(workers.filter((w) => w.kind === 'agent'), input.assignee) : undefined;
       if (typeof who === 'string') return fail(who);
@@ -196,7 +211,7 @@ export class TeamTasks {
     this.tasks.push(task);
     this.prune();
     this.save();
-    return { ok: true, task, notices };
+    return { ok: true, task, notices: this.tagged(task, notices) };
   }
 
   /**
@@ -212,8 +227,13 @@ export class TeamTasks {
     const boss = this.manager(workers);
     const before = task.status;
 
-    if (input.title !== undefined || input.detail !== undefined || input.priority !== undefined || input.due !== undefined || input.assignee !== undefined) {
-      if (!by.boss) return fail('Only the manager changes a title, detail, priority, due date or who it is with');
+    if (input.title !== undefined || input.detail !== undefined || input.priority !== undefined || input.due !== undefined || input.assignee !== undefined || input.project !== undefined) {
+      if (!by.boss) return fail('Only the manager changes a title, detail, priority, due date, project or who it is with');
+      if (typeof input.project === 'string' && input.project.trim()) {
+        const p = this.projectOf?.(input.project);
+        if (!p) return fail(`پروژه‌ای به نام «${input.project.trim()}» نیست`);
+        task.project = p.id;
+      }
       const title = input.title === undefined ? task.title : text(input.title, TITLE_MAX);
       if (!title) return fail('A task needs a title');
       task.title = title;
@@ -256,7 +276,7 @@ export class TeamTasks {
     }
     task.updatedAt = Date.now();
     this.save();
-    return { ok: true, task, notices };
+    return { ok: true, task, notices: this.tagged(task, notices) };
   }
 
   /** A note on a task; the manager and whoever it is with hear each other's. */
@@ -275,7 +295,13 @@ export class TeamTasks {
     const boss = this.manager(workers);
     const other = by.boss ? task.assignee : boss ? { id: boss.id, name: boss.name } : undefined;
     if (other && other.id !== by.id && !task.flow) notices.push({ to: other.id, text: `یادداشت تازه روی ${task.id} «${task.title}» از ${by.name}: ${said}` });
-    return { ok: true, task, notices };
+    return { ok: true, task, notices: this.tagged(task, notices) };
+  }
+
+  /** What is told about a task starts with its project, so an agent working on two never mistakes one for the other. */
+  private tagged(task: TeamTask, notices: Notice[]): Notice[] {
+    const name = task.project && this.projectName?.(task.project);
+    return name ? notices.map((n) => ({ ...n, text: `[پروژه: ${name}] ${n.text}` })) : notices;
   }
 
   /** The oldest finished ones go when there are too many. */

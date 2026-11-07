@@ -9,12 +9,12 @@ import path from 'node:path';
 import type { WorkerInfo } from '../shared/protocol.js';
 import type { Floor } from './floor.js';
 
-const WRITERS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+export const WRITERS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 /** Codex's names for them: its shell tools, and apply_patch, which names each file in the patch. */
-const SHELLS = new Set(['Bash', 'PowerShell', 'shell', 'shell_command', 'exec_command', 'local_shell', 'unified_exec']);
+export const SHELLS = new Set(['Bash', 'PowerShell', 'shell', 'shell_command', 'exec_command', 'local_shell', 'unified_exec']);
 const PATCH = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
 /** A word or sign in a shell command that writes, moves or deletes a file. */
-const WRITING = /(?<![0-9&=-])>(?!&)|\btee\b|\bsed\b[^|;&]*\s-i|\bmv\b|\bcp\b|\brm\b|\bdel\b|\btruncate\b|\bdd\b|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|\bperl\b[^|;&]*-i|\bpython3?\b|\bnode\b|writeFile|\.write\(|\bcat\b[^|;&]*<</;
+export const WRITING = /(?<![0-9&=-])>(?!&)|\btee\b|\bsed\b[^|;&]*\s-i|\bmv\b|\bcp\b|\brm\b|\bdel\b|\btruncate\b|\bdd\b|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|\bperl\b[^|;&]*-i|\bpython3?\b|\bnode\b|writeFile|\.write\(|\bcat\b[^|;&]*<</;
 const PATHS = /freelance-team\/people\/(?:([^\s/'"`)]+)\/(?:skill|memory)\.md|ROSTER\.md)|freelance-team\/policy\.md/g;
 const PROFILE = /^freelance-team\/people\/([^/]+)\/(skill|memory)\.md$/;
 const PROTECTED = new Set(['freelance-team/policy.md', 'freelance-team/people/ROSTER.md']);

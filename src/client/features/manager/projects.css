@@ -1,0 +1,11 @@
+.pjwin { width: min(1100px, 96vw); }
+.pj-body { display: grid; grid-template-columns: 240px 1fr; gap: 12px; align-items: start; }
+.pj-list { display: flex; flex-direction: column; gap: 6px; }
+.pj-detail { min-width: 0; }
+.pj-folders { display: flex; flex-direction: column; gap: 4px; }
+.pj-paths { margin: 6px 0; padding-inline-start: 18px; font: 12px ui-monospace, Consolas, monospace; }
+.pj-grid { border-collapse: collapse; width: 100%; }
+.pj-grid th, .pj-grid td { border: 2px solid var(--ink); padding: 4px 8px; text-align: start; }
+.pj-grid thead th { background: #fff4d6; }
+.pj-picks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 6px 0; }
+@media (max-width: 760px) { .pj-body { grid-template-columns: 1fr; } }

@@ -33,6 +33,8 @@ export interface LaunchInput<S, P> {
   cwd: string;
   /** What prepare set up on this floor. */
   setup: P;
+  /** Project folders it was granted besides `cwd` (see projects.ts): readable ones, and writable ones. */
+  dirs?: { read: string[]; write: string[] };
 }
 
 export interface LaunchPlan {

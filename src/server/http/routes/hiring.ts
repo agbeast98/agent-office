@@ -163,12 +163,14 @@ export const hiringRoutes = {
               floor.workers.describe(back.id, { name: keep.name, role: keep.role });
               teams.swap(id, back.id);
               interviews.swap(id, back.id);
+              floor.projects.swap(id, back.id);
             }
             return bad(made);
           }
           floor.workers.describe(made.id, { name: keep.name, role: keep.role });
           teams.swap(id, made.id);
           interviews.swap(id, made.id);
+          floor.projects.swap(id, made.id);
           writeRoster(floor);
           ctx.toastFloor(floor, `🔁 ${keep.name} حالا با ${provider}${model ? ` (${model})` : ''} کار می‌کند`);
           return send(res, 200, { ok: true });
@@ -253,6 +255,7 @@ export const hiringRoutes = {
           if (open) interviews.settle(open.id, 'keep');
           teams.leave(id);
           teams.dropEmpty(id);
+          floor.projects.forget(id);
           const home = await floor.sendHome(id);
           if (home.error) return bad(home.error);
           writeRoster(floor);

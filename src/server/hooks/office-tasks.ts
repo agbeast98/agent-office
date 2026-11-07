@@ -19,6 +19,7 @@ export const view = (t: TeamTask) => ({
   due: t.due,
   updated: new Date(t.updatedAt).toISOString(),
   notes: t.notes.slice(-5).map((n) => `${n.by}: ${n.text}`),
+  project: t.project,
 });
 
 /** Tells the workers a change concerns, waking one that is asleep. A worker that can't be reached isn't a reason to fail the change. */
@@ -65,7 +66,7 @@ export async function officeTasks(ctx: Ctx, req: http.IncomingMessage, res: http
   if (req.method === 'GET') {
     const q = url.searchParams;
     const list = tasks.list({ status: q.get('status') ?? undefined, mine: q.get('mine') === '1' ? me.id : undefined, open: q.get('all') !== '1' });
-    return send(res, 200, { you: { id: me.id, name: me.name, manager: by.boss }, manager: boss?.name, tasks: list.map(view) });
+    return send(res, 200, { you: { id: me.id, name: me.name, manager: by.boss }, manager: boss?.name, tasks: list.map((t) => ({ ...view(t), project: t.project && (floor.projects.get(t.project)?.name ?? t.project) })) });
   }
   if (req.method !== 'POST') return send(res, 405, { error: 'GET /office/tasks, or POST it an action' });
 

@@ -8,6 +8,7 @@ import { fileRoutes } from './files.js';
 import { flowRoutes } from './flows.js';
 import { githubRoutes } from './github.js';
 import { hiringRoutes } from './hiring.js';
+import { projectRoutes } from './projects.js';
 import { membersRoutes } from './members.js';
 import { commsRoutes } from './comms.js';
 import { ledgerRoutes } from './ledgers.js';
@@ -59,6 +60,8 @@ export const routes: readonly Route[] = [
   membersRoutes.action,
   hiringRoutes.state,
   hiringRoutes.action,
+  projectRoutes.state,
+  projectRoutes.action,
   flowRoutes.state,
   flowRoutes.action,
   securityRoutes.state,

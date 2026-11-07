@@ -97,11 +97,13 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   scrubEnv: ['CODEX_THREAD_ID', 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'],
   createState: () => ({ usage: new CodexUsageReader(), tools: new Map(), pending: new Set() }),
   prepare: ({ dataDir, mcpScript }) => ({ hook: writeCodexHook(dataDir), mcpScript }),
-  launch({ h, args, prompt, resumeSessionId, setup }) {
+  launch({ h, args, prompt, resumeSessionId, setup, dirs }) {
     // The hint of a boot that was silent (see bootHint) is stale once it is launched again.
     if (h.info.activity === BOOT_HINT) h.info.activity = undefined;
     // Resumed too: Codex resumes on whatever its config says now, not on the model the session ran on.
     args = codexModelArgs(args, h.info.model, h.info.effort);
+    // Codex reads the whole disk already; --add-dir makes a folder writable, so only the writable grants are added.
+    for (const d of dirs?.write ?? []) args.push('--add-dir', d);
     args.push(...codexHookArgs(setup.hook), ...(setup.mcpScript ? codexMcpArgs(setup.mcpScript) : []), '--no-alt-screen');
     if (resumeSessionId) args.push('resume', resumeSessionId);
     if (prompt) args.push('--', codexPromptArg(path.dirname(setup.hook), h.info.id, prompt));

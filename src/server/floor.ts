@@ -35,6 +35,7 @@ import { Notifier } from './notify.js';
 import { Security } from './security.js';
 import { Flows } from './team-flows.js';
 import { Interviews } from './team-interviews.js';
+import { Projects } from './projects.js';
 import { Teams } from './team-teams.js';
 import { TeamComms } from './team-comms.js';
 import { TeamEvals, TeamMistakes, TeamRequests } from './team-ledgers.js';
@@ -147,6 +148,8 @@ export class Floor {
   readonly flows: Flows;
   readonly interviews: Interviews;
   readonly teams: Teams;
+  /** The projects the team works on and which folder each agent may use (see projects.ts). */
+  readonly projects: Projects;
   readonly comms: TeamComms;
   readonly requests: TeamRequests;
   readonly mistakes: TeamMistakes;
@@ -352,6 +355,14 @@ export class Floor {
     this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
     this.teamTasks.blocked = (id) => this.interviews.blocking(id);
     this.teams = new Teams(dataDir);
+    this.projects = new Projects(dataDir, path.join(def.dir, 'freelance-team', 'projects'));
+    this.teamTasks.projectOf = (key) => {
+      const p = this.projects.find(key);
+      return p && { id: p.id, name: p.name };
+    };
+    this.teamTasks.projectName = (id) => this.projects.get(id)?.name;
+    this.teamTasks.needsProject = () => this.projects.list().length > 0;
+    this.workers.extraDirs = (id) => this.projects.dirsFor(id, this.teams.isManager(id));
     this.comms = new TeamComms(dataDir, {
       name: (id) => this.workers.get(id)?.name,
       post: (id) => (this.workers.get(id)?.role ?? '').split(':')[0].trim(),
