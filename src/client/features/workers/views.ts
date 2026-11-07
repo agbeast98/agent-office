@@ -153,6 +153,16 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
       const guarding = w.kind === 'agent' && !!w.guard;
       if (v.deskId !== w.deskId && guarding) v.deskId = w.deskId;
       if (v.deskId !== w.deskId) {
+        // Back from the meeting table to its own desk: it gets up and walks across the office, instead of appearing there.
+        const table = world.desks.get(v.deskId);
+        let walkBack: [number, number][] | undefined;
+        if (table?.def.room && !desk.def.room && !desk.def.station && !seatedAlready && !arrivals.has(v.model)) {
+          const nav = world.nav;
+          const home = desk.seatAnchor.getWorldPosition(new THREE.Vector3());
+          const beside = nav.nearestWalkable([home.x, home.z]);
+          const out = nav.wayFrom(table.def, beside);
+          walkBack = [...out, ...nav.wayTo(beside, desk.def).slice(1)];
+        }
         arrivals.forget(v.model);
         court?.release(w.id);
         departures.vacate(w.deskId);
@@ -164,7 +174,8 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
         v.model.root.rotation.set(0, 0, 0);
         v.model.root.scale.setScalar(1);
         v.model.setPropSpot(v.model.root.worldToLocal(desk.laptopAnchor.localToWorld(desk.def.station ? new THREE.Vector3(0.62, 0.9, 0) : new THREE.Vector3(0.64, 0.5, -0.1))));
-        if (desk.def.room && !seatedAlready) arrivals.add(v.model, desk);
+        if (walkBack) arrivals.add(v.model, desk, walkBack);
+        else if (desk.def.room && !seatedAlready) arrivals.add(v.model, desk);
         desk.chair.rotation.y = 0;
         noOutline(desk.group);
         v.deskId = w.deskId;

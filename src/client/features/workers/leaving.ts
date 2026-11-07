@@ -464,12 +464,15 @@ export class Arrivals {
     private ways: () => Ways,
   ) {}
 
-  /** Walks `model` in to its seat at `desk`, a moment after whoever stepped out of the elevator last. */
-  add(model: Worker, desk: DeskView) {
+  /**
+   * Walks `model` in to its seat at `desk`, a moment after whoever stepped out of the elevator last.
+   * With `from` (the way to walk, from beside the seat it left) it walks back across the room right away instead.
+   */
+  add(model: Worker, desk: DeskView, from?: Pt[]) {
     const now = performance.now() / 1000;
-    const delay = Math.max(0, this.nextAt - now);
-    this.nextAt = now + delay + IN_SPACING;
-    const way = this.ways().in(desk.def);
+    const delay = from ? 0 : Math.max(0, this.nextAt - now);
+    if (!from) this.nextAt = now + delay + IN_SPACING;
+    const way = from ?? this.ways().in(desk.def);
     const [x, z] = way[0];
     this.parent.add(model.root);
     model.root.position.set(x, this.ground(x, z, 0) - FEET, z);
@@ -477,6 +480,11 @@ export class Arrivals {
     model.root.scale.setScalar(desk.seatAnchor.getWorldScale(new THREE.Vector3()).x);
     model.root.visible = delay <= 0;
     this.walkers.push({ model, desk, way, next: 1, t: -delay, heading: 0, stepIn: 0, hop: 0 });
+  }
+
+  /** Whether `model` is still on its way to a seat. */
+  has(model: Worker) {
+    return this.walkers.some((x) => x.model === model);
   }
 
   /** Stops walking `model` in: it was sent home before it sat down, or it's gone. */
