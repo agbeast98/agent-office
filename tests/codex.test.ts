@@ -174,3 +174,20 @@ test('a Codex prompt carries the note about deferred tools, and on Windows goes 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('every floor gets the same Codex hook file, so one trust stamp covers them all', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'office-home-'));
+  const before = process.env.AGENT_OFFICE_HOME;
+  process.env.AGENT_OFFICE_HOME = home;
+  try {
+    const a = codex.prepare({ dataDir: path.join(home, 'floor-a'), mcpScript: undefined } as never);
+    const b = codex.prepare({ dataDir: path.join(home, 'floor-b'), mcpScript: undefined } as never);
+    assert.equal(a.hook, b.hook);
+    assert.equal(a.hook, path.join(home, 'codex-hook', 'agent-office-codex-hook.cjs'));
+    assert.equal(hookCommand(a.hook, 'Stop'), hookCommand(b.hook, 'Stop'));
+  } finally {
+    if (before === undefined) delete process.env.AGENT_OFFICE_HOME;
+    else process.env.AGENT_OFFICE_HOME = before;
+    rmSync(home, { recursive: true, force: true });
+  }
+});

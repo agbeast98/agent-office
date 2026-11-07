@@ -2,6 +2,7 @@
 // /hooks/codex; its usage is read from the root session's rollout (see codex-usage.ts).
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { officeHome } from '../config.js';
 import { codexHookArgs, codexModelArgs, codexPromptArg, normalizeCodexHook, writeCodexHook } from '../codex.js';
 import { CodexChatReader } from '../codex-chat.js';
 import { CodexUsageReader } from '../codex-usage.js';
@@ -96,7 +97,9 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   id: 'codex',
   scrubEnv: ['CODEX_THREAD_ID', 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'],
   createState: () => ({ usage: new CodexUsageReader(), tools: new Map(), pending: new Set() }),
-  prepare: ({ dataDir, mcpScript }) => ({ hook: writeCodexHook(dataDir), mcpScript }),
+  // One hook file for every floor: Codex keeps a single trust stamp per hook event, made from the command (its path
+  // included), so a file of its own on each floor made the floors un-trust each other and every start asked again.
+  prepare: ({ mcpScript }) => ({ hook: writeCodexHook(path.join(officeHome(), 'codex-hook')), mcpScript }),
   launch({ h, args, prompt, resumeSessionId, setup, dirs }) {
     // The hint of a boot that was silent (see bootHint) is stale once it is launched again.
     if (h.info.activity === BOOT_HINT) h.info.activity = undefined;
