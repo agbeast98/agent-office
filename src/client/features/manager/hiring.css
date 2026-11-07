@@ -18,6 +18,10 @@ html[dir="rtl"] .hirewin > header .close { margin-left: 0; margin-right: auto; }
 .hr-msg.agent { align-self: flex-start; background: #e8f1ff; } .hr-msg.boss { align-self: flex-end; background: #ffe9c2; }
 .hr-status { font-size: 12px; font-weight: 700; color: #555; }
 .hr-reply { display: flex; gap: 8px; align-items: flex-end; } .hr-reply textarea { flex: 1 1 auto; }
+.hr-diff { border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; background: #fff; } .hr-diff summary { cursor: pointer; font-weight: 700; }
+.hr-dlines { margin-top: 6px; max-height: 280px; overflow: auto; font: 12px ui-monospace, Consolas, monospace; }
+.hr-dl { white-space: pre-wrap; padding: 0 4px; } .hr-dl.add { background: #d9f5df; } .hr-dl.del { background: #fde0e0; text-decoration: line-through; } .hr-dl.gap { color: #888; }
+.hr-changes { white-space: pre-wrap; } .hr-card.review { background: #eaf2ff; }
 .hr-result { display: flex; flex-direction: column; gap: 8px; }
 .hr-result details { border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; background: #fff; } .hr-result summary { cursor: pointer; font-weight: 700; }
 .hr-result pre { white-space: pre-wrap; font: 12px ui-monospace, Consolas, monospace; max-height: 220px; overflow: auto; margin: 6px 0 0; }

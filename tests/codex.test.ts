@@ -10,6 +10,7 @@ import {
   codexHookArgs,
   hookCommand,
   codexModelArgs,
+  codexPromptArg,
   normalizeCodexHook,
   validateCodexHook,
   writeCodexHook,
@@ -145,6 +146,22 @@ test('helper forwards only the bounded root event fields to the authenticated br
     });
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a prompt of several paragraphs reaches Codex on Windows as a file to read, a plain one as it is', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'codex-prompt-'));
+  try {
+    assert.equal(codexPromptArg(dir, 'w1', 'one line', true), 'one line');
+    const long = 'first\n\nsecond "quoted" & more';
+    const arg = codexPromptArg(dir, 'w1', long, true);
+    assert.doesNotMatch(arg, /[\r\n"&]/);
+    const file = path.join(dir, 'prompts', 'w1.md');
+    assert.ok(arg.includes(file));
+    assert.equal(readFileSync(file, 'utf8'), `${long}\n`);
+    assert.equal(codexPromptArg(dir, 'w1', long, false), long);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

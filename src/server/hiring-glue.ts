@@ -49,8 +49,8 @@ export function askAboutInterview(floor: Floor, i: Interview, finished: boolean)
   const said = i.messages.slice(-12).map((m) => `${m.by === 'agent' ? i.name : m.by === 'boss' ? 'مدیرعامل' : `مدیر ${m.who ?? ''}`}: ${m.text}`).join('\n');
   tellManager(floor, i.team, [
     finished
-      ? `${i.name} (سمت: ${i.role}) مصاحبه‌ی اولیه را تمام کرد. پروفایلش در freelance-team/people/${i.slug}/skill.md و memory.md است.`
-      : `مدیرعامل از تو نظر می‌خواهد درباره‌ی مصاحبه‌ی در جریان با ${i.name} (سمت: ${i.role}).`,
+      ? `${i.name} (سمت: ${i.role}) ${i.kind === 'review' ? 'مصاحبه‌ی بازبینی را تمام کرد و تغییراتی برای پروفایلش پیشنهاد داد (هنوز اعمال نشده)' : 'مصاحبه‌ی اولیه را تمام کرد'}. پروفایلش در freelance-team/people/${i.slug}/skill.md و memory.md است.`
+      : `مدیرعامل از تو نظر می‌خواهد درباره‌ی ${i.kind === 'review' ? 'مصاحبه‌ی بازبینی' : 'مصاحبه‌ی'} در جریان با ${i.name} (سمت: ${i.role}).`,
     `آخرین گفتگو:\n${said || '(هنوز چیزی گفته نشده)'}`,
     `نظرت را با team_advise و interview: "${i.id}" بگو، واقع‌گرایانه و کوتاه: آیا مهارت و شرح کارش با نیاز تیم می‌خواند، چه چیزی کم یا زیاد است، دسترسی‌هایی که می‌گوید لازم دارد درست است یا نه، و آیا این نفر برای تیم لازم است. این نظر به خود او نمی‌رسد؛ مدیرعامل می‌بیند.`,
   ].join('\n\n'), 'سیستم');

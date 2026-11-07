@@ -1,6 +1,7 @@
 import './hiring.css';
 import { h, openModal, toast } from '../../ui/dom';
 import { createConvo, type Convo, type ConvoMsg } from '../../ui/convo';
+import { diffBox } from './hiring-diff';
 import { teamsTab } from './hiring-teams';
 import { ENGINES, type Desk, type Draft, type Interview, type Proposal, type State } from './hiring-types';
 
@@ -49,6 +50,8 @@ export function openHiring(floor: string, desk?: string) {
     }
   };
 
+  /** A hired person as the teams list has them, with when they were last interviewed. */
+  const personOf = (id: string) => [...state.teams.flatMap((t) => [t.manager, ...t.members]), ...state.alone].find((p) => p?.id === id) ?? undefined;
   const interviewAt = (d: Desk) => state.interviews.find((i) => i.id === d.interview);
 
   // ---- The map ----
@@ -201,6 +204,7 @@ export function openHiring(floor: string, desk?: string) {
     const team = state.teams.find((t) => t.id === iv.team);
     const convo = paintChat(iv);
     chat = { id: iv.id, convo };
+    if (iv.kind === 'review') return reviewPanel(iv, team?.name, convo);
     const files = iv.status === 'review'
       ? h('div.hr-result', {},
         iv.summary ? h('div.hr-card', {}, h('h4', {}, 'خلاصه'), h('p', { dir: 'auto' }, iv.summary)) : null,
@@ -217,6 +221,35 @@ export function openHiring(floor: string, desk?: string) {
         h('button.btn.primary', { type: 'button', disabled: iv.status !== 'review', title: iv.status === 'review' ? '' : 'بعد از پایان مصاحبه فعال می‌شود', onclick: () => void call('hired', { id: iv.id }) }, '✓ استخدام (برو سر میزت)'),
         iv.status === 'talking' ? h('button.btn', { type: 'button', title: 'بدون پایان مصاحبه همین‌طور استخدامش کن', onclick: () => confirm(`${iv.name} بدون پایان مصاحبه استخدام شود؟`) && void call('skip', { id: iv.id }) }, '⏭ رد شدن از مصاحبه') : null,
         h('button.btn', { type: 'button', onclick: () => confirm(`${iv.name} رد شود و برود؟ پروفایلش پاک می‌شود.`) && void call('reject', { id: iv.id }) }, '✕ رد')));
+  };
+
+  /** A re-interview: the agent is asked about its own work, then the person sees what it proposes to change next to the profile it has. */
+  const reviewPanel = (iv: Interview, teamName: string | undefined, convo: Convo) => {
+    const p = iv.proposal;
+    const result = iv.status === 'review' && p && iv.before
+      ? h('div.hr-result', {},
+        iv.summary ? h('div.hr-card', {}, h('h4', {}, 'خلاصه'), h('p', { dir: 'auto' }, iv.summary)) : null,
+        h('div.hr-card.review', {}, h('h4', {}, '🔄 تغییرهای پیشنهادی (با دلیل و شاهد)'), h('p.hr-changes', { dir: 'auto' }, p.changes)),
+        iv.access ? h('div.hr-card.access', {}, h('h4', {}, '🔑 دسترسی‌ها'), h('p', { dir: 'auto' }, iv.access)) : null,
+        diffBox('📄 skill.md', iv.before.skill, p.skill),
+        diffBox('🧠 memory.md', iv.before.memory, p.memory))
+      : null;
+    return h('div.hr-card.interview', {},
+      h('div.sec-hh', {}, h('h3', {}, `🔄 مصاحبه‌ی مجدد با ${iv.name}`), h('span.mr-chip', {}, iv.role.split(':')[0]), h('span.mr-chip', {}, iv.team && teamName ? (iv.isManager ? `مدیر تیم ${teamName}` : `تیم ${teamName}`) : 'مستقل')),
+      h('div.mg-empty', {}, 'ایجنت درباره‌ی کار خودش جواب می‌دهد: فلو، بایدها و نبایدها، تأییدها، دسترسی‌ها و اشتباه‌ها. می‌توانید سؤال یا اصلاح بفرستید. در پایان پیشنهاد تغییر می‌دهد؛ تا شما تأیید نکنید چیزی نوشته نمی‌شود.'),
+      convo.el,
+      iv.team && !iv.isManager ? h('button.btn', { type: 'button', title: 'مدیر تیم گفتگو را می‌خواند و نظرش را همین‌جا می‌نویسد', onclick: () => void call('askManager', { id: iv.id }) }, '🧭 نظر مدیر') : null,
+      result,
+      h('div.mg-row', {},
+        h('button.btn.primary', { type: 'button', disabled: iv.status !== 'review', title: iv.status === 'review' ? '' : 'بعد از پایان مصاحبه فعال می‌شود', onclick: () => confirm(`پیشنهاد ${iv.name} روی پروفایلش اعمال شود؟`) && void call('apply', { id: iv.id }) }, '✓ اعمال تغییرها'),
+        h('button.btn', { type: 'button', onclick: () => confirm(`پروفایل ${iv.name} همان‌طور که هست بماند و مصاحبه بسته شود؟`) && void call('keep', { id: iv.id }) }, '✕ پروفایل بدون تغییر بماند')));
+  };
+
+  /** When someone was last interviewed, for the person's card. */
+  const lastSeen = (t?: number) => {
+    if (!t) return 'هنوز مصاحبه نشده';
+    const days = Math.floor((Date.now() - t) / 86_400_000);
+    return days < 1 ? 'آخرین مصاحبه: امروز' : `آخرین مصاحبه: ${days.toLocaleString('fa-IR')} روز پیش${days >= 30 ? ' ⚠️' : ''}`;
   };
 
   // ---- Putting it together ----
@@ -257,7 +290,7 @@ export function openHiring(floor: string, desk?: string) {
     drawMap();
     panel.replaceChildren(...(iv ? [interviewPanel(iv)]
       : d && !d.worker ? [companyCard(), hireForm(d)]
-      : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, (d.worker.role ?? 'بدون سمت').split(':')[0]), h('div.mg-empty', {}, `${d.label} · استخدام‌شده`))]
+      : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, (d.worker.role ?? 'بدون سمت').split(':')[0]), h('div.mg-empty', {}, `${d.label} · استخدام‌شده · ${lastSeen(personOf(d.worker.id)?.interviewedAt)}`), h('button.btn', { type: 'button', title: 'ایجنت درباره‌ی کار، قواعد و دسترسی‌هایش پرسیده می‌شود و تغییر پیشنهاد می‌دهد؛ تا تأیید نکنید چیزی عوض نمی‌شود', onclick: () => confirm(`مصاحبه‌ی مجدد با ${d.worker!.name} شروع شود؟ تا پایان مصاحبه کار تازه نمی‌گیرد.`) && void call('review', { worker: d.worker!.id }) }, '🔄 مصاحبه‌ی مجدد'))]
       : [companyCard(), h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, state.teams.length ? 'یک میز خالی را روی نقشه انتخاب کنید.' : 'یک میز خالی را روی نقشه انتخاب کنید و اولین نفر را «مدیر یک تیم تازه» استخدام کنید.')),
         ...state.interviews.map((x) => h('button.mr-tab', { type: 'button', onclick: () => { selected = x.desk; render(); } }, `🎤 ${x.name} · ${x.status === 'review' ? 'منتظر تصمیم شما' : 'در مصاحبه'}`))]));
   };

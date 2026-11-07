@@ -129,6 +129,20 @@ export function codexModelArgs(args: string[], model?: string, effort?: AgentEff
 }
 
 /** Write the stable, self-contained helper invoked by Codex's native command hooks. */
+/**
+ * The prompt as it goes on Codex's command line. On Windows Codex starts through codex.cmd, where cmd.exe ends the
+ * command at the first line break (and reads quotes and & | < > ^ % as its own), so a prompt of several paragraphs
+ * arrives as its first line alone. Such a prompt is written to a file in the data dir and Codex is told to read it.
+ */
+export function codexPromptArg(dataDir: string, workerId: string, prompt: string, windows = process.platform === 'win32'): string {
+  if (!windows || !/[\r\n"%&|<>^]/.test(prompt)) return prompt;
+  const dir = path.join(dataDir, 'prompts');
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, `${workerId.replace(/[^\w-]/g, '_')}.md`);
+  writeFileSync(file, `${prompt}\n`, { mode: 0o600 });
+  return `Your full instructions are in the file ${file} . Read it completely first, then follow it exactly, starting with what it says to do first.`;
+}
+
 export function writeCodexHook(dataDir: string): string {
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const file = path.join(dataDir, 'agent-office-codex-hook.cjs');

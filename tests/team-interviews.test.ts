@@ -115,3 +115,40 @@ test('the business is written once in company.md and every interview is told to 
     t.done();
   }
 });
+
+test('a re-interview proposes changes, writes nothing until approved, and keeps the old profile when refused', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    t.i.finish('w1', { summary: 's', skill: '# مهارت قدیمی', memory: '# حافظه قدیمی', access: 'مرورگر' });
+    t.i.decide(x.id, 'hire');
+    assert.equal(t.i.review('nobody').ok, false);
+    const r = t.i.review('w1');
+    assert.ok(r.ok);
+    const re = r.interview;
+    assert.equal(re.kind, 'review');
+    assert.equal(re.slug, x.slug);
+    assert.equal(re.before?.skill.trim(), '# مهارت قدیمی');
+    assert.equal(t.i.review('w1').ok, false);
+    assert.match(t.i.blocking('w1') ?? '', /بازبینی/);
+    assert.equal(t.i.decide(re.id, 'hire').ok, false);
+    assert.equal(t.i.settle(re.id, 'apply').ok, false);
+    assert.equal(t.i.finish('w1', { summary: 's', skill: '# مهارت تازه', memory: '# حافظه قدیمی', access: 'a' }).ok, false);
+    assert.equal(t.i.finish('w1', { summary: 's', skill: '# مهارت تازه', memory: '# حافظه قدیمی', access: 'a', changes: 'افزودن قاعده‌ی تازه، شاهد: T-3' }).ok, true);
+    assert.equal(readFileSync(path.join(t.people, x.slug, 'skill.md'), 'utf8').trim(), '# مهارت قدیمی');
+    assert.equal(t.i.settle(re.id, 'keep').ok, true);
+    assert.equal(readFileSync(path.join(t.people, x.slug, 'skill.md'), 'utf8').trim(), '# مهارت قدیمی');
+    assert.equal(t.i.blocking('w1'), undefined);
+
+    const again = t.i.review('w1');
+    assert.ok(again.ok);
+    t.i.finish('w1', { summary: 's', skill: '# مهارت تازه', memory: '# حافظه تازه', access: 'a', changes: 'تغییر' });
+    assert.equal(t.i.settle(again.interview.id, 'apply').ok, true);
+    assert.equal(readFileSync(path.join(t.people, x.slug, 'skill.md'), 'utf8').trim(), '# مهارت تازه');
+    assert.equal(readFileSync(path.join(t.people, x.slug, 'memory.md'), 'utf8').trim(), '# حافظه تازه');
+    assert.ok(t.i.lastInterviewed('w1'));
+    assert.equal(t.i.lastInterviewed('nobody'), undefined);
+  } finally {
+    t.done();
+  }
+});

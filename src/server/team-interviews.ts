@@ -8,7 +8,14 @@ import path from 'node:path';
 import { noteOwnWrite } from './profile-watch.js';
 import type { Notice } from './team-tasks.js';
 
-export type InterviewStatus = 'talking' | 'review' | 'hired' | 'rejected' | 'skipped';
+/** `updated` and `kept` end a re-interview (see Interviews.review): the profile was changed to the agent's proposal, or left as it was. */
+export type InterviewStatus = 'talking' | 'review' | 'hired' | 'rejected' | 'skipped' | 'updated' | 'kept';
+
+/** The two files of a profile (freelance-team/people/<slug>/). */
+export interface Profile {
+  skill: string;
+  memory: string;
+}
 
 export interface Talk {
   by: 'agent' | 'boss' | 'manager';
@@ -36,6 +43,11 @@ export interface Interview {
   messages: Talk[];
   summary?: string;
   access?: string;
+  /** A re-interview of someone already hired: the agent is asked about its own work and proposes changes to its profile, which only the person's approval writes. */
+  kind?: 'review';
+  /** The profile as it was when the re-interview began, and what the agent proposes (with a list of the changes and why). */
+  before?: Profile;
+  proposal?: Profile & { changes: string };
   startedAt: number;
   updatedAt: number;
 }
@@ -134,7 +146,32 @@ export class Interviews {
   /** Why a worker can't be given work yet: it hasn't been hired. */
   blocking(worker: string): string | undefined {
     const i = this.open(worker);
-    return i ? `${i.name} هنوز در مصاحبه است و استخدام نشده: اول مصاحبه را در «🧑‍💼 استخدام» تمام کنید` : undefined;
+    if (!i) return undefined;
+    return i.kind === 'review' ? `${i.name} در مصاحبه‌ی بازبینی است: اول آن را در «🧑‍💼 استخدام» تمام کنید` : `${i.name} هنوز در مصاحبه است و استخدام نشده: اول مصاحبه را در «🧑‍💼 استخدام» تمام کنید`;
+  }
+
+  /** When the worker was last interviewed (the first interview or a re-interview that ended), or undefined if never. */
+  lastInterviewed(worker: string): number | undefined {
+    const done = this.list.filter((i) => i.worker === worker && i.status !== 'talking' && i.status !== 'review' && i.status !== 'rejected');
+    return done.length ? Math.max(...done.map((i) => i.updatedAt)) : undefined;
+  }
+
+  /**
+   * A hired agent is interviewed again: a new interview on its existing profile, which is left untouched until
+   * the person approves what the agent proposes at the end. Or why not.
+   */
+  review(worker: string): Result<{ interview: Interview }> {
+    if (this.open(worker)) return fail('او الان در مصاحبه است');
+    const last = this.latestFor(worker);
+    if (!last || !this.peopleDir) return fail('این ایجنت پروفایلی ندارد که بازبینی شود');
+    const skill = this.fileFor(last, 'skill.md');
+    const memory = this.fileFor(last, 'memory.md');
+    if (skill === undefined || memory === undefined) return fail('فایل‌های پروفایل او پیدا نشد');
+    const now = Date.now();
+    const i: Interview = { id: `I-${this.next++}`, worker, name: last.name, role: last.role, desk: last.desk, slug: last.slug, status: 'talking', skill: last.skill, kind: 'review', before: { skill, memory }, messages: [], startedAt: now, updatedAt: now, ...(last.team ? { team: last.team } : {}), ...(last.isManager ? { isManager: true } : {}), ...(last.access ? { access: last.access } : {}) };
+    this.list.push(i);
+    this.save();
+    return { ok: true, interview: i };
   }
 
   /** freelance-team/company.md: what the business is, shared by everyone, so no new hire asks it all again. */
@@ -260,11 +297,14 @@ export class Interviews {
     if (!said) return fail('چیزی بنویسید');
     this.push(i, 'boss', said);
     i.status = 'talking';
-    return { ok: true, interview: i, notices: [{ to: i.worker, text: `پاسخ مدیرعامل در مصاحبه:\n${said}\n\nبا interview_say جواب بده و سؤال بعدی‌ات را بپرس (یکی‌یکی). وقتی همه‌چیز را فهمیدی، نظر و دسترسی‌هایت را بگو و interview_finish را صدا بزن.` }] };
+    const next = i.kind === 'review'
+      ? `سؤال یا نظر مدیرعامل در مصاحبه‌ی بازبینی:\n${said}\n\nبا interview_say جواب بده؛ جوابت را با شاهد (فایل، کار، خروجی) بگو و حدس را «حدس» بنام. وقتی همه‌ی محورها جواب داده شد، interview_finish را با پیشنهاد تغییراتت صدا بزن.`
+      : `پاسخ مدیرعامل در مصاحبه:\n${said}\n\nبا interview_say جواب بده و سؤال بعدی‌ات را بپرس (یکی‌یکی). وقتی همه‌چیز را فهمیدی، نظر و دسترسی‌هایت را بگو و interview_finish را صدا بزن.`;
+    return { ok: true, interview: i, notices: [{ to: i.worker, text: next }] };
   }
 
   /** The agent is done: its refined skill, what it learned, and the access it has and needs. */
-  finish(worker: string, input: { summary?: unknown; skill?: unknown; memory?: unknown; access?: unknown }): Result<{ interview: Interview }> {
+  finish(worker: string, input: { summary?: unknown; skill?: unknown; memory?: unknown; access?: unknown; changes?: unknown }): Result<{ interview: Interview }> {
     const i = this.open(worker);
     if (!i) return fail('مصاحبه‌ای برای تو باز نیست');
     const skill = text(input.skill, FILE_MAX);
@@ -272,6 +312,15 @@ export class Interviews {
     if (!skill || !memory) return fail('skill و memory را کامل بنویس (markdown)');
     i.summary = text(input.summary, 2000) || undefined;
     i.access = text(input.access, 3000) || undefined;
+    if (i.kind === 'review') {
+      // Nothing is written yet: the person sees what would change and decides.
+      const changes = text(input.changes, 4000);
+      if (!changes) return fail('changes را بنویس: هر تغییر (اضافه، تغییر یا حذف)، دلیلش و شاهدش؛ اگر تغییری لازم نیست بنویس «بدون تغییر» و دلیلش');
+      i.proposal = { skill, memory, changes };
+      i.status = 'review';
+      this.push(i, 'agent', `مصاحبه‌ی بازبینی را تمام کردم.${i.summary ? `\n\n${i.summary}` : ''}`);
+      return { ok: true, interview: i };
+    }
     this.write(i.slug, 'skill.md', skill);
     this.write(i.slug, 'memory.md', memory);
     i.status = 'review';
@@ -279,10 +328,25 @@ export class Interviews {
     return { ok: true, interview: i };
   }
 
+  /** The person's decision on a re-interview: the profile becomes what the agent proposed, or stays as it was. */
+  settle(id: string, verdict: 'apply' | 'keep'): Result<{ interview: Interview }> {
+    const i = this.get(id);
+    if (!i || i.kind !== 'review' || (i.status !== 'talking' && i.status !== 'review')) return fail('این بازبینی باز نیست');
+    if (verdict === 'apply') {
+      if (!i.proposal || i.status !== 'review') return fail('ایجنت هنوز پیشنهادش را ننوشته');
+      this.write(i.slug, 'skill.md', i.proposal.skill);
+      this.write(i.slug, 'memory.md', i.proposal.memory);
+    }
+    i.status = verdict === 'apply' ? 'updated' : 'kept';
+    i.updatedAt = Date.now();
+    this.save();
+    return { ok: true, interview: i };
+  }
+
   /** The person's decision: hire, send home, or hire without finishing the interview. */
   decide(id: string, verdict: 'hire' | 'reject' | 'skip'): Result<{ interview: Interview }> {
     const i = this.get(id);
-    if (!i || (i.status !== 'talking' && i.status !== 'review')) return fail('این مصاحبه باز نیست');
+    if (!i || i.kind === 'review' || (i.status !== 'talking' && i.status !== 'review')) return fail('این مصاحبه باز نیست');
     if (verdict === 'hire' && i.status !== 'review') return fail('ایجنت هنوز مصاحبه را تمام نکرده؛ یا منتظرش بمانید یا «رد شدن از مصاحبه» را بزنید');
     i.status = verdict === 'hire' ? 'hired' : verdict === 'reject' ? 'rejected' : 'skipped';
     i.updatedAt = Date.now();
@@ -326,4 +390,41 @@ export function interviewPrompt(name: string, role: string, skill: string, folde
     `پروفایل تو در پوشه‌ی ${folder} است (skill.md و memory.md). در آینده در شروع هر کار آن‌ها را بخوان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.`,
     'حالا شروع کن: خودت را معرفی کن.',
   ].filter(Boolean).join('\n\n');
+}
+
+/** The rules of a good re-interview, in the words the agent is given (and the person reads in docs/features.md). */
+export const REVIEW_RULES = [
+  'مصاحبه با خودِ ایجنت است و درباره‌ی کار واقعی خودش؛ نه گفتگو با مدیرعامل درباره‌ی کسب‌وکار. آنچه در company.md هست از مدیرعامل نپرس.',
+  'هر ادعا شاهد دارد: فایل، شماره‌ی کار، خروجی یا اشتباه ثبت‌شده. ادعای بی‌شاهد را «حدس» بنام.',
+  'اول پروفایل فعلی‌ات را بخوان و با کار واقعی مقایسه کن (list_tasks، خروجی‌ها، mistakes.md، ارزیابی‌ها). چیزی که نمی‌دانی یا یادت نیست را نساز.',
+  '«بدون تغییر» جواب معتبری است. فقط آنچه شاهد دارد عوض شود؛ متن مدیرعامل و بخش‌های درست حفظ می‌شود و هیچ‌چیز بی‌صدا پاک نمی‌شود.',
+  'اختیار بیشتر (دسترسی تازه، کار بدون تأیید) را فقط با برچسب «افزایش اختیار» و دلیل پیشنهاد بده. policy.md و قوانین ثابت را سست نکن و پروفایل دیگران را دست نزن.',
+  'در این مصاحبه skill.md و memory.md را خودت ننویس: پیشنهادت را با interview_finish بده و فقط با تأیید مدیرعامل نوشته می‌شود. تا پایان مصاحبه کار تازه‌ای نگیر.',
+];
+
+/** What a re-interview covers: the agent answers each in turn, from evidence. */
+export const REVIEW_TOPICS = [
+  'فلو کار: ورودی هر کارت چیست، مرحله‌هایش چیست و خروجی‌اش را کجا و به چه کسی تحویل می‌دهی؟ کدام مرحله با کدام ابزار است؟',
+  'بایدها: چه کارهایی را همیشه انجام می‌دهی (قاعده‌های خودت)؟',
+  'نبایدها: چه کارهایی را هرگز نمی‌کنی و چرا؟ هر مورد از policy.md یا قوانین ثابت می‌آید یا قاعده‌ی خودت است؟',
+  'تأیید: کدام کارهایت فقط با تأیید مدیرعامل (یا مدیر تیم) انجام می‌شود؟',
+  'دسترسی‌ها: چه داری، چه لازم داری و چه نداری، و کدام ورود یا دسترسی قطع یا ناپایدار بوده؟',
+  'پروفایل فعلی: کدام بخش skill.md و memory.md قدیمی، ناقص یا مخالف کار واقعی است؟ برای هر مورد شاهد بیاور.',
+  'اشتباه‌ها: از مصاحبه‌ی قبلی چه اشتباهی کرده‌ای و چه قاعده‌ای از آن درآمده؟ قاعده‌ای لازم است که هنوز ننوشته‌ای؟',
+  'پیشنهاد: چه چیزی (آموزش، ابزار، تقسیم کار) کارت را بهتر می‌کند؟ به ترتیب اولویت.',
+];
+
+/** The message that starts a re-interview in an agent already at work. */
+export function reviewPrompt(name: string, role: string, folder: string, team?: { name: string; manager?: string; isManager: boolean }): string {
+  const about = !team ? 'تو مستقل کار می‌کنی.' : team.isManager ? `تو مدیر تیم «${team.name}» هستی.` : `تو عضو تیم «${team.name}» هستی${team.manager ? ` و مدیرت ${team.manager} است` : ''}.`;
+  const company = folder.replace(/\/people\/[^/]+$/, '/company.md');
+  return [
+    `مصاحبه‌ی بازبینی. تو «${name}» هستی، با سمت «${role.split(':')[0]}». ${about} مدیرعامل (Mohammad) می‌خواهد دانش و قواعد کارت را به‌روز کند. این مصاحبه با توست، نه با او: تو درباره‌ی کار خودت جواب می‌دهی.`,
+    `قواعد مصاحبه:\n${REVIEW_RULES.map((r, n) => `${n + 1}. ${r}`).join('\n')}`,
+    `پیش از هر چیز بخوان: ${folder}/skill.md و memory.md (پروفایل خودت)، ${company}، freelance-team/policy.md، freelance-team/mistakes.md و کارهایی که انجام داده‌ای (list_tasks).`,
+    `محورها؛ به ترتیب، هر محور در یک پیام کوتاه با interview_say (حرف زدن در ترمینال به مدیرعامل نمی‌رسد):\n${REVIEW_TOPICS.map((t, n) => `${n + 1}) ${t}`).join('\n')}`,
+    'مدیرعامل ممکن است وسط کار سؤال یا اصلاح بفرستد (پیامی که با «سؤال یا نظر مدیرعامل» شروع می‌شود)؛ جواب بده و ادامه بده.',
+    'در پایان interview_finish را صدا بزن: summary (خلاصه‌ی ۵ خطی)، changes (فهرست هر تغییر: اضافه، تغییر یا حذف، دلیل و شاهد؛ تغییرِ «افزایش اختیار» را برچسب بزن؛ اگر تغییری لازم نیست بنویس «بدون تغییر» و دلیل)، skill و memory (متن کامل و پیشنهادی هر دو فایل؛ بدون تغییر هم کامل بفرست)، access (دسترسی‌های فعلی و لازم).',
+    'حالا شروع کن: محور اول را جواب بده.',
+  ].join('\n\n');
 }

@@ -7,7 +7,7 @@ import { askAboutInterview, askAdvice, tellManager, writeRoster } from '../../hi
 import { tell } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
 import { AGENT_EFFORTS, isAgentProvider } from '../../../shared/providers.js';
-import { interviewPrompt } from '../../team-interviews.js';
+import { interviewPrompt, reviewPrompt } from '../../team-interviews.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
@@ -27,7 +27,7 @@ export const hiringRoutes = {
       const interviews = floor.interviews;
       const person = (id: string) => {
         const w = workers.find((x) => x.id === id);
-        return w && { id: w.id, name: w.name, role: w.role, status: w.status, provider: w.provider, interview: interviews.open(w.id)?.id };
+        return w && { id: w.id, name: w.name, role: w.role, status: w.status, provider: w.provider, interview: interviews.open(w.id)?.id, interviewedAt: interviews.lastInterviewed(w.id) };
       };
       const inTeam = new Set(floor.teams.teams.flatMap((t) => [t.manager, ...t.members]));
       return send(res, 200, {
@@ -202,6 +202,31 @@ export const hiringRoutes = {
           writeRoster(floor);
           return send(res, 200, { ok: true });
         }
+        case 'review': {
+          // A hired agent is interviewed again: it is asked about its own work and proposes changes to its profile.
+          const w = floor.workers.get(str(body.worker, 32));
+          if (!w || w.kind !== 'agent') return bad('چنین ایجنتی نیست');
+          const r = interviews.review(w.id);
+          if (!r.ok) return bad(r.error);
+          const i = r.interview;
+          const team = i.team ? teams.get(i.team) : undefined;
+          const about = team ? { name: team.name, manager: floor.workers.get(team.manager)?.name, isManager: !!i.isManager } : undefined;
+          tell(floor, [{ to: w.id, text: reviewPrompt(i.name, i.role, `freelance-team/people/${i.slug}`, about) }], by);
+          writeRoster(floor);
+          ctx.toastFloor(floor, `🔄 ${by} مصاحبه‌ی بازبینی ${i.name} را شروع کرد`);
+          return send(res, 200, { ok: true, interview: i.id });
+        }
+        case 'apply':
+        case 'keep': {
+          const i = interviews.get(str(body.id, 20));
+          const r = interviews.settle(str(body.id, 20), body.action);
+          if (!r.ok || !i) return bad(r.ok ? 'No such interview' : r.error);
+          tell(floor, [{ to: i.worker, text: body.action === 'apply'
+            ? 'مدیرعامل پیشنهاد بازبینی‌ات را تأیید کرد و پروفایل تو به‌روز شد. skill.md و memory.md را دوباره بخوان و از حالا طبق آن‌ها کار کن.'
+            : 'مدیرعامل پروفایل تو را بدون تغییر نگه داشت. مصاحبه‌ی بازبینی تمام شد؛ همان قواعد قبلی معتبر است.' }], by);
+          writeRoster(floor);
+          return send(res, 200, { ok: true });
+        }
         case 'advise': {
           const team = teams.get(str(body.team, 20));
           if (!team) return bad('چنین تیمی نیست');
@@ -234,7 +259,7 @@ export const hiringRoutes = {
           return send(res, 200, { ok: true });
         }
         default:
-          return bad('action is hire, switch, company, say, askManager, hired, reject, skip, advise, adopt, leave or proposal');
+          return bad('action is hire, switch, company, say, askManager, hired, reject, skip, review, apply, keep, advise, adopt, leave or proposal');
       }
     },
   },

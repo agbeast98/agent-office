@@ -74,6 +74,23 @@ The new agent does not start working. It has its first interview with you, as a 
 
 You then press **✓ استخدام**, **✕ رد** (it goes home and its profile is deleted), or **⏭ رد شدن از مصاحبه** to hire it without the interview being finished. Until it is hired, tasks and scenarios cannot be given to it. The agent speaks through the `interview_say` and `interview_finish` tools. Not here yet: the agent walking up to the boss's loft for the interview and down to its desk afterwards (it is seated at its desk from the start).
 
+## 🔄 Interviewing someone again
+
+Say once a month: click a hired person's desk in **🧑‍💼 استخدام** and press **🔄 مصاحبه‌ی مجدد** (the card shows when they were last interviewed, with ⚠️ after 30 days). This interview is **of the agent, about its own work**, not a talk with you about the business: it answers one topic at a time, from evidence, in the same chat (you can ask questions or correct it):
+
+1. its flow (what comes in, the steps, what it hands back and to whom),
+2. what it must always do,
+3. what it never does, and whether each comes from `policy.md` or is its own rule,
+4. what needs your (or its manager's) approval,
+5. its access: what it has, needs and lacks,
+6. what in its `skill.md` and `memory.md` is out of date or wrong, with proof,
+7. its mistakes since the last interview and the rules they gave,
+8. what would help it work better.
+
+The rules it is given: every claim has proof (a file, a task, an output) or is called a guess; it reads its profile and compares it with the real work first; "no change" is a fine answer; only what has proof changes, your own text and the parts that are right stay and nothing is dropped silently; more freedom (access, work without approval) must be labelled «افزایش اختیار» with a reason; `policy.md`, the fixed rules and other people's profiles are never touched; and it writes no profile file itself and takes no new work until the interview ends.
+
+At the end it sends the list of changes (added, changed or removed, why, proof) and the proposed `skill.md` and `memory.md`. **Nothing is written yet**: you see the changes and each file as a line-by-line comparison with the profile it has now (🧭 نظر مدیر works here too), then press **✓ اعمال تغییرها** (the files are replaced and the agent is told to read them again) or **✕ پروفایل بدون تغییر بماند**. The profile before the interview is also kept in the interview's record, and git keeps the files' history.
+
 ## 👥 Teams and their managers
 
 There are two ways to hire (the **نوع استخدام** in the form): **🧍 مستقل** (the agent works for itself, in no team) and **👥 عضو یک تیم**. A team is made by hiring its first person as **🧭 مدیر یک تیم تازه** (the form asks for the team's name); that manager's interview is about coordination, and after it you hire the rest into the team, with the manager's say. Agents who work alone can be taken into a team later (**افزودن به تیم** in the **👥 تیم‌ها** tab, or on a manager's proposal).
