@@ -128,21 +128,28 @@ export function codexModelArgs(args: string[], model?: string, effort?: AgentEff
   return out;
 }
 
-/** Write the stable, self-contained helper invoked by Codex's native command hooks. */
+/**
+ * Codex defers the office's tools (the MCP server's namespace is only listed, not loaded), and a model that doesn't
+ * search for them concludes it has none: it answered an interview in plain text and never called interview_say.
+ */
+export const CODEX_TOOLS_NOTE = "In Codex the office's tools (interview_say, interview_finish, meeting_say, call_member, ask_ceo, list_tasks, update_task, browser_* and the rest, in the mcp__agent_office namespace) are deferred: call tool_search with the tool's name first to load it, then call it. They are your only way to talk to the office, so never say you lack them without searching.";
+
 /**
  * The prompt as it goes on Codex's command line. On Windows Codex starts through codex.cmd, where cmd.exe ends the
  * command at the first line break (and reads quotes and & | < > ^ % as its own), so a prompt of several paragraphs
- * arrives as its first line alone. Such a prompt is written to a file in the data dir and Codex is told to read it.
+ * arrives as its first line alone. Such a prompt is written to a file in the data dir (as UTF-8 with a mark, which
+ * PowerShell reads right) and Codex is told to read it.
  */
 export function codexPromptArg(dataDir: string, workerId: string, prompt: string, windows = process.platform === 'win32'): string {
-  if (!windows || !/[\r\n"%&|<>^]/.test(prompt)) return prompt;
+  if (!windows) return `${CODEX_TOOLS_NOTE}\n\n${prompt}`;
   const dir = path.join(dataDir, 'prompts');
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, `${workerId.replace(/[^\w-]/g, '_')}.md`);
-  writeFileSync(file, `${prompt}\n`, { mode: 0o600 });
-  return `Your full instructions are in the file ${file} . Read it completely first, then follow it exactly, starting with what it says to do first.`;
+  writeFileSync(file, `\uFEFF${CODEX_TOOLS_NOTE}\n\n${prompt}\n`, { mode: 0o600 });
+  return `${CODEX_TOOLS_NOTE} Your full instructions are in the UTF-8 file ${file} (read it with Get-Content -Raw -Encoding UTF8). Read it completely first, then follow it exactly, starting with what it says to do first.`;
 }
 
+/** Write the stable, self-contained helper invoked by Codex's native command hooks. */
 export function writeCodexHook(dataDir: string): string {
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const file = path.join(dataDir, 'agent-office-codex-hook.cjs');

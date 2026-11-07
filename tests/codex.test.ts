@@ -11,6 +11,7 @@ import {
   hookCommand,
   codexModelArgs,
   codexPromptArg,
+  CODEX_TOOLS_NOTE,
   normalizeCodexHook,
   validateCodexHook,
   writeCodexHook,
@@ -70,11 +71,15 @@ test('a worker\'s own model and effort go on Codex\'s command line, in place of 
 });
 
 test('a Codex worker starts, and resumes, on the model and effort picked for it', () => {
+  const data = mkdtempSync(path.join(tmpdir(), 'codex-launch-'));
   const launch = (info: { model?: string; effort?: string }, more: { prompt?: string; resumeSessionId?: string } = {}) =>
-    codex.launch({ h: { info, state: codex.createState!() } as never, args: ['--yolo'], setup: { hook: '/data/hook.cjs' }, ...more }).args;
+    codex.launch({ h: { info: { id: 'w1', ...info }, state: codex.createState!() } as never, args: ['--yolo'], setup: { hook: path.join(data, 'hook.cjs') }, ...more }).args;
   const fresh = launch({ model: 'gpt-5.5', effort: 'high' }, { prompt: 'fix it' });
   assert.deepEqual(fresh.slice(0, 5), ['--yolo', '--model', 'gpt-5.5', '-c', 'model_reasoning_effort="high"']);
-  assert.deepEqual(fresh.slice(-2), ['--', 'fix it']);
+  assert.equal(fresh.at(-2), '--');
+  // The prompt follows, with the note about the deferred tools (on Windows, as a file to read).
+  assert.match(String(fresh.at(-1)), /tool_search/);
+  assert.equal(String(fresh.at(-1)).includes('fix it') || process.platform === 'win32', true);
   // Its options come before the `resume` subcommand, which then takes the session.
   const resumed = launch({ model: 'gpt-5.5', effort: 'high' }, { resumeSessionId: 'thread-1' });
   assert.deepEqual(resumed.slice(0, 5), ['--yolo', '--model', 'gpt-5.5', '-c', 'model_reasoning_effort="high"']);
@@ -83,6 +88,7 @@ test('a Codex worker starts, and resumes, on the model and effort picked for it'
   const plain = launch({});
   assert.equal(plain.includes('--model'), false);
   assert.equal(plain.some((a) => a.startsWith('model_reasoning_effort')), false);
+  rmSync(data, { recursive: true, force: true });
 });
 
 test('writes a mode-restricted helper that forwards paths without reading transcripts', () => {
@@ -150,17 +156,20 @@ test('helper forwards only the bounded root event fields to the authenticated br
   }
 });
 
-test('a prompt of several paragraphs reaches Codex on Windows as a file to read, a plain one as it is', () => {
+test('a Codex prompt carries the note about deferred tools, and on Windows goes as a file to read', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'codex-prompt-'));
   try {
-    assert.equal(codexPromptArg(dir, 'w1', 'one line', true), 'one line');
     const long = 'first\n\nsecond "quoted" & more';
     const arg = codexPromptArg(dir, 'w1', long, true);
-    assert.doesNotMatch(arg, /[\r\n"&]/);
+    assert.doesNotMatch(arg, /[\r\n"&|<>^%]/);
+    assert.ok(arg.includes('tool_search'));
     const file = path.join(dir, 'prompts', 'w1.md');
     assert.ok(arg.includes(file));
-    assert.equal(readFileSync(file, 'utf8'), `${long}\n`);
-    assert.equal(codexPromptArg(dir, 'w1', long, false), long);
+    const written = readFileSync(file, 'utf8');
+    assert.ok(written.startsWith('\uFEFF'));
+    assert.ok(written.includes(long));
+    assert.ok(written.includes('tool_search'));
+    assert.equal(codexPromptArg(dir, 'w1', long, false), `${CODEX_TOOLS_NOTE}\n\n${long}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
