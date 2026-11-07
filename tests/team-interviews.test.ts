@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Interviews, interviewPrompt, slugOf } from '../src/server/team-interviews.js';
+import { Interviews, continuedInterview, interviewPrompt, slugOf } from '../src/server/team-interviews.js';
 import { TeamTasks } from '../src/server/team-tasks.js';
 import type { WorkerInfo } from '../src/shared/protocol.js';
 
@@ -148,6 +148,22 @@ test('a re-interview proposes changes, writes nothing until approved, and keeps 
     assert.equal(readFileSync(path.join(t.people, x.slug, 'memory.md'), 'utf8').trim(), '# حافظه تازه');
     assert.ok(t.i.lastInterviewed('w1'));
     assert.equal(t.i.lastInterviewed('nobody'), undefined);
+  } finally {
+    t.done();
+  }
+});
+
+test('an interview moved to another engine starts again with its instructions and what has been said', () => {
+  const t = fresh();
+  try {
+    const x = begin(t.i);
+    assert.doesNotMatch(continuedInterview(x), /گفتگوی تا اینجا/);
+    t.i.say('w1', 'سلام، من سارا هستم');
+    t.i.bossSay(x.id, 'مشتری‌ها کافه‌دارها هستند');
+    const text = continuedInterview(x);
+    assert.match(text, /interview_finish/);
+    assert.match(text, /سلام، من سارا هستم/);
+    assert.match(text, /مدیرعامل: مشتری‌ها کافه‌دارها هستند/);
   } finally {
     t.done();
   }

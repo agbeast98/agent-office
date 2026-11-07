@@ -76,7 +76,7 @@ You then press **✓ استخدام**, **✕ رد** (it goes home and its profil
 
 ## 🔄 Interviewing someone again
 
-Say once a month: click a hired person's desk in **🧑‍💼 استخدام** and press **🔄 مصاحبه‌ی مجدد** (the card shows when they were last interviewed, with ⚠️ after 30 days). This interview is **of the agent, about its own work**, not a talk with you about the business: it answers one topic at a time, from evidence, in the same chat (you can ask questions or correct it):
+The **🔄 مصاحبه‌ی مجدد** button at the top of **🧑‍💼 استخدام** is for everyone: it lists all hired agents (each with when they were last interviewed), ticked, and starts the interview for those you keep ticked. It is meant for **evaluating** them, say once a month: each agent assesses itself with proof, and its team's manager is told to record its own evaluation of the agent (`record_evaluation`) and to say which of the proposed changes are right. A single agent can also be interviewed from the card of its desk. Click a hired person's desk in **🧑‍💼 استخدام** and press **🔄 مصاحبه‌ی مجدد** (the card shows when they were last interviewed, with ⚠️ after 30 days). This interview is **of the agent, about its own work**, not a talk with you about the business: it answers one topic at a time, from evidence, in the same chat (you can ask questions or correct it):
 
 1. its flow (what comes in, the steps, what it hands back and to whom),
 2. what it must always do,
@@ -85,11 +85,18 @@ Say once a month: click a hired person's desk in **🧑‍💼 استخدام** 
 5. its access: what it has, needs and lacks,
 6. what in its `skill.md` and `memory.md` is out of date or wrong, with proof,
 7. its mistakes since the last interview and the rules they gave,
-8. what would help it work better.
+8. what would help it work better,
+9. its own assessment: strengths and weaknesses since the last interview, with proof.
 
 The rules it is given: every claim has proof (a file, a task, an output) or is called a guess; it reads its profile and compares it with the real work first; "no change" is a fine answer; only what has proof changes, your own text and the parts that are right stay and nothing is dropped silently; more freedom (access, work without approval) must be labelled «افزایش اختیار» with a reason; `policy.md`, the fixed rules and other people's profiles are never touched; and it writes no profile file itself and takes no new work until the interview ends.
 
 At the end it sends the list of changes (added, changed or removed, why, proof) and the proposed `skill.md` and `memory.md`. **Nothing is written yet**: you see the changes and each file as a line-by-line comparison with the profile it has now (🧭 نظر مدیر works here too), then press **✓ اعمال تغییرها** (the files are replaced and the agent is told to read them again) or **✕ پروفایل بدون تغییر بماند**. The profile before the interview is also kept in the interview's record, and git keeps the files' history.
+
+## ⚙️ Another engine, and 🚪 firing
+
+Every hired agent's card (and the chat of an interview that is going on) has **⚙️ موتور و مدل**: pick Claude or Codex, a model and a reasoning effort, and **اعمال**. The agent stands up and comes back on the new engine with its profile and its place in the team. An interview in progress goes on from where it was: the new engine is given the same instructions and what has been said. (This is for an agent whose engine can't do what its interview needs, as happened with Codex on Windows before prompts were passed as a file.)
+
+**🚪 اخراج** takes two steps. The first says what will happen (the team it leaves, how many open tasks it leaves behind); the second wants the agent's name typed exactly, within five minutes of the first (the server checks both). A manager whose team still has members can't be fired. The agent is sent home and its profile stays in the repository.
 
 ## 👥 Teams and their managers
 

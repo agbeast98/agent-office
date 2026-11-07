@@ -1,6 +1,8 @@
 import './hiring.css';
 import { h, openModal, toast } from '../../ui/dom';
 import { createConvo, type Convo, type ConvoMsg } from '../../ui/convo';
+import { store } from '../../state';
+import { agentFields, resolvedProvider } from '../../ui/provider';
 import { diffBox } from './hiring-diff';
 import { teamsTab } from './hiring-teams';
 import { ENGINES, type Desk, type Draft, type Interview, type Proposal, type State } from './hiring-types';
@@ -27,13 +29,16 @@ export function openHiring(floor: string, desk?: string) {
   let seen = '';
   const draft: Draft = { mode: 'newteam', team: '', teamName: '', name: '', role: '', skill: '', provider: '' };
 
+  /** The people picked for a re-interview of several at once, while that card is open. */
+  let picking: Set<string> | undefined;
+  const reviewAll = h('button.btn', { type: 'button', title: 'ایجنت‌ها دوباره درباره‌ی کار، قواعد و دسترسی‌شان مصاحبه می‌شوند و ارزیابی می‌شوند؛ برای همه یا هر که را انتخاب کنید', onclick: () => { picking = picking ? undefined : new Set(hired().filter((p) => !p.interview).map((p) => p.id)); tab = 'hire'; render(); } }, '🔄 مصاحبه‌ی مجدد');
   const nav = h('nav.sec-nav', { role: 'tablist' });
   const mapBox = h('div.hr-map');
   const panel = h('div.hr-panel');
   const body = h('div.hr-body', {}, panel, mapBox);
   const teamsBox = h('div.hr-teams');
   const msg = h('div.mg-msg', { role: 'status' });
-  const el = h('div.modal.secwin.hirewin', { role: 'dialog', 'aria-label': 'استخدام', lang: 'fa', dir: 'rtl' }, h('header', {}, h('h2', {}, '🧑‍💼 استخدام')), nav, body, teamsBox, msg);
+  const el = h('div.modal.secwin.hirewin', { role: 'dialog', 'aria-label': 'استخدام', lang: 'fa', dir: 'rtl' }, h('header', {}, h('h2', {}, '🧑‍💼 استخدام'), reviewAll), nav, body, teamsBox, msg);
   openModal(el, { doing: 'در بخش استخدام', onClose: () => { opened = false; if (timer) clearInterval(timer); } });
 
   const call = async (action: string, extra: Record<string, unknown> = {}) => {
@@ -52,6 +57,23 @@ export function openHiring(floor: string, desk?: string) {
 
   /** A hired person as the teams list has them, with when they were last interviewed. */
   const personOf = (id: string) => [...state.teams.flatMap((t) => [t.manager, ...t.members]), ...state.alone].find((p) => p?.id === id) ?? undefined;
+  /** Everyone hired on this floor (managers, members and those who work alone). */
+  const hired = () => [...state.teams.flatMap((t) => (t.manager ? [t.manager] : [])), ...state.teams.flatMap((t) => t.members), ...state.alone].filter((p, k, all) => all.findIndex((q) => q.id === p.id) === k);
+
+  /** Asks the server and returns its answer, or undefined with the reason shown. */
+  const ask = async (action: string, extra: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`/api/hiring/action?${qs}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...extra }) });
+      const out = (await res.json()) as { error?: string } & Record<string, unknown>;
+      if (!res.ok) throw new Error(out.error || 'انجام نشد');
+      msg.textContent = '';
+      return out;
+    } catch (e) {
+      msg.textContent = e instanceof Error ? e.message : 'انجام نشد';
+      return undefined;
+    }
+  };
+
   const interviewAt = (d: Desk) => state.interviews.find((i) => i.id === d.interview);
 
   // ---- The map ----
@@ -252,6 +274,67 @@ export function openHiring(floor: string, desk?: string) {
     return days < 1 ? 'آخرین مصاحبه: امروز' : `آخرین مصاحبه: ${days.toLocaleString('fa-IR')} روز پیش${days >= 30 ? ' ⚠️' : ''}`;
   };
 
+  /** The card for a re-interview of several: everyone hired, ticked, and one button. */
+  const chooserCard = () => {
+    const people = hired();
+    const boxes = people.map((p) => {
+      const box = h('input', { type: 'checkbox', checked: !!picking?.has(p.id) && !p.interview, disabled: !!p.interview }) as HTMLInputElement;
+      box.addEventListener('change', () => (box.checked ? picking?.add(p.id) : picking?.delete(p.id)));
+      return h('label.hr-pick', {}, box, h('span', {}, h('b', {}, p.name), h('small', {}, ` ${(p.role ?? '').split(':')[0] || 'بدون سمت'} · ${lastSeen(p.interviewedAt)}${p.interview ? ' · الان در مصاحبه' : ''}`)));
+    });
+    return h('div.hr-card.review', {},
+      h('h3', {}, '🔄 مصاحبه‌ی مجدد (ارزیابی و به‌روزرسانی)'),
+      h('div.mg-empty', {}, 'هر ایجنت درباره‌ی کار خودش پرسیده و ارزیابی می‌شود: فلو، بایدها و نبایدها، تأییدها، دسترسی‌ها، اشتباه‌ها و نقطه‌های قوت و ضعف. مدیر تیم هم نظر و ارزیابی خودش را ثبت می‌کند. در پایان هر نفر تغییرهای پیشنهادی را می‌فرستد و تا شما تأیید نکنید چیزی نوشته نمی‌شود. تا پایان مصاحبه کار تازه نمی‌گیرند.'),
+      people.length ? h('div.hr-picks', {}, ...boxes) : h('div.mg-empty', {}, 'هنوز کسی استخدام نشده است.'),
+      h('div.mg-row', {},
+        h('button.btn.primary', { type: 'button', disabled: !people.length, onclick: async () => {
+          const ids = [...(picking ?? [])];
+          if (!ids.length) return void (msg.textContent = 'حداقل یک نفر را انتخاب کنید');
+          if (!confirm(`مصاحبه‌ی مجدد برای ${ids.length.toLocaleString('fa-IR')} نفر شروع شود؟`)) return;
+          const out = await ask('reviewMany', { workers: ids });
+          if (out) { picking = undefined; toast('مصاحبه‌ی مجدد شروع شد'); await load(true); }
+        } }, '🔄 شروع برای انتخاب‌شده‌ها'),
+        h('button.btn', { type: 'button', onclick: () => { picking = undefined; render(); } }, 'بستن')));
+  };
+
+  /** Another engine, model or reasoning effort for the same person; it takes up where they were (an interview too). */
+  const enginePanel = (worker: string, name: string) => {
+    const p = personOf(worker);
+    const fields = agentFields(store.project, `hr-agent-${worker}`, { provider: resolvedProvider(p?.provider as never, store.project) }, 'موتور', 'fa');
+    const go = h('button.btn', { type: 'button', onclick: async () => {
+      if (!fields.valid()) return;
+      if (!confirm(`${name} از میزش بلند می‌شود و با موتور و مدل تازه دوباره می‌آید؛ پروفایل و جایش در تیم می‌ماند${state.interviews.some((x) => x.worker === worker) ? ' و مصاحبه از همین‌جا ادامه پیدا می‌کند' : ''}. ادامه؟`)) return;
+      go.setAttribute('disabled', '');
+      if (await call('switch', { worker, provider: fields.value(), model: fields.model(), effort: fields.effort() })) toast(`${name} با موتور تازه دوباره آمد`);
+      go.removeAttribute('disabled');
+    } }, '⚙️ اعمال موتور و مدل');
+    return h('details.hr-card', {}, h('summary', {}, `⚙️ موتور و مدل ${name}`), fields.element, h('div.mg-empty', {}, 'روی «پیش‌فرض» بماند تا مدل پیش‌فرض همان موتور استفاده شود.'), h('div.mg-row', {}, go));
+  };
+
+  /** Firing, in two steps: the first says what it means, the second wants the name typed. */
+  const fire = async (worker: string, name: string) => {
+    const first = await ask('fireAsk', { worker });
+    if (!first) return;
+    const tasks = Number(first.openTasks) || 0;
+    if (!confirm(`مرحله‌ی ۱ از ۲\n\n${name} اخراج شود؟${first.team ? `\nاز تیم «${String(first.team)}» برداشته می‌شود.` : ''}${tasks ? `\nاو ${tasks.toLocaleString('fa-IR')} کار باز دارد که بی‌صاحب می‌ماند.` : ''}\nاز میزش می‌رود؛ پروفایلش در مخزن می‌ماند.`)) return;
+    const typed = prompt(`مرحله‌ی ۲ از ۲\n\nبرای تأیید نهایی، نام «${name}» را دقیقاً بنویسید:`);
+    if (typed === null) return;
+    if (await call('fire', { worker, name: typed })) toast(`${name} اخراج شد`);
+  };
+
+  /** The card of a hired person at a desk: when they were last interviewed, a new interview, their engine, and firing. */
+  const workerCard = (d: Desk) => {
+    const w = d.worker!;
+    return h('div.hr-card', {},
+      h('h3', {}, w.name),
+      h('p', {}, (w.role ?? 'بدون سمت').split(':')[0]),
+      h('div.mg-empty', {}, `${d.label} · استخدام‌شده · ${lastSeen(personOf(w.id)?.interviewedAt)}`),
+      h('div.mg-row', {},
+        h('button.btn', { type: 'button', title: 'ایجنت درباره‌ی کار، قواعد و دسترسی‌هایش پرسیده و ارزیابی می‌شود و تغییر پیشنهاد می‌دهد؛ تا تأیید نکنید چیزی عوض نمی‌شود', onclick: () => confirm(`مصاحبه‌ی مجدد با ${w.name} شروع شود؟ تا پایان مصاحبه کار تازه نمی‌گیرد.`) && void call('review', { worker: w.id }) }, '🔄 مصاحبه‌ی مجدد'),
+        h('button.btn.danger', { type: 'button', title: 'اخراج با تأیید دومرحله‌ای', onclick: () => void fire(w.id, w.name) }, '🚪 اخراج')),
+      enginePanel(w.id, w.name));
+  };
+
   // ---- Putting it together ----
 
   /** Someone is typing here: leave it be and only bring the chat up to date. */
@@ -288,9 +371,10 @@ export function openHiring(floor: string, desk?: string) {
     const d = state.desks.find((x) => x.id === selected);
     const iv = d ? interviewAt(d) : undefined;
     drawMap();
-    panel.replaceChildren(...(iv ? [interviewPanel(iv)]
+    panel.replaceChildren(...(picking ? [chooserCard()]
+      : iv ? [interviewPanel(iv), enginePanel(iv.worker, iv.name)]
       : d && !d.worker ? [companyCard(), hireForm(d)]
-      : d?.worker ? [h('div.hr-card', {}, h('h3', {}, d.worker.name), h('p', {}, (d.worker.role ?? 'بدون سمت').split(':')[0]), h('div.mg-empty', {}, `${d.label} · استخدام‌شده · ${lastSeen(personOf(d.worker.id)?.interviewedAt)}`), h('button.btn', { type: 'button', title: 'ایجنت درباره‌ی کار، قواعد و دسترسی‌هایش پرسیده می‌شود و تغییر پیشنهاد می‌دهد؛ تا تأیید نکنید چیزی عوض نمی‌شود', onclick: () => confirm(`مصاحبه‌ی مجدد با ${d.worker!.name} شروع شود؟ تا پایان مصاحبه کار تازه نمی‌گیرد.`) && void call('review', { worker: d.worker!.id }) }, '🔄 مصاحبه‌ی مجدد'))]
+      : d?.worker ? [workerCard(d)]
       : [companyCard(), h('div.hr-card', {}, h('h3', {}, 'استخدام'), h('div.mg-empty', {}, state.teams.length ? 'یک میز خالی را روی نقشه انتخاب کنید.' : 'یک میز خالی را روی نقشه انتخاب کنید و اولین نفر را «مدیر یک تیم تازه» استخدام کنید.')),
         ...state.interviews.map((x) => h('button.mr-tab', { type: 'button', onclick: () => { selected = x.desk; render(); } }, `🎤 ${x.name} · ${x.status === 'review' ? 'منتظر تصمیم شما' : 'در مصاحبه'}`))]));
   };

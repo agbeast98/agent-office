@@ -7,10 +7,14 @@ import { askAboutInterview, askAdvice, tellManager, writeRoster } from '../../hi
 import { tell } from '../../hooks/office-tasks.js';
 import { str } from '../../office/input.js';
 import { AGENT_EFFORTS, isAgentProvider } from '../../../shared/providers.js';
-import { interviewPrompt, reviewPrompt } from '../../team-interviews.js';
+import { continuedInterview, interviewPrompt, reviewPrompt } from '../../team-interviews.js';
 import { readBody, sameOrigin, send } from '../util.js';
 import type { Route } from '../router.js';
 import { floorParam } from './files.js';
+
+/** When each firing was asked for (floor:worker), so the second step has to follow the first. */
+const fireAsked = new Map<string, number>();
+const FIRE_WINDOW_MS = 5 * 60_000;
 
 export const hiringRoutes = {
   /** GET /api/hiring?floor=<id> */
@@ -131,7 +135,7 @@ export const hiringRoutes = {
           const model = str(body.model, 120).trim() || undefined;
           const effort = AGENT_EFFORTS.find((e) => e === body.effort);
           if (old && provider === old.provider && model === old.model && effort === old.effort) return bad('همین الان روی همین موتور و مدل است');
-          if (interviews.open(id)) return bad('اول مصاحبه‌ی او را تمام کنید');
+          const openIv = interviews.open(id);
           // Before anyone is sent home: a new worker can't start while hiring is paused (budget), and he'd be lost.
           if (ctx.ledger.hiringPaused) return bad(ctx.ledger.hiringPaused);
           const team = teams.teamOf(id);
@@ -149,10 +153,12 @@ export const hiringRoutes = {
             team ? (teams.isManager(id) ? `تو مدیر تیم «${team.name}» هستی.` : `تو عضو تیم «${team.name}» هستی${manager ? ` و مدیرت ${manager} است` : ''}.`) : '',
             `فایل‌های freelance-team/company.md (کسب‌وکار)، ${folder ? `${folder}/skill.md و memory.md (پروفایل خودت)` : 'پروفایل خودت'} و freelance-team/people/ROSTER.md (تیم) را یک بار بخوان و بعد منتظر کار بمان. در شروع هر کار دوباره پروفایلت را بخوان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.`,
           ].filter(Boolean).join(String.fromCharCode(10).repeat(2));
-          const made = floor.workers.spawn(keep.desk, by, intro, false, 'agent', provider, model, effort);
+          // In the middle of an interview, the new engine takes it up where it was left: the same questions and what has been said.
+          const start = openIv ? continuedInterview(openIv, team ? { name: team.name, manager, isManager: teams.isManager(id) } : undefined) : intro;
+          const made = floor.workers.spawn(keep.desk, by, start, false, 'agent', provider, model, effort);
           if (typeof made === 'string') {
             // Back on the engine it had, so a failed switch never loses someone.
-            const back = old ? floor.workers.spawn(keep.desk, by, intro, false, 'agent', old.provider, old.model, old.effort) : undefined;
+            const back = old ? floor.workers.spawn(keep.desk, by, start, false, 'agent', old.provider, old.model, old.effort) : undefined;
             if (back && typeof back !== 'string') {
               floor.workers.describe(back.id, { name: keep.name, role: keep.role });
               teams.swap(id, back.id);
@@ -202,19 +208,56 @@ export const hiringRoutes = {
           writeRoster(floor);
           return send(res, 200, { ok: true });
         }
-        case 'review': {
-          // A hired agent is interviewed again: it is asked about its own work and proposes changes to its profile.
-          const w = floor.workers.get(str(body.worker, 32));
-          if (!w || w.kind !== 'agent') return bad('چنین ایجنتی نیست');
-          const r = interviews.review(w.id);
-          if (!r.ok) return bad(r.error);
-          const i = r.interview;
-          const team = i.team ? teams.get(i.team) : undefined;
-          const about = team ? { name: team.name, manager: floor.workers.get(team.manager)?.name, isManager: !!i.isManager } : undefined;
-          tell(floor, [{ to: w.id, text: reviewPrompt(i.name, i.role, `freelance-team/people/${i.slug}`, about) }], by);
+        case 'review':
+        case 'reviewMany': {
+          // Hired agents are interviewed again: each is asked about its own work (and evaluated), and proposes changes to its profile.
+          const ids = body.action === 'review' ? [str(body.worker, 32)] : Array.isArray(body.workers) ? body.workers.slice(0, 40).map((x) => str(x, 32)) : [];
+          const started: string[] = [];
+          const skipped: string[] = [];
+          for (const id of ids) {
+            const w = floor.workers.get(id);
+            const r = w && w.kind === 'agent' ? interviews.review(w.id) : undefined;
+            if (!w || !r?.ok) {
+              skipped.push(w?.name ?? id);
+              continue;
+            }
+            const i = r.interview;
+            const team = i.team ? teams.get(i.team) : undefined;
+            const about = team ? { name: team.name, manager: floor.workers.get(team.manager)?.name, isManager: !!i.isManager } : undefined;
+            tell(floor, [{ to: w.id, text: reviewPrompt(i.name, i.role, `freelance-team/people/${i.slug}`, about) }], by);
+            started.push(i.name);
+          }
+          if (!started.length) return bad(ids.length === 1 && skipped.length ? 'این ایجنت الان در مصاحبه است یا پروفایل ندارد' : 'کسی برای مصاحبه‌ی مجدد پیدا نشد');
           writeRoster(floor);
-          ctx.toastFloor(floor, `🔄 ${by} مصاحبه‌ی بازبینی ${i.name} را شروع کرد`);
-          return send(res, 200, { ok: true, interview: i.id });
+          ctx.toastFloor(floor, `🔄 ${by} مصاحبه‌ی مجدد ${started.length.toLocaleString('fa-IR')} نفر را شروع کرد`);
+          return send(res, 200, { ok: true, started, skipped });
+        }
+        case 'fireAsk':
+        case 'fire': {
+          // Firing takes two steps: asking (which says what will happen), then, within five minutes, the person's name typed in.
+          const id = str(body.worker, 32);
+          const w = floor.workers.get(id);
+          if (!w || w.kind !== 'agent') return bad('چنین ایجنتی نیست');
+          const team = teams.teamOf(id);
+          if (team && teams.isManager(id) && team.members.length) return bad(`او مدیر تیم «${team.name}» است و تیم هنوز ${team.members.length.toLocaleString('fa-IR')} عضو دارد: اول اعضا را به تیم دیگری بدهید یا اخراج کنید`);
+          if (body.action === 'fireAsk') {
+            fireAsked.set(`${floor.id}:${id}`, Date.now());
+            const open = floor.teamTasks.list({ open: true }).filter((t) => t.assignee?.id === id).length;
+            return send(res, 200, { ok: true, name: w.name, team: team?.name, openTasks: open });
+          }
+          const at = fireAsked.get(`${floor.id}:${id}`);
+          if (!at || Date.now() - at > FIRE_WINDOW_MS) return bad('اول مرحله‌ی اول (اخراج) را بزنید و تأیید کنید');
+          if (str(body.name, 60).trim() !== w.name) return bad('نام را درست ننوشتید؛ اخراج انجام نشد');
+          fireAsked.delete(`${floor.id}:${id}`);
+          const open = interviews.open(id);
+          if (open) interviews.settle(open.id, 'keep');
+          teams.leave(id);
+          teams.dropEmpty(id);
+          const home = await floor.sendHome(id);
+          if (home.error) return bad(home.error);
+          writeRoster(floor);
+          ctx.toastFloor(floor, `🚪 ${by} ${w.name} را اخراج کرد`);
+          return send(res, 200, { ok: true });
         }
         case 'apply':
         case 'keep': {
@@ -259,7 +302,7 @@ export const hiringRoutes = {
           return send(res, 200, { ok: true });
         }
         default:
-          return bad('action is hire, switch, company, say, askManager, hired, reject, skip, review, apply, keep, advise, adopt, leave or proposal');
+          return bad('action is hire, switch, company, say, askManager, hired, reject, skip, review, reviewMany, fireAsk, fire, apply, keep, advise, adopt, leave or proposal');
       }
     },
   },

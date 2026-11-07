@@ -392,6 +392,15 @@ export function interviewPrompt(name: string, role: string, skill: string, folde
   ].filter(Boolean).join('\n\n');
 }
 
+/** An interview that goes on with the same person on another engine: its instructions again, and what has been said so far. */
+export function continuedInterview(i: Interview, team?: { name: string; manager?: string; isManager: boolean }): string {
+  const folder = `freelance-team/people/${i.slug}`;
+  const start = i.kind === 'review' ? reviewPrompt(i.name, i.role, folder, team) : interviewPrompt(i.name, i.role, i.skill, folder, team);
+  const said = i.messages.filter((m) => m.by !== 'manager').slice(-20).map((m) => `${m.by === 'agent' ? i.name : 'مدیرعامل'}: ${m.text}`).join('\n');
+  if (!said) return start;
+  return `${start}\n\nتوجه: موتور اجرای تو عوض شده و این مصاحبه همین الان در جریان است. گفتگوی تا اینجا:\n${said}\n\nاز همین‌جا ادامه بده؛ خودت را دوباره معرفی نکن و چیزی را که گفته‌ای تکرار نکن.`;
+}
+
 /** The rules of a good re-interview, in the words the agent is given (and the person reads in docs/features.md). */
 export const REVIEW_RULES = [
   'مصاحبه با خودِ ایجنت است و درباره‌ی کار واقعی خودش؛ نه گفتگو با مدیرعامل درباره‌ی کسب‌وکار. آنچه در company.md هست از مدیرعامل نپرس.',
@@ -412,6 +421,7 @@ export const REVIEW_TOPICS = [
   'پروفایل فعلی: کدام بخش skill.md و memory.md قدیمی، ناقص یا مخالف کار واقعی است؟ برای هر مورد شاهد بیاور.',
   'اشتباه‌ها: از مصاحبه‌ی قبلی چه اشتباهی کرده‌ای و چه قاعده‌ای از آن درآمده؟ قاعده‌ای لازم است که هنوز ننوشته‌ای؟',
   'پیشنهاد: چه چیزی (آموزش، ابزار، تقسیم کار) کارت را بهتر می‌کند؟ به ترتیب اولویت.',
+  'ارزیابی خودت: نقطه‌های قوت و ضعفت از آخرین مصاحبه تا الان، با شاهد (کار و خروجی مشخص)، و اینکه چه کاری را بهتر از همه و چه کاری را ضعیف‌تر انجام می‌دهی. نمره نده؛ توصیف کن.',
 ];
 
 /** The message that starts a re-interview in an agent already at work. */
