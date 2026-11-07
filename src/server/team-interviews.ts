@@ -256,6 +256,13 @@ export class Interviews {
     return i;
   }
 
+  /** The agent hired for an interview (and the team made for it) are written down at once, so the interview still has its agent after a restart. */
+  bind(i: Interview, worker: string, team?: string) {
+    i.worker = worker;
+    if (team) i.team = team;
+    this.save();
+  }
+
   /** An interview that never happened (the hire didn't go through) or a rejected one: gone, with its profile folder. */
   discard(i: Interview) {
     this.list = this.list.filter((x) => x !== i);

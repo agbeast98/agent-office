@@ -168,3 +168,16 @@ test('an interview moved to another engine starts again with its instructions an
     t.done();
   }
 });
+
+test('an interview keeps its agent and team after the office restarts', () => {
+  const t = fresh();
+  try {
+    const x = t.i.start({ worker: '', name: 'علیرضا', role: 'مدیر', desk: 'desk-1', skill: '' });
+    t.i.bind(x, 'w9', 'T1');
+    const again = new Interviews(t.dir, t.people);
+    assert.equal(again.open('w9')?.id, x.id);
+    assert.equal(again.get(x.id)?.team, 'T1');
+  } finally {
+    t.done();
+  }
+});

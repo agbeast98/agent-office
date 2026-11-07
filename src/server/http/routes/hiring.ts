@@ -111,10 +111,10 @@ export const hiringRoutes = {
             interviews.discard(probe);
             return bad(r);
           }
-          probe.worker = r.id;
+          interviews.bind(probe, r.id);
           if (mode === 'newteam') {
             const made = teams.create(teamName, r.id);
-            if (made.ok) probe.team = made.team.id;
+            if (made.ok) interviews.bind(probe, r.id, made.team.id);
           } else if (team) teams.add(team.id, r.id);
           const duty = mode === 'newteam' ? `مدیر و هماهنگ‌کننده‌ی تیم ${teamName}؛ فهرست تیم را در شروع هر کار از freelance-team/people/ROSTER.md بخوان و نیروی لازم را با propose_hire پیشنهاد بده. ` : '';
           floor.workers.describe(r.id, { name, role: `${role}: ${duty}پروفایل تو در ${folder}/skill.md و memory.md است؛ در شروع هر کار بخوانشان و بعد از هر کار نکته‌های تازه را به memory.md اضافه کن.` });
