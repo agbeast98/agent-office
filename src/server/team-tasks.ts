@@ -87,6 +87,8 @@ export class TeamTasks {
   /** The project a name or id means (see projects.ts), and whether this floor has any: if it does, the tasks it hands out say which. */
   projectOf?: (key: string) => { id: string; name: string } | undefined;
   projectName?: (id: string) => string | undefined;
+  /** The folders a worker may use in a project, with where they are: told with the task so it never has to guess a path. */
+  projectPaths?: (worker: string, project: string) => string;
   needsProject?: () => boolean;
   private tasks: TeamTask[] = [];
   private managerId?: string;
@@ -301,7 +303,11 @@ export class TeamTasks {
   /** What is told about a task starts with its project, so an agent working on two never mistakes one for the other. */
   private tagged(task: TeamTask, notices: Notice[]): Notice[] {
     const name = task.project && this.projectName?.(task.project);
-    return name ? notices.map((n) => ({ ...n, text: `[پروژه: ${name}] ${n.text}` })) : notices;
+    if (!name) return notices;
+    return notices.map((n) => {
+      const paths = n.to === task.assignee?.id ? this.projectPaths?.(n.to, task.project!) : '';
+      return { ...n, text: `[پروژه: ${name}] ${n.text}${paths ? `\nپوشه‌های تو در این پروژه: ${paths}` : ''}` };
+    });
   }
 
   /** The oldest finished ones go when there are too many. */

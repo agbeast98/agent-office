@@ -10,6 +10,7 @@ import {
   codexHookArgs,
   hookCommand,
   codexModelArgs,
+  codexPermissionArgs,
   codexPromptArg,
   CODEX_TOOLS_NOTE,
   normalizeCodexHook,
@@ -190,4 +191,11 @@ test('every floor gets the same Codex hook file, so one trust stamp covers them 
     else process.env.AGENT_OFFICE_HOME = before;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+test('a Codex worker runs the office hooks without the trust prompt and with the network on in its sandbox', () => {
+  assert.deepEqual(codexPermissionArgs([], {}), ['--dangerously-bypass-hook-trust', '-c', 'sandbox_workspace_write.network_access=true']);
+  // already on the command line: not added twice; the opt-out leaves it alone
+  assert.deepEqual(codexPermissionArgs(['--dangerously-bypass-hook-trust', '-c', 'sandbox_workspace_write.network_access=false'], {}), []);
+  assert.deepEqual(codexPermissionArgs([], { AGENT_OFFICE_CODEX_PERMISSIONS: 'ask' }), []);
 });

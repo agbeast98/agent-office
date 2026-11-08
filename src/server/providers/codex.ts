@@ -3,7 +3,7 @@
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { officeHome } from '../config.js';
-import { codexHookArgs, codexModelArgs, codexPromptArg, normalizeCodexHook, writeCodexHook } from '../codex.js';
+import { codexHookArgs, codexModelArgs, codexPermissionArgs, codexPromptArg, normalizeCodexHook, writeCodexHook } from '../codex.js';
 import { CodexChatReader } from '../codex-chat.js';
 import { CodexUsageReader } from '../codex-usage.js';
 import { codexMcpArgs } from '../office-workers.js';
@@ -105,6 +105,7 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
     if (h.info.activity === BOOT_HINT) h.info.activity = undefined;
     // Resumed too: Codex resumes on whatever its config says now, not on the model the session ran on.
     args = codexModelArgs(args, h.info.model, h.info.effort);
+    args.push(...codexPermissionArgs(args));
     // Codex reads the whole disk already; --add-dir makes a folder writable, so only the writable grants are added.
     for (const d of dirs?.write ?? []) args.push('--add-dir', d);
     args.push(...codexHookArgs(setup.hook), ...(setup.mcpScript ? codexMcpArgs(setup.mcpScript) : []), '--no-alt-screen');

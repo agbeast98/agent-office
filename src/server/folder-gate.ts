@@ -1,7 +1,7 @@
 // The check that keeps an agent inside the project folders it was granted (see projects.ts). It is the PreToolUse
 // hook of every Claude Code worker (hooks/office-security.ts): a tool that reads or writes a file in a project's
 // folder the agent was not granted, or writes in one it may only read, is refused with the reason, and the same
-// time a card goes to 📥 درخواست از شما so the person can allow that folder for an hour. Files outside every
+// time a card goes to 📥 درخواست از شما so the person can allow that folder for eight hours. Files outside every
 // project's folders are not its business. A shell command is judged by the paths written in it and by the folder it
 // runs in, so it is a guard that tells the agent where it went wrong and not a wall: a roundabout command can still
 // get through. Codex workers are checked the same way (its PreToolUse reaches hooks/server.ts); its --add-dir grants and sandbox limit it besides.
@@ -65,7 +65,7 @@ export function folderGate(floor: Floor, me: WorkerInfo, payload: any): string |
     const asked = floor.requests.ask(me.id, me.name, {
       kind: 'approve',
       title: `اجازه‌ی ${what} ${where}`,
-      detail: `${me.name} می‌خواهد ${t.need === 'write' ? 'در' : 'از'} «${t.file}» ${t.need === 'write' ? 'بنویسد' : 'بخواند'}${secret ? ' (فایل رمز)' : ''}، ولی ${hit.mode ? 'فقط خواندن' : 'هیچ'} دسترسی به این پوشه ندارد. تأیید کنید تا یک ساعت بتواند، یا رد کنید. دسترسی ثابت را در 📁 پروژه‌ها بدهید.`,
+      detail: `${me.name} می‌خواهد ${t.need === 'write' ? 'در' : 'از'} «${t.file}» ${t.need === 'write' ? 'بنویسد' : 'بخواند'}${secret ? ' (فایل رمز)' : ''}، ولی ${hit.mode ? 'فقط خواندن' : 'هیچ'} دسترسی به این پوشه ندارد. تأیید کنید تا هشت ساعت بتواند، یا رد کنید. دسترسی ثابت را در 📁 پروژه‌ها بدهید.`,
       file: key,
     });
     if (asked.ok && asked.fresh) void floor.notifier.send(`📥 ${me.name}: اجازه‌ی ${what} ${where} را می‌خواهد (${asked.req.id})`);

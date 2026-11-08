@@ -144,3 +144,25 @@ test('a floor with projects asks every task it hands out which project it is for
     t.done();
   }
 });
+
+test('what an agent is told about a project task carries the folders it may use and where they are', () => {
+  const t = fresh();
+  try {
+    const tasks = new TeamTasks(path.join(t.root, 'data'));
+    const boss = { id: 'boss', name: 'مدیر', boss: true };
+    const workers = [{ id: 'boss', name: 'مدیر', kind: 'agent', role: 'مدیر تیم' }, { id: 'fe', name: 'فرانت', kind: 'agent' }] as WorkerInfo[];
+    const p = t.projects.create({ name: 'shop', kind: 'new', folders: [{ name: 'front', path: t.front }, { name: 'back', path: t.back }] });
+    assert.ok(p.ok);
+    t.projects.setGrant('fe', p.project.id, 'front', 'write');
+    tasks.needsProject = () => true;
+    tasks.projectOf = (k) => t.projects.find(k) && { id: t.projects.find(k)!.id, name: t.projects.find(k)!.name };
+    tasks.projectName = (id) => t.projects.get(id)?.name;
+    tasks.projectPaths = (worker, project) => t.projects.pathsFor(worker, project);
+    const made = tasks.create(boss, { title: 'صفحه‌ی اصلی', assignee: 'فرانت', project: 'shop' }, workers);
+    assert.ok(made.ok);
+    assert.match(made.notices[0].text, new RegExp(`پوشه‌های تو در این پروژه: front: .*\(نوشتن\)`));
+    assert.ok(!made.notices[0].text.includes(t.back), 'a folder it was not given is not named');
+  } finally {
+    t.done();
+  }
+});

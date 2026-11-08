@@ -59,7 +59,9 @@ const TEXT_MAX = 4000;
 const LIST_MAX = 40;
 const PAIR_PER_HOUR = 6;
 const SENDER_PER_10_MIN = 12;
-const MAX_DEPTH = 3;
+// A manager handing a job down a line of five (the keyword, the text, the picture, the technical and the final review) passes the
+// message on and takes the answers back, so three hops stopped it halfway. Six still ends a loop of two agents answering each other.
+const MAX_DEPTH = 6;
 const CHAIN_MS = 15 * 60_000;
 const REPLY_MS = 12 * 60 * 60_000;
 const CONFIRM_MS = 25_000;

@@ -55,7 +55,7 @@ export const ledgerRoutes = {
           const r = floor.requests.resolve(id, verdict, str(b.note, 1000));
           if (!r) return send(res, 400, { error: 'چنین درخواستی نیست' });
           if (verdict !== 'open') {
-            const said = verdict === 'done' ? (r.scope ? `تأیید کرد: یک ساعت می‌توانی «${r.scope.file}» را تغییر بدهی` : 'انجام داد؛ می‌توانی ادامه بدهی') : 'انجامش نداد؛ بدون آن ادامه بده یا راه دیگری بگو';
+            const said = verdict === 'done' ? (r.scope ? `تأیید کرد: هشت ساعت می‌توانی «${r.scope.file}» را تغییر بدهی` : 'انجام داد؛ می‌توانی ادامه بدهی') : 'انجامش نداد؛ بدون آن ادامه بده یا راه دیگری بگو';
             floor.comms.notify(r.from, `📥 مدیرعامل درخواست ${r.id} «${r.title}» را ${said}.${r.note ? ` توضیحش: ${r.note}` : ''}`);
           }
           return send(res, 200, { ok: true });

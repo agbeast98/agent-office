@@ -362,6 +362,7 @@ export class Floor {
     };
     this.teamTasks.projectName = (id) => this.projects.get(id)?.name;
     this.teamTasks.needsProject = () => this.projects.list().length > 0;
+    this.teamTasks.projectPaths = (worker, project) => this.projects.pathsFor(worker, project, this.teams.isManager(worker));
     this.workers.extraDirs = (id) => this.projects.dirsFor(id, this.teams.isManager(id));
     this.comms = new TeamComms(dataDir, {
       name: (id) => this.workers.get(id)?.name,

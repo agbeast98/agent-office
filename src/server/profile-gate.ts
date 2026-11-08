@@ -1,6 +1,6 @@
 // A lock on the files that make a member who they are: their skill.md and memory.md, the team's policy.md and
 // the roster. A member may write their own profile; changing anyone else's, or the policy, needs the person's yes
-// for that file (an item in 📥 درخواست از شما: say yes and that agent may change it for an hour). Checked in the
+// for that file (an item in 📥 درخواست از شما: say yes and that agent may change it for eight hours). Checked in the
 // PreToolUse hook of every Claude Code worker (see hooks/office-security.ts); it stops Write and Edit tools, not a
 // shell command that writes to such a file (a redirect, tee, sed -i, mv, cp, rm, Set-Content…; found by looking for the
 // path and a writing word in the command, so a very roundabout command can still get through), and Codex workers
@@ -65,7 +65,7 @@ function ask(floor: Floor, me: WorkerInfo, rel: string): string | undefined {
   const asked = floor.requests.ask(me.id, me.name, {
     kind: 'approve',
     title: `اجازه‌ی تغییر ${profile ? `پروفایل ${owner} (${profile[2]}.md)` : rel}`,
-    detail: `${me.name} می‌خواهد «${rel}» را عوض کند. تأیید کنید تا یک ساعت بتواند همین فایل را تغییر بدهد، یا رد کنید.`,
+    detail: `${me.name} می‌خواهد «${rel}» را عوض کند. تأیید کنید تا هشت ساعت بتواند همین فایل را تغییر بدهد، یا رد کنید.`,
     file: rel,
   });
   if (asked.ok && asked.fresh) void floor.notifier.send(`📥 ${me.name}: اجازه‌ی تغییر «${rel}» را از شما می‌خواهد (${asked.req.id})`);

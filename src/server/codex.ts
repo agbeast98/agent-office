@@ -112,6 +112,20 @@ export function codexHookArgs(hookPath: string): string[] {
 }
 
 /**
+ * How a Codex worker is allowed to work, so nothing waits on a question in a terminal nobody is watching.
+ * Its hooks run without the persisted-trust prompt (the office writes the hook file itself, which is the "vetted
+ * source" that flag is for), and the sandbox lets it reach the network so installs and downloads work. Approvals
+ * for a command are left as they are. AGENT_OFFICE_CODEX_PERMISSIONS=ask leaves the command line alone.
+ */
+export function codexPermissionArgs(args: string[], env: NodeJS.ProcessEnv = process.env): string[] {
+  if (env.AGENT_OFFICE_CODEX_PERMISSIONS === 'ask') return [];
+  const out: string[] = [];
+  if (!args.includes('--dangerously-bypass-hook-trust')) out.push('--dangerously-bypass-hook-trust');
+  if (!args.some((a) => a.startsWith('sandbox_workspace_write'))) out.push('-c', 'sandbox_workspace_write.network_access=true');
+  return out;
+}
+
+/**
  * A worker's own model and reasoning effort on Codex's command line. Codex takes --model only once,
  * so one the office's --agent-args set gives way to the worker's; the effort is a config override,
  * and the last of those wins.

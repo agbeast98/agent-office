@@ -247,6 +247,17 @@ export class Projects {
     return { read: [...read], write: [...write] };
   }
 
+  /** Where a worker's folders of one project are on this computer, for what it is told about a task ("front: D:\\..\\front (نوشتن)"). */
+  pathsFor(worker: string, projectId: string, isManager = false): string {
+    const p = this.get(projectId);
+    if (!p) return '';
+    return p.folders
+      .map((f) => ({ f, mode: this.modeFor(worker, p, f, isManager) }))
+      .filter((x) => x.mode)
+      .map((x) => `${x.f.name}: ${x.f.path} (${x.mode === 'write' ? 'نوشتن' : 'خواندن'})`)
+      .join('؛ ');
+  }
+
   private modeFor(worker: string, project: Project, folder: ProjectFolder, isManager: boolean): GrantMode | undefined {
     const g = this.grantsOf(worker).find((x) => x.project === project.id && x.folder === folder.name);
     // A team's manager reads every project's folders, so it can look at the work it hands out.

@@ -75,7 +75,7 @@ export interface Req {
   until?: number;
 }
 
-const PERMIT_MS = 60 * 60_000;
+const PERMIT_MS = 8 * 60 * 60_000;
 
 export class TeamRequests extends Ledger<Req> {
   constructor(dataDir: string) {
