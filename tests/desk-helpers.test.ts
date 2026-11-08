@@ -23,3 +23,8 @@ test('no terminal, or a text with nothing to compare, is never "still typed"', (
   assert.equal(stillTyped({} as Worker, prompt), false);
   assert.equal(stillTyped(showing(['abc']), 'abc'), false);
 });
+
+test('a long paste Codex folded into "[Pasted Content … chars]" is still noticed in the box', () => {
+  const folded = showing(['Worked for 36s • Nov 7 at 7:14 PM', '› [Pasted Content 3927 chars]', '', 'GPT-6-Luna high · ~\playground']);
+  assert.equal(stillTyped(folded, prompt), true);
+});

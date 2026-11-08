@@ -87,13 +87,15 @@ export function stillTyped(w: Worker, text: string): boolean {
     const line = buf.getLine(i)?.translateToString(true).trim();
     if (line) bottom.push(line);
   }
+  // Codex folds a long paste into one line, "[Pasted Content 3927 chars]", so the text itself is not on the screen then.
+  if (bottom.some((l) => /^[›>]?s*[Pasted (?:Content|text)[^]]*]s*$/i.test(l))) return true;
   const tail = bare(text).slice(-16);
   return tail.length >= 8 && bare(bottom.join('')).includes(tail);
 }
 
 /** Codex takes the Enter that follows a paste as part of the paste now and then: if the text is still in the box a moment later, Enter is pressed again. */
 export function retrySubmit(w: Worker, text: string, enter: () => void) {
-  for (const ms of [1800, 4500]) {
+  for (const ms of [1800, 4500, 12_000, 30_000]) {
     setTimeout(() => {
       if (w.pty && w.info.status !== 'working' && stillTyped(w, text)) enter();
     }, ms).unref();
