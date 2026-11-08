@@ -50,10 +50,15 @@ export function renderCodexLimits() {
 export function renderLimits() {
   const s = store.limits;
   const el = $('limits');
-  el.classList.toggle('hidden', !s.windows.length);
-  if (!s.windows.length) return;
+  // A plan with no numbers yet says so instead of hiding the meter; no plan at all (an API key, signed out) has nothing to show.
+  el.classList.toggle('hidden', !s.windows.length && !s.plan);
+  if (!s.windows.length && !s.plan) return;
   const now = Date.now();
   const plan = s.plan ? s.plan.charAt(0).toUpperCase() + s.plan.slice(1) : '';
+  if (!s.windows.length) {
+    el.replaceChildren(h('h3', {}, 'Claude limits', h('span.plan', {}, plan), panelHide('limits')), h('div.row.muted', {}, 'Numbers not available right now; click to read again'));
+    return;
+  }
   el.replaceChildren(h('h3', {}, 'Claude limits', plan ? h('span.plan', {}, plan) : null, panelHide('limits')), ...s.windows.flatMap((w) => windowRow(w, now)));
   if (now - s.at > STALE_MS) el.append(h('div.row.muted', {}, `As of ${new Date(s.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`));
 }

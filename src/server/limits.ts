@@ -84,8 +84,11 @@ export class PlanLimitsReader {
       }
     } else {
       this.fails = 0;
-      this.limits = this.parse(answer);
-      if (!this.limits.windows.length && !this.codex?.windows.length) next = NO_PLAN_MS;
+      const parsed = this.parse(answer);
+      // Claude Code sometimes answers with the plan but no numbers (its own read of them failed or is warming up): the last numbers
+      // it gave stay on the meter, marked with when they were read, rather than the meter vanishing.
+      this.limits = !parsed.windows.length && this.limits.windows.length ? { ...this.limits, plan: parsed.plan ?? this.limits.plan } : parsed;
+      if (!this.limits.windows.length && !this.limits.plan && !this.codex?.windows.length) next = NO_PLAN_MS;
       this.onChange(this.state);
     }
     this.schedule(next);
