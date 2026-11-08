@@ -88,7 +88,7 @@ export function stillTyped(w: Worker, text: string): boolean {
     if (line) bottom.push(line);
   }
   // Codex folds a long paste into one line, "[Pasted Content 3927 chars]", so the text itself is not on the screen then.
-  if (bottom.some((l) => /^[›>]?s*[Pasted (?:Content|text)[^]]*]s*$/i.test(l))) return true;
+  if (bottom.some((l) => /^[\u203a>]?\s*\[Pasted (?:Content|text)\b[^\]]*\]\s*$/i.test(l))) return true;
   const tail = bare(text).slice(-16);
   return tail.length >= 8 && bare(bottom.join('')).includes(tail);
 }
