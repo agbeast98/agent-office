@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { AgentEffort } from '../shared/providers.js';
 
@@ -116,10 +116,19 @@ export function codexHookArgs(hookPath: string): string[] {
  * Its hooks run without the persisted-trust prompt (the office writes the hook file itself, which is the "vetted
  * source" that flag is for), and the sandbox lets it reach the network so installs and downloads work. Approvals
  * for a command are left as they are. AGENT_OFFICE_CODEX_PERMISSIONS=ask leaves the command line alone.
+ *
+ * A floor the person has marked `full` (see codexAccess) runs Codex with no sandbox and no questions at all: the sandbox
+ * keeps `.git` read-only, so every commit and branch of a dev team stopped at a question, and Codex's "don't ask again"
+ * only remembers the one exact command. The office's own gates (folder, profile) and the floor's policy are what hold it then.
  */
-export function codexPermissionArgs(args: string[], env: NodeJS.ProcessEnv = process.env): string[] {
+export function codexPermissionArgs(args: string[], env: NodeJS.ProcessEnv = process.env, access: CodexAccess = 'default'): string[] {
   if (env.AGENT_OFFICE_CODEX_PERMISSIONS === 'ask') return [];
   const out: string[] = [];
+  if (access === 'full') {
+    if (!args.includes('--dangerously-bypass-approvals-and-sandbox')) out.push('--dangerously-bypass-approvals-and-sandbox');
+    if (!args.includes('--dangerously-bypass-hook-trust')) out.push('--dangerously-bypass-hook-trust');
+    return out;
+  }
   if (!args.includes('--dangerously-bypass-hook-trust')) out.push('--dangerously-bypass-hook-trust');
   if (!args.some((a) => a.startsWith('sandbox_workspace_write'))) out.push('-c', 'sandbox_workspace_write.network_access=true');
   return out;
@@ -161,6 +170,17 @@ export function codexPromptArg(dataDir: string, workerId: string, prompt: string
   const file = path.join(dir, `${workerId.replace(/[^\w-]/g, '_')}.md`);
   writeFileSync(file, `\uFEFF${CODEX_TOOLS_NOTE}\n\n${prompt}\n`, { mode: 0o600 });
   return `${CODEX_TOOLS_NOTE} Your full instructions are in the UTF-8 file ${file} (read it with Get-Content -Raw -Encoding UTF8). Read it completely first, then follow it exactly, starting with what it says to do first.`;
+}
+
+export type CodexAccess = 'default' | 'full';
+
+/** How much a floor's Codex workers may do: `codex-access.json` in the floor's data dir, `{"mode":"full"}`; anything else is the default. */
+export function readCodexAccess(dataDir: string): CodexAccess {
+  try {
+    return JSON.parse(readFileSync(path.join(dataDir, 'codex-access.json'), 'utf8'))?.mode === 'full' ? 'full' : 'default';
+  } catch {
+    return 'default';
+  }
 }
 
 /** Write the stable, self-contained helper invoked by Codex's native command hooks. */

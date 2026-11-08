@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import {
   hookCommand,
   codexModelArgs,
   codexPermissionArgs,
+  readCodexAccess,
   codexPromptArg,
   CODEX_TOOLS_NOTE,
   normalizeCodexHook,
@@ -198,4 +199,19 @@ test('a Codex worker runs the office hooks without the trust prompt and with the
   // already on the command line: not added twice; the opt-out leaves it alone
   assert.deepEqual(codexPermissionArgs(['--dangerously-bypass-hook-trust', '-c', 'sandbox_workspace_write.network_access=false'], {}), []);
   assert.deepEqual(codexPermissionArgs([], { AGENT_OFFICE_CODEX_PERMISSIONS: 'ask' }), []);
+});
+
+test('a floor marked full runs Codex with no sandbox and no questions; the mark is read from the floor data dir', () => {
+  assert.deepEqual(codexPermissionArgs([], {}, 'full'), ['--dangerously-bypass-approvals-and-sandbox', '--dangerously-bypass-hook-trust']);
+  assert.deepEqual(codexPermissionArgs([], { AGENT_OFFICE_CODEX_PERMISSIONS: 'ask' }, 'full'), []);
+  const dir = mkdtempSync(path.join(tmpdir(), 'office-access-'));
+  try {
+    assert.equal(readCodexAccess(dir), 'default');
+    writeFileSync(path.join(dir, 'codex-access.json'), '{"mode":"full"}');
+    assert.equal(readCodexAccess(dir), 'full');
+    writeFileSync(path.join(dir, 'codex-access.json'), '{"mode":"nope"}');
+    assert.equal(readCodexAccess(dir), 'default');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

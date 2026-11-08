@@ -3,7 +3,7 @@
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { officeHome } from '../config.js';
-import { codexHookArgs, codexModelArgs, codexPermissionArgs, codexPromptArg, normalizeCodexHook, writeCodexHook } from '../codex.js';
+import { codexHookArgs, codexModelArgs, codexPermissionArgs, codexPromptArg, normalizeCodexHook, readCodexAccess, writeCodexHook, type CodexAccess } from '../codex.js';
 import { CodexChatReader } from '../codex-chat.js';
 import { CodexUsageReader } from '../codex-usage.js';
 import { codexMcpArgs } from '../office-workers.js';
@@ -27,6 +27,8 @@ interface CodexState {
 
 interface CodexSetup {
   hook: string;
+  /** What this floor lets its Codex workers do (see codexPermissionArgs). */
+  access: CodexAccess;
   mcpScript?: string;
 }
 
@@ -99,13 +101,13 @@ export const codex: ProviderAdapter<CodexState, CodexSetup> = {
   createState: () => ({ usage: new CodexUsageReader(), tools: new Map(), pending: new Set() }),
   // One hook file for every floor: Codex keeps a single trust stamp per hook event, made from the command (its path
   // included), so a file of its own on each floor made the floors un-trust each other and every start asked again.
-  prepare: ({ mcpScript }) => ({ hook: writeCodexHook(path.join(officeHome(), 'codex-hook')), mcpScript }),
+  prepare: ({ dataDir, mcpScript }) => ({ hook: writeCodexHook(path.join(officeHome(), 'codex-hook')), access: readCodexAccess(dataDir), mcpScript }),
   launch({ h, args, prompt, resumeSessionId, setup, dirs }) {
     // The hint of a boot that was silent (see bootHint) is stale once it is launched again.
     if (h.info.activity === BOOT_HINT) h.info.activity = undefined;
     // Resumed too: Codex resumes on whatever its config says now, not on the model the session ran on.
     args = codexModelArgs(args, h.info.model, h.info.effort);
-    args.push(...codexPermissionArgs(args));
+    args.push(...codexPermissionArgs(args, process.env, setup.access));
     // Codex reads the whole disk already; --add-dir makes a folder writable, so only the writable grants are added.
     for (const d of dirs?.write ?? []) args.push('--add-dir', d);
     args.push(...codexHookArgs(setup.hook), ...(setup.mcpScript ? codexMcpArgs(setup.mcpScript) : []), '--no-alt-screen');
