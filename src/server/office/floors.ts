@@ -6,7 +6,7 @@ import { ROOF } from '../../shared/rooftop.js';
 import type { FloorInfo, ServerMsg } from '../../shared/protocol.js';
 import type { Ctx, FloorHelpers, FloorsOpen } from './context.js';
 import { SLOW_CLIENT_BYTES, type Client } from './client.js';
-import { nudgeOpenWork } from '../resume-work.js';
+import { nudgeOpenWork, watchStalledWork } from '../resume-work.js';
 
 /** Finding floors, the elevator's list of them, and taking one off the building. */
 export function floorHelpers(ctx: Ctx): FloorHelpers {
@@ -132,6 +132,7 @@ export async function openFloors(ctx: Ctx, hookPort: number): Promise<FloorsOpen
       const floor = new Floor(def, floorContext);
       floors.set(def.id, floor);
       nudgeOpenWork(floor);
+      watchStalledWork(floor);
       return floor;
     } catch (err) {
       console.error(`agent-office: couldn't open the ${def.name} floor: ${(err as Error).message}`);

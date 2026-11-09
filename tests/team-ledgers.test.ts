@@ -25,7 +25,7 @@ test('a request is not made twice while it is open, and the answer is remembered
   rmSync(d, { recursive: true, force: true });
 });
 
-test('a yes to changing a profile lets that agent change that file for an hour, and no one else', () => {
+test('a yes to changing a profile lets that agent change that file for eight hours, and no one else', () => {
   const d = dir();
   const r = new TeamRequests(d);
   const a = r.ask('ars', 'ارسلان', { title: 'اجازه', kind: 'approve', file: 'freelance-team/people/habib/skill.md' });
@@ -37,7 +37,7 @@ test('a yes to changing a profile lets that agent change that file for an hour, 
   assert.ok(r.permitFor('ars', 'freelance-team/people/habib/skill.md', now + 1000));
   assert.equal(r.permitFor('other', 'freelance-team/people/habib/skill.md', now + 1000), undefined);
   assert.equal(r.permitFor('ars', 'freelance-team/people/elmira/skill.md', now + 1000), undefined);
-  assert.equal(r.permitFor('ars', 'freelance-team/people/habib/skill.md', now + 61 * 60_000), undefined, 'the leave runs out');
+  assert.equal(r.permitFor('ars', 'freelance-team/people/habib/skill.md', now + 8 * 60 * 60_000 + 60_000), undefined, 'the leave runs out');
   r.resolve(id, 'declined', 'نه', now);
   assert.equal(r.permitFor('ars', 'freelance-team/people/habib/skill.md', now + 1000), undefined);
   r.swap('ars', 'ars2');
@@ -208,4 +208,20 @@ test('a team that is missing is brought back member by member, and every store l
   for (const store of ['teams', 'interviews', 'tasks', 'comms', 'requests', 'mistakes', 'evals']) assert.ok(swaps.includes(`${store}:old1>new1`), `${store} follows Sara`);
   assert.ok(snapshotWritten);
   rmSync(floorDir, { recursive: true, force: true });
+});
+
+test('📥 takes what only the person can do: reports are turned away, the same ask is not made twice, and an agent has at most three open', () => {
+  const r = new TeamRequests(dir());
+  const report = r.ask('a', 'علی', { title: 'خلاصه‌ی وضعیت T-21', kind: 'decision' });
+  assert.equal(report.ok, false);
+  assert.equal(r.ask('a', 'علی', { title: 'کار تمام شد', kind: 'info' }).ok, false);
+  const first = r.ask('a', 'علی', { title: 'ورود به پنل لازم است', kind: 'login' });
+  assert.ok(first.ok && first.fresh);
+  const again = r.ask('a', 'علی', { title: 'ورود به پنل، لازم است!', kind: 'login' });
+  assert.ok(again.ok && !again.fresh, 'the same ask comes back as the open one');
+  assert.ok(r.ask('a', 'علی', { title: 'تأیید انتشار', kind: 'approve' }).ok);
+  assert.ok(r.ask('a', 'علی', { title: 'کدام عکس', kind: 'decision' }).ok);
+  assert.equal(r.ask('a', 'علی', { title: 'یک چیز دیگر', kind: 'decision' }).ok, false, 'three open is the most');
+  // a lock asking for a folder or a file is never held back
+  assert.ok(r.ask('a', 'علی', { title: 'اجازه‌ی نوشتن', kind: 'approve', file: 'folder:x:write' }).ok);
 });

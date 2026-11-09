@@ -77,6 +77,15 @@ export interface Req {
 
 const PERMIT_MS = 8 * 60 * 60_000;
 
+/** A title that reports instead of asking: «خلاصه‌ی ...»، «گزارش ...»، «وضعیت ...». */
+const REPORT = /^\s*(?:\[[^\]]*\]\s*)?(?:خلاصه|گزارش|وضعیت|status|summary|report)/i;
+const OPEN_PER_AGENT = 3;
+/** Two titles that ask the same thing: the same words, give or take punctuation and spacing, in their first 40 letters. */
+const same = (a: string, b: string) => {
+  const k = (s: string) => s.replace(/[\s\u200c.,،؛:!?؟«»"'()\[\]-]+/g, '').slice(0, 40);
+  return k(a) === k(b);
+};
+
 export class TeamRequests extends Ledger<Req> {
   constructor(dataDir: string) {
     super(path.join(dataDir, 'team-requests.json'), 'R', 300);
@@ -95,6 +104,15 @@ export class TeamRequests extends Ledger<Req> {
     if (dup) return { ok: true, req: dup, fresh: false };
     const url = text(input.url, 500);
     const file = text(input.file, 300);
+    // What an agent asks itself (not a lock asking for a folder or a file): 📥 is for what only the person can do or decide.
+    // It filled with status reports, failed-message notes and the same thing asked again, and the real decisions got lost.
+    if (!file) {
+      if (kind === 'info' || REPORT.test(title)) return { ok: false, error: 'این گزارش وضعیت است، نه درخواست: آن را با add_task_note روی تسکت بنویس یا به مدیرت بگو. «📥» فقط برای کاری است که فقط مدیرعامل می‌تواند انجام دهد یا تصمیمش را بگیرد.' };
+      const near = this.items.find((r) => r.status === 'open' && r.from === from && !r.scope && same(r.title, title));
+      if (near) return { ok: true, req: near, fresh: false };
+      const mine = this.items.filter((r) => r.status === 'open' && r.from === from && !r.scope);
+      if (mine.length >= OPEN_PER_AGENT) return { ok: false, error: `${mine.length} درخواست باز داری (${mine.map((r) => r.id).join('، ')}) که هنوز جواب نگرفته‌اند. درخواست تازه نساز: اگر چیزی اضافه شده، با add_task_note بنویس و کار دیگری را ادامه بده.` };
+    }
     const req = this.add({ from, fromName, kind, title, detail: text(input.detail, 4000), status: 'open', ...(url ? { url } : {}), ...(file ? { scope: { file } } : {}) });
     return { ok: true, req, fresh: true };
   }

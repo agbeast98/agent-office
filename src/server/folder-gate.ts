@@ -47,9 +47,48 @@ function touches(payload: any): Touch[] {
   return [];
 }
 
+/** What the team keeps in its own repository: its files, the office's data, the agents' settings. Nothing else is written there. */
+const TEAM_OWN = /^(freelance-team|\.agent-office|\.claude|\.codex|\.agents)([\\/]|$)|^(CLAUDE|AGENTS|README)\.md$/i;
+/** A branch made or switched to: in the team's repository that leaves the office writing its files on someone's branch. */
+const BRANCHING = /\bgit\b(?![^;&|]*\s-C\s)[^;&|]*\b(?:switch\s+-[cC]|checkout\s+-[bB]|checkout\s+(?!-)[\w./-]+|switch\s+(?!-)[\w./-]+|branch\s+(?!-)[\w./-]+)/;
+
+/**
+ * On a floor with projects, an agent's own folder is the team's repository and the project's code lives in the
+ * project's folders: a project file written here, or a branch made here, went to the wrong place (it happened: a
+ * design and a git branch ended up in the team's repository). Undefined when it is fine.
+ */
+export function teamRepoGate(floor: Floor, me: WorkerInfo, payload: any): string | undefined {
+  const root = floor.dir;
+  if (!root) return undefined;
+  const tool = String(payload?.tool_name ?? '');
+  const input = payload?.tool_input ?? {};
+  const cwd = String(payload?.cwd ?? '');
+  const inRoot = (f: string) => !path.relative(root, f).startsWith('..') && !path.isAbsolute(path.relative(root, f));
+  const where = () => floor.projects.list().flatMap((p) => p.folders.map((f) => `${p.name}/${f.name}: ${f.path}`)).slice(0, 6).join('؛ ');
+  const refuse = (what: string) =>
+    `${what} مخزن خود تیم (${root}) است، نه پوشه‌ی پروژه. کد، طرح و فایل‌های پروژه را فقط با مسیر مطلق در پوشه‌ی پروژه بنویس و git را با «git -C <مسیر پروژه>» بزن. پوشه‌های پروژه: ${where()}`;
+  if (SHELLS.has(tool)) {
+    const raw = input.command ?? input.cmd ?? input.script ?? '';
+    const command = Array.isArray(raw) ? raw.join(' ') : String(raw);
+    if (cwd && inRoot(path.resolve(cwd)) && BRANCHING.test(command)) return refuse('ساختن یا عوض کردن شاخه‌ی git در');
+    return undefined;
+  }
+  const files = tool === 'apply_patch'
+    ? [...String(input.command ?? input.input ?? input.patch ?? (typeof payload?.tool_input === 'string' ? payload.tool_input : '')).matchAll(PATCH)].map((m) => m[1].trim())
+    : WRITERS.has(tool) ? [String(input.file_path ?? input.notebook_path ?? input.path ?? '')] : [];
+  for (const f of files) {
+    if (!f) continue;
+    const abs = path.resolve(cwd || root, f);
+    if (inRoot(abs) && !TEAM_OWN.test(path.relative(root, abs))) return refuse(`نوشتن «${path.relative(root, abs)}» در`);
+  }
+  return undefined;
+}
+
 /** Why a worker may not do this yet, as the words it is told; undefined when it may. */
 export function folderGate(floor: Floor, me: WorkerInfo, payload: any): string | undefined {
   if (!floor.projects.list().some((p) => p.folders.length)) return undefined;
+  const misplaced = teamRepoGate(floor, me, payload);
+  if (misplaced) return misplaced;
   const manager = floor.teams.isManager(me.id);
   for (const t of touches(payload)) {
     if (!t.file) continue;

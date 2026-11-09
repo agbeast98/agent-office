@@ -166,3 +166,29 @@ test('what an agent is told about a project task carries the folders it may use 
     t.done();
   }
 });
+
+test('on a floor with projects, project files and git branches are refused in the team repository itself', () => {
+  const t = fresh();
+  try {
+    const made = t.projects.create({ name: 'shop', kind: 'new', folders: [{ name: 'front', path: t.front }] });
+    assert.ok(made.ok);
+    t.projects.setGrant('fe', made.project.id, 'front', 'write');
+    const team = path.join(t.root, 'team');
+    mkdirSync(team, { recursive: true });
+    const { floor } = gateFloor(t);
+    (floor as { dir?: string }).dir = team;
+    const me = worker('fe');
+    const write = (file: string) => folderGate(floor, me, { tool_name: 'Write', tool_input: { file_path: file }, cwd: team });
+    assert.match(write('front/ideas-v2/IDEA.md') ?? '', /مخزن خود تیم/);
+    assert.equal(write('freelance-team/people/x/memory.md'), undefined, 'the team files are its own');
+    assert.equal(write('CLAUDE.md'), undefined);
+    const shell = (command: string) => folderGate(floor, me, { tool_name: 'Bash', tool_input: { command }, cwd: team });
+    assert.match(shell('git switch -c feature/P1-ui-ideas') ?? '', /شاخه/);
+    assert.match(shell('git checkout -b x') ?? '', /شاخه/);
+    assert.equal(shell('git branch --show-current'), undefined);
+    assert.equal(shell('git status'), undefined);
+    assert.equal(shell(`git -C ${t.front} switch -c feature/x`), undefined, 'a branch in the project folder is fine');
+  } finally {
+    t.done();
+  }
+});
