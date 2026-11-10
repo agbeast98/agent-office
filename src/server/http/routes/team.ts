@@ -27,6 +27,7 @@ export const teamRoutes = {
         security: { waiting: floor.security.holds.filter((h) => h.status === 'pending').length, asked: floor.security.holds.filter((h) => h.status === 'asked').length },
         flows: { running: floor.flows.runs.filter((r) => r.status === 'running').length, waiting: floor.flows.runs.filter((r) => r.status === 'gate' || r.status === 'stuck').length },
         schedule: floor.teamSchedule.items.map(({ lastRun: _lastRun, ...i }) => i),
+        repeats: floor.teamRepeats.items.map((r) => ({ ...r, name: floor.workers.get(r.to)?.name })),
         approvals: floor.workerBrowsers.waiting().map((a) => ({ workerId: a.workerId, name: floor.workers.get(a.workerId)?.name ?? a.workerId, ...a.request })),
         people: workers.map((w) => ({ id: w.id, name: w.name, role: w.role, status: w.status, activity: w.activity })),
         tasks: floor.teamTasks.all().map((t) => ({ ...view(t), assigneeId: t.assignee?.id, notes: t.notes.slice(-20), updatedAt: t.updatedAt, createdAt: t.createdAt })),
@@ -132,13 +133,15 @@ export const teamRoutes = {
       if (!floor) return send(res, 404, { error: 'No such floor' });
       let body: Record<string, unknown>;
       try {
-        const value = JSON.parse(await readBody(req, 2_000));
+        const value = JSON.parse(await readBody(req, 8_000));
         if (!value || typeof value !== 'object' || Array.isArray(value)) return send(res, 400, { error: 'Bad request' });
         body = value as Record<string, unknown>;
       } catch {
         return send(res, 400, { error: 'Bad request' });
       }
-      const error = floor.teamSchedule.set(body.id, body);
+      // { repeat: true, id?, to?, everyHours?, text?, enabled?, remove? } is a round every so many hours (see team-repeats.ts).
+      if (body.repeat === true && body.id === undefined && !floor.workers.get(String(body.to ?? ''))) return send(res, 400, { error: 'No such person' });
+      const error = body.repeat === true ? floor.teamRepeats.set(body) : floor.teamSchedule.set(body.id, body);
       return error ? send(res, 400, { error }) : send(res, 200, { ok: true });
     },
   },

@@ -31,6 +31,7 @@ import { WorkerBrowsers } from './worker-browser.js';
 import { TeamTasks } from './team-tasks.js';
 import { TeamMeetings } from './team-meeting.js';
 import { TeamSchedule, runSchedule, SCHEDULE_TICK_MS } from './team-schedule.js';
+import { TeamRepeats, runRepeats } from './team-repeats.js';
 import { Notifier } from './notify.js';
 import { Security } from './security.js';
 import { Flows } from './team-flows.js';
@@ -143,6 +144,7 @@ export class Floor {
   /** A meeting of the people it already has (see team-meeting.ts). */
   readonly teamMeetings: TeamMeetings;
   readonly teamSchedule: TeamSchedule;
+  readonly teamRepeats: TeamRepeats;
   readonly notifier: Notifier;
   readonly security: Security;
   readonly flows: Flows;
@@ -350,6 +352,7 @@ export class Floor {
     this.teamTasks = new TeamTasks(dataDir);
     this.teamMeetings = new TeamMeetings(dataDir);
     this.teamSchedule = new TeamSchedule(dataDir);
+    this.teamRepeats = new TeamRepeats(dataDir);
     this.notifier = new Notifier(dataDir);
     const seeded = seedFromSnapshot(def.dir, dataDir);
     this.interviews = new Interviews(dataDir, path.join(def.dir, 'freelance-team', 'people'));
@@ -403,7 +406,7 @@ export class Floor {
     this.security = new Security(dataDir, path.join(def.dir, 'freelance-team', 'security-rules.md'));
     this.workerBrowsers.gate = (workerId, kind, address, detail) => browserGate(this, workerId, kind, address, detail);
     this.workerBrowsers.onPending = (workerId, request) => void this.notifier.send(`⏳ ${this.workers.get(workerId)?.name ?? 'یک ایجنت'} منتظر تأیید شماست: «${request.label}»${request.risky ? ' (پرداخت/حذف: فقط خودتان)' : ''}`);
-    this.scheduleTimer = setInterval(() => runSchedule(this), SCHEDULE_TICK_MS);
+    this.scheduleTimer = setInterval(() => (runSchedule(this), runRepeats(this)), SCHEDULE_TICK_MS);
     this.scheduleTimer.unref();
     this.whiteboard = new Whiteboard(dataDir);
     this.ready = this.workers.start();
