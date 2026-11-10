@@ -210,7 +210,6 @@ export function createConvo(opts: ConvoOpts): Convo {
           order.push(m.id);
         }
         scroller.scrollTop = top;
-        added = items.filter((m) => m.side !== 'me' && !m.divider).length ? 0 : 0;
       } else {
         for (const m of items) {
           const have = nodes.get(m.id);

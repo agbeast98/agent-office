@@ -1,5 +1,5 @@
 /* The استخدام window: the interview or the hire form on the right, the map of desks beside it. */
-.hirewin { width: min(1100px, 97vw); height: min(780px, 94vh); display: flex; flex-direction: column; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
+.hirewin { width: min(1240px, 97vw); height: min(880px, 95vh); display: flex; flex-direction: column; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
 .hirewin h2 { margin: 0; font-size: 18px; } .hirewin h3 { margin: 0; font-size: 15px; } .hirewin h4 { margin: 0 0 4px; font-size: 13px; }
 .hirewin > header { display: flex; align-items: center; gap: 12px; direction: ltr; } .hirewin > header > * { direction: rtl; } .hirewin > header .close { margin-left: auto; }
 html[dir="rtl"] .hirewin > header .close { margin-left: 0; margin-right: auto; }
@@ -51,6 +51,11 @@ html[dir="rtl"] .hirewin > header .close { margin-left: 0; margin-right: auto; }
 .hr-card.company textarea { min-height: 140px; }
 
 /* the interview conversation fills its card */
-.hirewin .hr-card.interview .cv { flex: 1 1 340px; min-height: 300px; max-height: 480px; }
+.hirewin .hr-card.interview .cv { flex: 1 1 auto; min-height: 320px; }
+/* an interview takes the whole window: no map beside it, and the card scrolls only when the result is under the chat */
+.hr-body.talk { grid-template-columns: minmax(0, 1fr); } .hr-body.talk .hr-map { display: none; }
+.hr-body.talk .hr-card.interview { overflow-y: auto; background: #fff; }
+.hr-body.talk .hr-card.interview > :not(.cv) { flex: none; }
+.hr-back { padding: 3px 10px; font-size: 12px; }
 .hr-picks { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; } .hr-pick { display: flex; gap: 8px; align-items: center; } .hr-pick small { opacity: .7; }
 .btn.danger { background: #fde0e0; border-color: #b33; color: #8a1f1f; }

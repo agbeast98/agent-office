@@ -1,24 +1,24 @@
 /* The conversation of the meeting room and the interview: a light, quiet chat that fills the room it is given. */
 .cv { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; background: #f5f7f9; border: 1px solid #dde4ea; border-radius: 14px; overflow: hidden; color: #172536; font-family: Vazirmatn, Tahoma, 'Segoe UI', system-ui, sans-serif; }
 .cv .hidden { display: none !important; }
-.cv-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; overflow-anchor: auto; }
-.cv-list { display: flex; flex-direction: column; gap: 10px; }
+.cv-scroll { flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; overflow-anchor: auto; }
+.cv-list { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 920px; margin-inline: auto; }
 .cv-empty { margin: auto; max-width: 420px; text-align: center; color: #6c7c8c; font-size: 13px; line-height: 2; padding: 30px 10px; }
 
 .cv-msg { display: flex; align-items: flex-end; gap: 9px; max-width: 100%; }
 .cv-msg.me { flex-direction: row-reverse; }
 .cv-av { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0b7569; color: #fff; font-size: 15px; font-weight: 800; }
-.cv-bub { min-width: 0; max-width: min(680px, 86%); padding: 9px 13px 11px; background: #fff; border: 1px solid #e0e6ec; border-radius: 4px 16px 16px 16px; box-shadow: 0 1px 2px #1d34450a; }
+.cv-bub { min-width: 0; max-width: min(760px, 88%); padding: 11px 16px 13px; background: #fff; border: 1px solid #e0e6ec; border-radius: 4px 16px 16px 16px; box-shadow: 0 1px 2px #1d34450a; }
 .cv-msg.me .cv-bub { background: #e2f4ef; border-color: #bfe3d9; border-radius: 16px 4px 16px 16px; }
-.cv-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 4px; font-size: 12px; }
+.cv-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 7px; padding-bottom: 5px; border-bottom: 1px solid #0000000d; font-size: 12px; }
 .cv-meta b { font-size: 13px; } .cv-meta small, .cv-meta time { color: #758394; font-size: 11px; font-weight: 400; } .cv-meta time { margin-inline-start: auto; }
 .cv-tag { padding: 0 8px; border-radius: 999px; background: #dcebff; color: #1f5fb8; font-size: 11px; font-weight: 700; }
-.cv-body { font-size: 14px; line-height: 1.95; overflow-wrap: anywhere; }
-.cv-body p { margin: 0 0 8px; white-space: pre-wrap; unicode-bidi: plaintext; } .cv-body > :last-child { margin-bottom: 0; }
-.cv-body ul, .cv-body ol { margin: 0 0 8px; padding-inline-start: 22px; } .cv-body li { margin: 2px 0; unicode-bidi: plaintext; }
+.cv-body { font-size: 15px; line-height: 2.05; overflow-wrap: anywhere; text-align: start; }
+.cv-body p { margin: 0 0 11px; white-space: pre-wrap; unicode-bidi: plaintext; } .cv-body > :last-child { margin-bottom: 0; }
+.cv-body ul, .cv-body ol { margin: 0 0 11px; padding-inline-start: 24px; } .cv-body li { margin: 5px 0; unicode-bidi: plaintext; }
 .cv-body code { padding: 1px 5px; border-radius: 5px; background: #eef2f6; font-size: 12.5px; direction: ltr; unicode-bidi: isolate; }
 .cv-body pre { margin: 0 0 8px; padding: 10px 12px; overflow-x: auto; border-radius: 8px; background: #172536; color: #e6edf3; } .cv-body pre code { background: none; color: inherit; padding: 0; white-space: pre; }
-.cv-body .rt-h { margin: 6px 0 4px; font-weight: 800; color: #0b7569; }
+.cv-body .rt-h { margin: 12px 0 6px; font-size: 15.5px; font-weight: 800; color: #0b7569; } .cv-body > .rt-h:first-child { margin-top: 0; }
 .cv-body .rt-link { color: #1f5fb8; text-decoration: underline; overflow-wrap: anywhere; }
 .cv-body .rt-gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .cv-body .rt-pic { display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 360px); padding: 5px; border: 1px solid #dde4ea; border-radius: 10px; background: #fff; text-decoration: none; color: inherit; }
