@@ -225,6 +225,12 @@ export function openHiring(floor: string, desk?: string) {
   /** Out of the interview, back to the map of desks (the interview goes on; it is listed there). */
   const backBtn = () => h('button.btn.hr-back', { type: 'button', title: 'نقشه‌ی میزها و بقیه‌ی مصاحبه‌ها', onclick: () => { selected = undefined; render(); } }, '🗺 میزها');
 
+  /** The interview over the whole browser window, and back; the choice stays while the window is open. */
+  const fullBtn = () => {
+    const on = el.classList.contains('full');
+    return h('button.btn.hr-back', { type: 'button', title: on ? 'برگشت به اندازه‌ی پنجره' : 'گفتگو در تمام صفحه‌ی مرورگر', onclick: () => { el.classList.toggle('full'); render(); } }, on ? '🗗 کوچک' : '⛶ تمام‌صفحه');
+  };
+
   const interviewPanel = (iv: Interview) => {
     const team = state.teams.find((t) => t.id === iv.team);
     const convo = paintChat(iv);
@@ -238,7 +244,7 @@ export function openHiring(floor: string, desk?: string) {
         iv.memoryFile ? h('details', {}, h('summary', {}, '🧠 memory.md (حافظه)'), h('pre', { dir: 'auto' }, iv.memoryFile)) : null)
       : null;
     return h('div.hr-card.interview', {},
-      h('div.sec-hh', {}, backBtn(), h('h3', {}, `🎤 مصاحبه با ${iv.name}`), h('span.mr-chip', {}, iv.role), iv.team && team ? h('span.mr-chip', {}, iv.isManager ? `مدیر تیم ${team.name}` : `تیم ${team.name}`) : h('span.mr-chip', {}, 'مستقل'), h('small', {}, `پوشه: freelance-team/people/${iv.slug}`)),
+      h('div.sec-hh', {}, backBtn(), fullBtn(), h('h3', {}, `🎤 مصاحبه با ${iv.name}`), h('span.mr-chip', {}, iv.role), iv.team && team ? h('span.mr-chip', {}, iv.isManager ? `مدیر تیم ${team.name}` : `تیم ${team.name}`) : h('span.mr-chip', {}, 'مستقل'), h('small', {}, `پوشه: freelance-team/people/${iv.slug}`)),
       convo.el,
       iv.team && !iv.isManager ? h('button.btn', { type: 'button', title: 'مدیر تیم گفتگو را می‌خواند و نظر واقع‌گرایانه‌اش را همین‌جا می‌نویسد', onclick: () => void call('askManager', { id: iv.id }) }, '🧭 نظر مدیر') : null,
       files,
@@ -260,7 +266,7 @@ export function openHiring(floor: string, desk?: string) {
         diffBox('🧠 memory.md', iv.before.memory, p.memory))
       : null;
     return h('div.hr-card.interview', {},
-      h('div.sec-hh', {}, backBtn(), h('h3', {}, `🔄 مصاحبه‌ی مجدد با ${iv.name}`), h('span.mr-chip', {}, iv.role.split(':')[0]), h('span.mr-chip', {}, iv.team && teamName ? (iv.isManager ? `مدیر تیم ${teamName}` : `تیم ${teamName}`) : 'مستقل')),
+      h('div.sec-hh', {}, backBtn(), fullBtn(), h('h3', {}, `🔄 مصاحبه‌ی مجدد با ${iv.name}`), h('span.mr-chip', {}, iv.role.split(':')[0]), h('span.mr-chip', {}, iv.team && teamName ? (iv.isManager ? `مدیر تیم ${teamName}` : `تیم ${teamName}`) : 'مستقل')),
       h('div.mg-empty', {}, 'ایجنت درباره‌ی کار خودش جواب می‌دهد: فلو، بایدها و نبایدها، تأییدها، دسترسی‌ها و اشتباه‌ها. می‌توانید سؤال یا اصلاح بفرستید. در پایان پیشنهاد تغییر می‌دهد؛ تا شما تأیید نکنید چیزی نوشته نمی‌شود.'),
       convo.el,
       iv.team && !iv.isManager ? h('button.btn', { type: 'button', title: 'مدیر تیم گفتگو را می‌خواند و نظرش را همین‌جا می‌نویسد', onclick: () => void call('askManager', { id: iv.id }) }, '🧭 نظر مدیر') : null,
@@ -375,6 +381,7 @@ export function openHiring(floor: string, desk?: string) {
     const iv = d ? interviewAt(d) : undefined;
     // An interview has the whole window: the map only takes room from what is being read.
     body.classList.toggle('talk', !!iv && !picking);
+    if (!iv || picking) el.classList.remove('full');
     drawMap();
     panel.replaceChildren(...(picking ? [chooserCard()]
       : iv ? [interviewPanel(iv), enginePanel(iv.worker, iv.name)]
