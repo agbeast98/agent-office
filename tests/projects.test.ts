@@ -104,6 +104,14 @@ test('the folder guard lets an agent work in its own folder, and asks the person
     assert.match(folderGate(floor, me, { tool_name: 'Bash', tool_input: { command: `echo x > ${path.join(t.back, 'b.txt')}` }, cwd: t.root }) ?? '', /./);
     assert.equal(folderGate(floor, me, { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: t.front }), undefined);
     assert.match(folderGate(floor, me, { tool_name: 'Bash', tool_input: { command: 'ls' }, cwd: t.other }) ?? '', /./);
+    // A document written elsewhere may cite a read-only project's file; writing into that project still may not.
+    const run = (command: string) => folderGate(floor, me, { tool_name: 'Bash', tool_input: { command }, cwd: t.root });
+    const cited = path.join(t.back, 'README.md');
+    assert.equal(run(`cat > notes.md <<'EOF'\nsource: ${cited}\nEOF`), undefined);
+    assert.equal(run(`@'\nsource: ${cited}\n'@ | Set-Content -Path notes.md`), undefined);
+    assert.equal(run(`Set-Content -Path notes.md -Value "line one\nsource: ${cited}"`), undefined);
+    assert.match(run(`cat > ${cited} <<'EOF'\nhello\nEOF`) ?? '', /./);
+    assert.match(run(`bash <<'EOF'\nrm ${cited}\nEOF`) ?? '', /./);
     // Secrets need the person's yes even in its own folder; the example file does not.
     assert.match(write(path.join(t.front, '.env')) ?? '', /رمز/);
     assert.equal(write(path.join(t.front, '.env.example')), undefined);

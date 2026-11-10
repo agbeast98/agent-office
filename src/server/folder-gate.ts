@@ -16,6 +16,12 @@ const PATCH = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
 const SHELL_PATH = /(?:[A-Za-z]:[\\/][^\s"'`|;&<>()]*)|(?:(?<![\w.:-])\/(?:[\w.@+-]+\/)*[\w.@+-]+)/g;
 /** A file of secrets: read or written only with the person's yes, even in a folder the agent was given. */
 const SECRET = /(^|[\\/])(\.env(\.[\w-]+)?|id_rsa|id_ed25519|[^\\/]*\.(pem|key|pfx|p12))$/i;
+/** The text a command writes out — a here-document, a here-string, a quoted block of lines — is not a path it works on. */
+const HEREDOC = /(<<-?\s*(['"]?)(\w+)\2[^\n]*\n)[\s\S]*?\n[ \t]*\3\b/g;
+const HERESTRING = /@(['"])\r?\n[\s\S]*?\r?\n\1@/g;
+const BLOCK = /"[^"\n]*\n[^"]*"|'[^'\n]*\n[^']*'/g;
+/** ...unless the command hands its text to something that runs it. */
+const RUNS_TEXT = /\b(?:bash|sh|zsh|pwsh|powershell|cmd|python3?|node|perl|ruby|php|iex|Invoke-Expression|eval|source)\b/i;
 const SAFE_ENV = /\.(example|sample|template|dist)$/i;
 
 type Need = 'read' | 'write';
@@ -34,9 +40,13 @@ function touches(payload: any): Touch[] {
     const raw = input.command ?? input.cmd ?? input.script ?? '';
     const command = Array.isArray(raw) ? raw.join(' ') : String(raw);
     const need: Need = WRITING.test(command.replace(/\\/g, '/')) ? 'write' : 'read';
-    const found = [...command.matchAll(SHELL_PATH)].map((m) => m[0]);
+    const paths = (text: string) => [...text.matchAll(SHELL_PATH)].map((m) => m[0]);
+    const found = paths(command);
+    // A path that is only named in the text being written is read at most: a document may cite a project's file.
+    const outer = command.replace(HEREDOC, '$1').replace(HERESTRING, '').replace(BLOCK, '');
+    const worked = new Set(RUNS_TEXT.test(outer) ? found : paths(outer));
     // A command run from inside a project's folder is about that folder, whatever paths it names.
-    return [...(cwd ? [cwd] : []), ...found].map((file) => ({ file: abs(file), need }));
+    return [...(cwd ? [{ file: abs(cwd), need }] : []), ...found.map((file) => ({ file: abs(file), need: worked.has(file) ? need : ('read' as Need) }))];
   }
   if (tool === 'apply_patch') {
     const patch = String(input.command ?? input.input ?? input.patch ?? (typeof payload?.tool_input === 'string' ? payload.tool_input : ''));
